@@ -1,0 +1,2114 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Book Notes</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root {
+            /* Default Dark Theme */
+            --bg: #0b0d12;
+            --panel: #111521;
+            --panel-2: #141a2a;
+            --muted: #7f8aa5;
+            --text: #e8ecf3;
+            --brand: #6ea8fe;
+            --accent: #a78bfa;
+            --danger: #ef4444;
+            --ok: #22c55e;
+            --ring: 0 0 0 3px rgba(110, 168, 254, .35);
+        }
+
+        /* Light Blue-Green Theme */
+        [data-theme="light-blue-green"] {
+            --bg: #f0f8ff;
+            --panel: #e6f3ff;
+            --panel-2: #d1ecf1;
+            --muted: #5a7c8a;
+            --text: #2c3e50;
+            --brand: #3498db;
+            --accent: #27ae60;
+            --danger: #e74c3c;
+            --ok: #27ae60;
+            --ring: 0 0 0 3px rgba(52, 152, 219, 0.35);
+        }
+
+        /* Light Mint Theme */
+        [data-theme="light-mint"] {
+            --bg: #f0fff4;
+            --panel: #e6fffa;
+            --panel-2: #d1f2eb;
+            --muted: #5a8a7c;
+            --text: #2c3e50;
+            --brand: #38a169;
+            --accent: #48bb78;
+            --danger: #e53e3e;
+            --ok: #38a169;
+            --ring: 0 0 0 3px rgba(56, 161, 105, 0.35);
+        }
+
+        /* Light Sky Theme */
+        [data-theme="light-sky"] {
+            --bg: #f0f9ff;
+            --panel: #e0f2fe;
+            --panel-2: #bae6fd;
+            --muted: #5a7c8a;
+            --text: #1e293b;
+            --brand: #0ea5e9;
+            --accent: #06b6d4;
+            --danger: #ef4444;
+            --ok: #10b981;
+            --ring: 0 0 0 3px rgba(14, 165, 233, 0.35);
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow-x: hidden; /* Prevent horizontal scroll on mobile */
+        }
+
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
+            background: var(--bg);
+            color: var(--text)
+        }
+
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            backdrop-filter: saturate(1.2) blur(8px);
+            background: linear-gradient(to bottom, rgba(17, 21, 33, .7), rgba(17, 21, 33, .2));
+            border-bottom: 1px solid var(--panel-2)
+        }
+
+        .bar {
+            max-width: 1200px;
+            margin: auto;
+            display: flex;
+            gap: .75rem;
+            align-items: center;
+            padding: .8rem 1rem
+        }
+
+        .title {
+            font-weight: 700;
+            letter-spacing: .2px
+        }
+
+        .grow {
+            flex: 1
+        }
+
+        .btn {
+            appearance: none;
+            border: 1px solid var(--panel-2);
+            background: var(--panel);
+            color: var(--text);
+            padding: .55rem .8rem;
+            border-radius: .7rem;
+            font-size: .9rem;
+            cursor: pointer
+        }
+
+        .btn:hover {
+            border-color: var(--brand)
+        }
+
+        .btn:focus {
+            outline: none;
+            box-shadow: var(--ring)
+        }
+
+        .btn.primary {
+            background: var(--brand);
+            border-color: var(--brand);
+            color: white
+        }
+
+        .btn.ghost {
+            background: transparent
+        }
+
+        .btn.danger {
+            border-color: var(--danger);
+            background: var(--danger);
+            color: white
+        }
+
+        .layout {
+            max-width: 1200px;
+            min-height: calc(100% - 100px);
+            margin: 1rem auto;
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 1rem;
+            padding: 0 1rem
+        }
+
+        aside {
+            background: var(--panel);
+            border: 1px solid var(--panel-2);
+            border-radius: 1rem;
+            padding: 1rem;
+            min-height: 420px
+        }
+
+        .aside-head {
+            display: flex;
+            flex-direction: column;
+            gap: .5rem;
+            margin-bottom: .5rem
+        }
+
+        .search-tabs {
+            display: flex;
+            gap: 0.2rem;
+            background: var(--panel-2);
+            border-radius: 0.5rem;
+            padding: 0.2rem;
+        }
+
+        .search-tab {
+            flex: 1;
+            padding: 0.4rem 0.6rem;
+            border: none;
+            background: transparent;
+            color: var(--muted);
+            font-size: 0.8rem;
+            border-radius: 0.3rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .search-tab.active {
+            background: var(--brand);
+            color: white;
+        }
+
+        .search-tab:hover:not(.active) {
+            background: var(--panel);
+            color: var(--text);
+        }
+
+        .result-count {
+            display: inline-block;
+            background: var(--brand);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 0.15rem 0.4rem;
+            border-radius: 0.8rem;
+            margin-left: 0.3rem;
+            min-width: 1.2rem;
+            text-align: center;
+            line-height: 1;
+        }
+
+        .result-count:empty {
+            display: none;
+        }
+
+        .desktop-actions {
+            display: flex;
+            gap: .25rem;
+        }
+
+        .search {
+            width: 100%;
+            background: var(--panel-2);
+            border: 1px solid var(--muted);
+            color: var(--text);
+            border-radius: .6rem;
+            padding: .6rem .7rem
+        }
+
+        .search:focus {
+            border-color: var(--brand);
+            outline: none;
+            box-shadow: var(--ring)
+        }
+
+        .book-list {
+            margin: .5rem 0;
+            display: flex;
+            flex-direction: column;
+            gap: .35rem;
+            max-height: 75vh;
+            overflow: auto;
+            padding-right: .25rem;
+            position: relative;
+        }
+
+        .book-list::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: 0.25rem;
+            width: 0.5rem;
+            height: 0.5rem;
+            background: var(--muted);
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .book-list.has-overflow::after {
+            opacity: 0.6;
+        }
+
+        .book {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .5rem;
+            padding: .55rem .6rem;
+            border-radius: .6rem;
+            cursor: pointer;
+            border: 1px solid transparent
+        }
+
+        .book:hover {
+            background: var(--panel-2)
+        }
+
+        .book.active {
+            background: var(--brand);
+            border-color: var(--brand);
+            color: white
+        }
+
+        .book .meta {
+            display: flex;
+            flex-direction: column
+        }
+
+        .book .name {
+            font-weight: 600;
+            font-size: .95rem
+        }
+
+        .book .author {
+            color: var(--muted);
+            font-size: .8rem;
+            font-style: italic;
+            margin-top: -0.1rem;
+        }
+
+        .book .count {
+            color: var(--muted);
+            font-size: .8rem;
+            margin-top: 0.2rem;
+        }
+
+        main {
+            background: var(--panel);
+            border: 1px solid var(--panel-2);
+            border-radius: 1rem;
+            padding: 1rem
+        }
+
+        .toolbar {
+            display: flex;
+            gap: .6rem;
+            align-items: center;
+            flex-wrap: wrap
+        }
+
+        .toolbar .info {
+            color: var(--muted);
+            margin-left: auto;
+            font-size: .85rem
+        }
+
+        .grid {
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: 1fr
+        }
+
+        .card {
+            background: var(--panel-2);
+            border: 1px solid var(--panel-2);
+            border-radius: 1rem;
+            padding: 1rem;
+        }
+
+        .card h3 {
+            margin: .2rem 0 .8rem;
+            font-size: 1rem
+        }
+
+        form#entry-form {
+            display: grid;
+            grid-template-rows: auto auto;
+            gap: 0.3rem;
+        }
+
+        .form-headers {
+            display: grid;
+            gap: .6rem;
+            grid-template-columns: 75px 1fr 1fr auto;
+        }
+
+        .form-inputs {
+            display: grid;
+            gap: .6rem;
+            grid-template-columns: 75px 1fr 1fr auto;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .input-group label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-header {
+            color: var(--muted);
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        form#entry-form input,
+        form#entry-form textarea,
+        select {
+            width: 100%;
+            background: var(--panel-2);
+            border: 1px solid var(--muted);
+            color: var(--text);
+            border-radius: .6rem;
+            padding: .55rem .6rem;
+            font-size: .95rem
+        }
+
+        form#entry-form input:focus,
+        form#entry-form textarea:focus,
+        select:focus {
+            border-color: var(--brand);
+            outline: none;
+            box-shadow: var(--ring)
+        }
+
+        textarea {
+            min-height: 42px;
+            resize: vertical
+        }
+
+        table {
+            width: 100%;
+            max-width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: .95rem;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            background: var(--panel);
+            z-index: 1
+        }
+
+        th,
+        td {
+            padding: .6rem .7rem;
+            text-align: left;
+            vertical-align: top;
+            border-bottom: 1px solid var(--panel-2)
+        }
+
+        tbody tr {
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        tbody tr:hover {
+            background: var(--panel-2)
+        }
+
+        .muted {
+            color: var(--muted)
+        }
+
+        .table-actions {
+            display: flex;
+            gap: .4rem
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            font-size: .8rem;
+            padding: .2rem .5rem;
+            border-radius: .6rem;
+            background: var(--panel-2);
+            border: 1px solid var(--brand);
+            color: var(--brand)
+        }
+
+        .row-actions button {
+            font-size: .8rem;
+            padding: .25rem .45rem;
+            border-radius: .45rem
+        }
+
+        .empty {
+            padding: 1rem;
+            color: var(--muted)
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem 2rem;
+            text-align: center;
+            border: 2px dashed var(--muted);
+            border-radius: 1rem;
+            background: var(--panel-2);
+            margin: 2rem 0;
+            min-height: 200px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .empty-state:hover {
+            border-color: var(--brand);
+            background: var(--panel);
+        }
+
+        .empty-state .plus-icon {
+            font-size: 3rem;
+            color: var(--brand);
+            margin-bottom: 1rem;
+        }
+
+        .empty-state .add-text {
+            color: var(--text);
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+
+        /* Modal */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .3);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000
+        }
+
+        .modal {
+            width: min(560px, 92vw);
+            background: var(--panel);
+            border: 1px solid var(--panel-2);
+            border-radius: 1rem;
+            padding: 1rem;
+            z-index: 1001
+        }
+
+        .modal h3 {
+            margin: .2rem 0 1rem
+        }
+
+        .modal-row {
+            display: grid;
+            gap: .6rem;
+            grid-template-columns: 1fr
+        }
+
+        .modal-row input {
+            background: var(--panel-2);
+            border: 1px solid var(--muted);
+            color: var(--text);
+            border-radius: .6rem;
+            padding: .6rem
+        }
+
+        .modal-row input:focus {
+            border-color: var(--brand);
+            outline: none;
+            box-shadow: var(--ring)
+        }
+
+        .modal-actions {
+            margin-top: 1rem;
+            display: flex;
+            gap: .5rem;
+            justify-content: flex-end
+        }
+
+        .entry-list {
+            margin: .5rem 0;
+            display: flex;
+            flex-direction: column;
+            gap: .35rem;
+            max-height: 75vh;
+            overflow: auto;
+            padding-right: .25rem;
+        }
+
+        .entry-item {
+            background: var(--panel);
+            border: 2px solid var(--panel-2);
+            border-radius: 0.8rem;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 0.5rem;
+        }
+
+        .entry-item:hover {
+            border-color: var(--brand);
+            background: var(--panel-2);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            transform: translateY(-1px);
+        }
+
+        .entry-item:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .entry-item .entry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.8rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--panel-2);
+        }
+
+        .entry-item .book-title {
+            font-weight: 700;
+            color: var(--brand);
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .entry-item .page-number {
+            color: var(--text);
+            font-size: 0.85rem;
+            background: var(--brand);
+            color: white;
+            padding: 0.3rem 0.6rem;
+            border-radius: 0.4rem;
+            font-weight: 600;
+        }
+
+        .entry-item .entry-content {
+            margin-bottom: 0.5rem;
+        }
+
+        .entry-item .note-content,
+        .entry-item .quote-content {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+            background: var(--panel-2);
+            padding: 0.6rem;
+            border-radius: 0.4rem;
+            border-left: 3px solid var(--brand);
+        }
+
+        .entry-item .note-content:empty,
+        .entry-item .quote-content:empty {
+            display: none;
+        }
+
+        .entry-item .note-label,
+        .entry-item .quote-label {
+            font-size: 0.8rem;
+            color: var(--brand);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 0.3rem;
+            font-weight: 600;
+        }
+
+        /* Mobile */
+        @media (max-width: 900px) {
+            .layout {
+                grid-template-columns: 1fr;
+                margin-top: 80px; /* Add margin for fixed header */
+            }
+
+            aside {
+                display: none
+            }
+
+            main {
+                order: 1
+            }
+
+            .desktop-actions {
+                display: none
+            }
+
+            .mobile-menu-btn {
+                display: block
+            }
+
+            header {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                width: 100%;
+                z-index: 1000;
+            }
+
+            .bar {
+                max-width: none;
+                margin: 0;
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            .mobile-menu {
+                position: fixed;
+                top: 60px; /* Adjust based on header height */
+                left: 0;
+                right: 0;
+                width: 100%;
+                background: var(--panel);
+                border: 1px solid var(--panel-2);
+                border-top: none;
+                border-radius: 0 0 1rem 1rem;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                z-index: 999;
+                display: none;
+                max-height: calc(100vh - 60px);
+                overflow-y: auto;
+                box-sizing: border-box;
+            }
+
+            .mobile-menu.active {
+                display: block
+            }
+
+            .mobile-menu-content {
+                padding: 1rem;
+            }
+
+            .mobile-section {
+                margin-bottom: 1.5rem;
+            }
+
+            .mobile-section:last-child {
+                margin-bottom: 0;
+            }
+
+            .mobile-section h4 {
+                margin: 0 0 0.8rem;
+                color: var(--text);
+                font-size: 0.9rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .mobile-book-list {
+                max-height: 40vh;
+                overflow-y: auto;
+                margin-top: 0.5rem;
+            }
+
+            .mobile-book-list .book {
+                margin-bottom: 0.3rem;
+            }
+
+            .mobile-entry-list {
+                margin-top: 0.5rem;
+                max-height: 30vh;
+                overflow-y: auto;
+            }
+
+            .mobile-entry-list .entry-item {
+                margin-bottom: 0.3rem;
+                padding: 0.6rem;
+            }
+
+
+        }
+
+        @media (min-width: 901px) {
+            .mobile-menu-btn {
+                display: none
+            }
+
+            .mobile-menu {
+                display: none !important
+            }
+        }
+
+        @media (max-width: 680px) {
+            header {
+                position: fixed;
+                width: 100vw;
+                left: 0;
+                right: 0;
+            }
+
+            .bar {
+                width: 100vw;
+                max-width: none;
+                margin: 0;
+                padding: 0.8rem 1rem;
+                box-sizing: border-box;
+            }
+
+            .mobile-menu {
+                width: 100vw;
+                left: 0;
+                right: 0;
+                max-width: none;
+            }
+
+            form#entry-form {
+                grid-template-rows: auto auto;
+                gap: 0.8rem;
+            }
+
+            .form-headers {
+                grid-template-columns: 1fr;
+                gap: 0.8rem;
+            }
+
+            .form-inputs {
+                grid-template-columns: 1fr;
+                gap: 0.8rem;
+            }
+
+            .input-group {
+                gap: 0.4rem;
+            }
+
+            .input-group label {
+                font-size: 0.75rem;
+            }
+
+            form#entry-form input,
+            form#entry-form textarea,
+            form#entry-form button {
+                width: 100%;
+                font-size: 0.9rem;
+            }
+
+            #page {
+                max-width: 120px;
+                width: 100%;
+            }
+
+            .page-column {
+                /* width: 100px !important; */
+                width: 15%;
+            }
+            .note-column{
+                width: 42.5%;
+            }
+             .quote-column{
+                width: 42.5%;
+             }
+
+            #entriesTable th,
+            #entriesTable td {
+                font-size: 0.85rem;
+                padding: 0.5rem 0.4rem;
+            }
+
+            /* Fix table overflow on mobile */
+            #entriesTable {
+                width: 100%;
+                max-width: 100%;
+                table-layout: fixed;
+                box-sizing: border-box;
+            }
+
+            #entriesTable th,
+            #entriesTable td {
+                font-size: 0.85rem;
+                padding: 0.5rem 0.4rem;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+                max-width: 0; /* Force text wrapping */
+            }
+
+            /* Ensure table container respects padding */
+            .card {
+                padding: 0.8rem;
+                box-sizing: border-box;
+                overflow-x: hidden;
+            }
+
+            /* Fix table wrapper overflow */
+            .card > div[style*="overflow:auto"] {
+                max-width: 100%;
+                box-sizing: border-box;
+                overflow-x: auto;
+                overflow-y: auto;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="bar">
+            <div class="title">📚 Book Notes</div>
+            <div class="grow"></div>
+
+            <!-- Desktop buttons -->
+            <div class="desktop-actions">
+                <button class="btn" id="themeBtn" title="Change color theme">🎨</button>
+                <button class="btn" id="exportBtn" title="Export all books as JSON">Export</button>
+                <label class="btn" for="importFile" title="Import books JSON or CSV entries">
+                    <input id="importFile" type="file" accept=".json,.csv,application/json,text/csv" hidden>
+                    Import
+                </label>
+                <button class="btn primary" id="newBookBtn">New Book</button>
+            </div>
+
+            <!-- Mobile hamburger menu -->
+            <button class="btn mobile-menu-btn" id="mobileMenuBtn" title="Menu">☰</button>
+        </div>
+
+        <!-- Mobile dropdown menu -->
+        <div class="mobile-menu" id="mobileMenu">
+            <div class="mobile-menu-content">
+                <!-- Book search and list -->
+                <div class="mobile-section">
+                    <h4>Search</h4>
+                    <input id="mobileBookSearch" class="search" type="search" placeholder="Search books and entries" />
+                    <div class="search-tabs">
+                        <button class="search-tab active" data-tab="mobile-books">Books <span class="result-count"
+                                id="mobileBooksResultCount"></span></button>
+                        <button class="search-tab" data-tab="mobile-entries">Entries <span class="result-count"
+                                id="mobileEntriesResultCount"></span></button>
+                    </div>
+                    <div id="mobileBookList" class="mobile-book-list"></div>
+                    <div id="mobileEntryList" class="mobile-entry-list" style="display: none;"></div>
+                </div>
+
+                <!-- Actions -->
+                <div class="mobile-section">
+                    <h4>Actions</h4>
+                    <button class="btn" id="mobileThemeBtn">🎨 Change Theme</button>
+                    <button class="btn" id="mobileExportBtn">Export</button>
+                    <label class="btn" for="mobileImportFile" title="Import books JSON or CSV entries">
+                        <input id="mobileImportFile" type="file" accept=".json,.csv,application/json,text/csv" hidden>
+                        Import
+                    </label>
+                    <button class="btn primary" id="mobileNewBookBtn">New Book</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="layout">
+        <aside>
+            <div class="aside-head">
+                <input id="bookSearch" class="search" type="search" placeholder="Search books and entries" />
+                <div class="search-tabs">
+                    <button class="search-tab active" data-tab="books">Books <span class="result-count"
+                            id="booksResultCount"></span></button>
+                    <button class="search-tab" data-tab="entries">Entries <span class="result-count"
+                            id="entriesResultCount"></span></button>
+                </div>
+            </div>
+            <div id="bookList" class="book-list" aria-live="polite"></div>
+            <div id="entryList" class="entry-list" aria-live="polite" style="display: none;"></div>
+        </aside>
+
+        <main>
+            <div id="mainContent">
+                <!-- Content when books exist -->
+                <div id="bookContent" style="display:none">
+                    <div class="toolbar">
+                        <div id="currentBookLabel" class="chip">No book selected</div>
+                        <div class="info" id="stats"></div>
+                        <div id="deleteBookBtn" style="cursor:pointer; opacity:0.7; margin-left:8px;"
+                            title="Delete current book" onclick="deleteCurrentBook()">🗑️</div>
+                    </div>
+
+                    <div class="grid">
+                        <section class="card">
+                            <form id="entry-form" autocomplete="off">
+                                <div class="form-headers">
+                                    <!-- <div class="form-header">Page #</div>
+                                    <div class="form-header">Note</div>
+                                    <div class="form-header">Quote</div> -->
+                                    <div class="form-header"></div>
+                                </div>
+                                <div class="form-inputs">
+                                    <div class="input-group">
+                                        <label for="page">Page</label>
+                                        <input id="page" type="number" min="0" inputmode="numeric" aria-label="Page" />
+                                    </div>
+                                    <div class="input-group">
+                                        <label for="note">Note</label>
+                                        <textarea id="note" aria-label="Note"></textarea>
+                                    </div>
+                                    <div class="input-group">
+                                        <label for="quote">Quote</label>
+                                        <textarea id="quote" aria-label="Quote"></textarea>
+                                    </div>
+                                    <button class="btn primary" id="addEntryBtn" type="submit">Add</button>
+                                </div>
+                            </form>
+                        </section>
+
+                        <section class="card">
+                            <h3>Entries</h3>
+
+                            <div
+                                style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:.6rem">
+                                <input id="entrySearch" class="search" type="search" placeholder="Filter entries"
+                                    style="max-width:360px">
+                            </div>
+
+                            <div style="overflow:auto; max-height:60vh; border-radius:.6rem; max-width:100%; box-sizing:border-box;">
+                                <table id="entriesTable" aria-label="Entries table">
+                                    <thead>
+                                        <tr>
+                                            <th class="page-column">Page</th>
+                                            <th class="note-column">Note</th>
+                                            <th class="quote-column">Quote</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="entriesBody">
+                                        <tr>
+                                            <td colspan="3" class="empty">Select or create a book to begin.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <!-- Empty state when no books exist -->
+                <div id="emptyState" class="empty-state" onclick="openNewBookModal()">
+                    <div class="plus-icon">+</div>
+                    <div class="add-text">Add a book</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- New Book Modal -->
+    <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal">
+            <h3 id="modalTitle">Add a new book</h3>
+            <div class="modal-row">
+                <input id="bookTitle" placeholder="Title" />
+                <input id="bookAuthor" placeholder="Author (optional)" />
+            </div>
+            <div class="modal-actions">
+                <button class="btn" id="cancelModal">Cancel</button>
+                <button class="btn primary" id="saveBook">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Entry Actions Modal -->
+    <div class="modal-backdrop" id="entryModalBackdrop" role="dialog" aria-modal="true"
+        aria-labelledby="entryModalTitle">
+        <div class="modal">
+            <h3 id="entryModalTitle">Entry Actions</h3>
+            <div class="modal-row">
+                <div style="display: grid; gap: 0.5rem;">
+                    <div><strong>Page:</strong> <span id="entryModalPage"></span></div>
+                    <div><strong>Note:</strong> <span id="entryModalNote"></span></div>
+                    <div><strong>Quote:</strong> <span id="entryModalQuote"></span></div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn danger" id="entryDeleteBtn">Delete</button>
+                <button class="btn" id="entryCancelBtn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data layer
+        const STORAGE_KEY = 'bookNotes.v1';
+        /** @type {{books: Array<{id:string, title:string, author?:string, entries: Array<{id:string, page?:number, note?:string, quote?:string, createdAt:number}>}>, activeBookId?:string}} */
+        let state = { books: [], activeBookId: undefined };
+
+        function load() {
+            try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) { state = JSON.parse(raw) } }
+            catch (e) { console.warn('Failed to load state', e) }
+            if (!state.books) state.books = [];
+            save();
+        }
+        function save() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+        function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4) }
+
+        // UI helpers
+        const el = id => document.getElementById(id);
+        const bookList = el('bookList');
+        const currentBookLabel = el('currentBookLabel');
+        const entriesBody = el('entriesBody');
+        const stats = el('stats');
+
+        function renderBooks(filter = '') {
+            bookList.innerHTML = '';
+            const f = filter.trim().toLowerCase();
+            const books = state.books.filter(b => !f || b.title.toLowerCase().includes(f) || (b.author || '').toLowerCase().includes(f));
+            if (books.length === 0) {
+                const div = document.createElement('div');
+                div.className = 'empty';
+                div.textContent = 'No books. Click “New Book” to add one.';
+                bookList.append(div);
+                return;
+            }
+            books.forEach(b => {
+                const item = document.createElement('div');
+                item.className = 'book' + (b.id === state.activeBookId ? ' active' : '');
+                item.dataset.id = b.id;
+                const meta = document.createElement('div'); meta.className = 'meta';
+                const name = document.createElement('div'); name.className = 'name'; name.textContent = b.title; meta.append(name);
+                if (b.author) {
+                    const author = document.createElement('div'); author.className = 'author'; author.textContent = b.author; meta.append(author);
+                }
+                const count = document.createElement('div'); count.className = 'count'; count.textContent = `${b.entries.length} entries`;
+                meta.append(count);
+                item.append(meta);
+                item.addEventListener('click', () => { state.activeBookId = b.id; save(); renderAll() });
+                bookList.append(item);
+            })
+
+            // Check for overflow after rendering
+            setTimeout(checkBookListOverflow, 0);
+
+            // Update books result count
+            const booksResultCount = el('booksResultCount');
+            const mobileBooksResultCount = el('mobileBooksResultCount');
+            if (f && books.length > 0) {
+                booksResultCount.textContent = books.length;
+                if (mobileBooksResultCount) mobileBooksResultCount.textContent = books.length;
+            } else {
+                // Clear counts when no filter OR no results found
+                booksResultCount.textContent = '';
+                if (mobileBooksResultCount) mobileBooksResultCount.textContent = '';
+            }
+        }
+
+        function activeBook() { return state.books.find(b => b.id === state.activeBookId) }
+
+        function checkBookListOverflow() {
+            const bookList = el('bookList');
+            if (bookList.scrollHeight > bookList.clientHeight) {
+                bookList.classList.add('has-overflow');
+            } else {
+                bookList.classList.remove('has-overflow');
+            }
+        }
+
+        function renderEntries() {
+            const book = activeBook();
+            entriesBody.innerHTML = '';
+            if (!book) { entriesBody.innerHTML = '<tr><td colspan="3" class="empty">Select or create a book to begin.</td></tr>'; currentBookLabel.textContent = 'No book selected'; stats.textContent = ''; return }
+            currentBookLabel.textContent = `${book.title}` + (book.author ? ` — ${book.author}` : '');
+
+            let rows = [...book.entries];
+
+            // Display entries in their original order (as they were added)
+            // This preserves the chronological order and handles entries without page numbers
+
+            const q = el('entrySearch').value.trim().toLowerCase();
+            if (q) { rows = rows.filter(r => ('' + (r.page ?? '')).includes(q) || (r.note || '').toLowerCase().includes(q) || (r.quote || '').toLowerCase().includes(q)) }
+
+            if (rows.length === 0) { entriesBody.innerHTML = '<tr><td colspan="3" class="empty">No entries yet.</td></tr>'; stats.textContent = ''; return }
+
+            const frag = document.createDocumentFragment();
+            rows.forEach(r => {
+                const tr = document.createElement('tr');
+                const tdPage = document.createElement('td');
+                const tdNote = document.createElement('td');
+                const tdQuote = document.createElement('td');
+
+                tdPage.textContent = r.page ?? '';
+                tdNote.textContent = r.note || '';
+                tdQuote.textContent = r.quote || '';
+
+                // Make editable on double click
+                [tdPage, tdNote, tdQuote].forEach((cell, idx) => {
+                    cell.addEventListener('dblclick', () => makeEditable(cell, r, ['page', 'note', 'quote'][idx]))
+                })
+
+                // Make the entire row clickable to open entry modal
+                tr.style.cursor = 'pointer';
+                tr.addEventListener('click', () => openEntryModal(r, book.id));
+
+                tr.append(tdPage, tdNote, tdQuote);
+                frag.append(tr);
+            })
+            entriesBody.append(frag);
+
+            const total = book.entries.length;
+            stats.textContent = `${total} total` + (q ? `, ${rows.length} shown` : '');
+        }
+
+        function clearAllResultCounts() {
+            // Clear all result count bubbles
+            const booksResultCount = el('booksResultCount');
+            const entriesResultCount = el('entriesResultCount');
+            const mobileBooksResultCount = el('mobileBooksResultCount');
+            const mobileEntriesResultCount = el('mobileEntriesResultCount');
+            
+            if (booksResultCount) booksResultCount.textContent = '';
+            if (entriesResultCount) entriesResultCount.textContent = '';
+            if (mobileBooksResultCount) mobileBooksResultCount.textContent = '';
+            if (mobileEntriesResultCount) mobileEntriesResultCount.textContent = '';
+        }
+
+        function renderAll() {
+            renderBooks(el('bookSearch').value);
+            renderEntries();
+            updateMainContent();
+        }
+
+        function updateMainContent() {
+            const bookContent = el('bookContent');
+            const emptyState = el('emptyState');
+
+            if (state.books.length === 0) {
+                bookContent.style.display = 'none';
+                emptyState.style.display = 'flex';
+            } else {
+                bookContent.style.display = 'block';
+                emptyState.style.display = 'none';
+            }
+        }
+
+        function openNewBookModal() {
+            modal.open();
+        }
+
+        function confirmDeleteBook(id) {
+            const book = state.books.find(b => b.id === id);
+            if (!book) return;
+            if (confirm(`Delete “${book.title}” and its ${book.entries.length} entr${book.entries.length === 1 ? 'y' : 'ies'}?`)) {
+                state.books = state.books.filter(b => b.id !== id);
+                if (state.activeBookId === id) state.activeBookId = state.books[0]?.id;
+                save(); renderAll();
+            }
+        }
+
+        function deleteCurrentBook() {
+            if (!state.activeBookId) return;
+            confirmDeleteBook(state.activeBookId);
+        }
+
+        // Editing helpers
+        function makeEditable(cell, entry, key) {
+            const prev = cell.textContent;
+            const input = document.createElement(key === 'page' ? 'input' : 'textarea');
+            input.value = prev;
+            input.style.width = '100%';
+            input.style.background = '#0f1422';
+            input.style.border = '1px solid #1f263a';
+            input.style.color = 'var(--text)';
+            input.style.borderRadius = '.45rem';
+            input.style.padding = '.4rem .5rem';
+            cell.innerHTML = '';
+            cell.append(input);
+            input.focus();
+            input.addEventListener('blur', () => {
+                const v = input.value.trim();
+                if (key === 'page') entry.page = v === '' ? undefined : Number(v);
+                if (key === 'note') entry.note = v || undefined;
+                if (key === 'quote') entry.quote = v || undefined;
+                save(); renderEntries();
+            });
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter' && key !== 'note' && key !== 'quote') { input.blur() }
+                if (e.key === 'Escape') { cell.textContent = prev }
+            })
+        }
+
+        function startRowEdit(tr, r) {
+            const cells = tr.querySelectorAll('td');
+            makeEditable(cells[0], r, 'page');
+            makeEditable(cells[1], r, 'note');
+            makeEditable(cells[2], r, 'quote');
+        }
+
+        // CRUD
+        function addBook(title, author) {
+            const book = { id: uid(), title: title.trim(), author: author?.trim() || undefined, entries: [] };
+            state.books.push(book); state.activeBookId = book.id; save(); renderAll();
+        }
+
+        function addEntry(data) {
+            const book = activeBook(); if (!book) { alert('Create or select a book first'); return }
+            const clean = {
+                id: uid(),
+                page: data.page !== '' && !Number.isNaN(Number(data.page)) ? Number(data.page) : undefined,
+                note: data.note?.trim() || undefined,
+                quote: data.quote?.trim() || undefined,
+                createdAt: Date.now()
+            };
+            if (clean.page === undefined && !clean.note && !clean.quote) { return }
+            book.entries.push(clean); save(); renderEntries();
+        }
+
+        function deleteEntry(bookId, entryId) {
+            const book = state.books.find(b => b.id === bookId); if (!book) return;
+            book.entries = book.entries.filter(e => e.id !== entryId); save(); renderEntries();
+        }
+
+        function copyEntry(r) {
+            const text = [r.page ? `p.${r.page}` : '', r.note || '', r.quote ? `“${r.quote}”` : ''].filter(Boolean).join(' — ');
+            navigator.clipboard.writeText(text).then(() => {
+                toast('Copied to clipboard')
+            }).catch(() => { })
+        }
+
+
+
+        // Modal
+        const modal = {
+            open() { el('modalBackdrop').style.display = 'flex'; setTimeout(() => el('bookTitle').focus(), 0) },
+            close() { el('modalBackdrop').style.display = 'none'; el('bookTitle').value = ''; el('bookAuthor').value = '' }
+        };
+
+        // Entry Modal
+        const entryModal = {
+            open(entry, bookId) {
+                el('entryModalPage').textContent = entry.page || 'N/A';
+                el('entryModalNote').textContent = entry.note || 'N/A';
+                el('entryModalQuote').textContent = entry.quote || 'N/A';
+                el('entryModalBackdrop').style.display = 'flex';
+
+                // Store current entry and bookId for actions
+                entryModal.currentEntry = entry;
+                entryModal.currentBookId = bookId;
+            },
+            close() {
+                el('entryModalBackdrop').style.display = 'none';
+                entryModal.currentEntry = null;
+                entryModal.currentBookId = null;
+            }
+        };
+
+        function openEntryModal(entry, bookId) {
+            entryModal.open(entry, bookId);
+        }
+
+        // Toast
+        let toastTimer;
+        function toast(msg) {
+            let t = document.getElementById('toast');
+            if (!t) { t = document.createElement('div'); t.id = 'toast'; t.style.position = 'fixed'; t.style.bottom = '16px'; t.style.left = '50%'; t.style.transform = 'translateX(-50%)'; t.style.background = '#0f1422'; t.style.border = '1px solid #31406b'; t.style.padding = '.6rem .8rem'; t.style.borderRadius = '.6rem'; t.style.boxShadow = '0 10px 30px rgba(0,0,0,.35)'; document.body.append(t) }
+            t.textContent = msg; t.style.opacity = '1'; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.opacity = '0', 1400)
+        }
+
+        // Theme switching
+        const themes = ['default', 'light-blue-green', 'light-mint', 'light-sky'];
+        let currentThemeIndex = 0;
+
+        function switchTheme() {
+            currentThemeIndex = (currentThemeIndex + 1) % themes.length;
+            const theme = themes[currentThemeIndex];
+
+            if (theme === 'default') {
+                document.documentElement.removeAttribute('data-theme');
+            } else {
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+
+            // Update theme button text to show current theme
+            const themeBtn = el('themeBtn');
+            const themeIcons = ['🎨', '🔵', '🟢', '💙'];
+            themeBtn.textContent = themeIcons[currentThemeIndex];
+
+            // Save theme preference
+            localStorage.setItem('bookNotesTheme', theme);
+        }
+
+        // Load saved theme
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('bookNotesTheme');
+            if (savedTheme && savedTheme !== 'default') {
+                const themeIndex = themes.indexOf(savedTheme);
+                if (themeIndex > 0) {
+                    currentThemeIndex = themeIndex;
+                    document.documentElement.setAttribute('data-theme', savedTheme);
+                    const themeBtn = el('themeBtn');
+                    const themeIcons = ['🎨', '🔵', '🟢', '💙'];
+                    themeBtn.textContent = themeIcons[currentThemeIndex];
+                }
+            }
+        }
+
+        // Mobile menu functionality
+        function toggleMobileMenu() {
+            const mobileMenu = el('mobileMenu');
+            mobileMenu.classList.toggle('active');
+
+            if (mobileMenu.classList.contains('active')) {
+                // Populate mobile book list when menu opens
+                renderMobileBooks();
+            }
+        }
+
+        function renderMobileBooks() {
+            const mobileBookList = el('mobileBookList');
+            const mobileEntryList = el('mobileEntryList');
+
+            // Initialize both lists
+            mobileBookList.innerHTML = '';
+            mobileEntryList.innerHTML = '<div class="empty">Enter a search term to find entries</div>';
+
+            if (state.books.length === 0) {
+                const div = document.createElement('div');
+                div.className = 'empty';
+                div.textContent = 'No books yet';
+                mobileBookList.append(div);
+                return;
+            }
+
+            state.books.forEach(b => {
+                const item = document.createElement('div');
+                item.className = 'book' + (b.id === state.activeBookId ? ' active' : '');
+                item.dataset.id = b.id;
+
+                const meta = document.createElement('div');
+                meta.className = 'meta';
+
+                const name = document.createElement('div');
+                name.className = 'name';
+                name.textContent = b.title;
+                meta.append(name);
+
+                if (b.author) {
+                    const author = document.createElement('div');
+                    author.className = 'author';
+                    author.textContent = b.author;
+                    meta.append(author);
+                }
+
+                const count = document.createElement('div');
+                count.className = 'count';
+                count.textContent = `${b.entries.length} entries`;
+                meta.append(count);
+
+                item.append(meta);
+                item.addEventListener('click', () => {
+                    state.activeBookId = b.id;
+                    save();
+                    renderAll();
+                    toggleMobileMenu(); // Close menu after selection
+                });
+
+                mobileBookList.append(item);
+            });
+        }
+
+        // Event bindings
+        el('mobileMenuBtn').addEventListener('click', toggleMobileMenu);
+        el('themeBtn').addEventListener('click', switchTheme);
+        el('newBookBtn').addEventListener('click', () => modal.open());
+
+        // Mobile action button event listeners
+        el('mobileThemeBtn').addEventListener('click', () => {
+            switchTheme();
+            toggleMobileMenu(); // Close menu after action
+        });
+        el('mobileExportBtn').addEventListener('click', () => {
+            // Trigger export
+            const data = JSON.stringify(state, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'book-notes.json'; a.click(); URL.revokeObjectURL(url);
+            toggleMobileMenu(); // Close menu after action
+        });
+        el('mobileNewBookBtn').addEventListener('click', () => {
+            modal.open();
+            toggleMobileMenu(); // Close menu after action
+        });
+
+        // Mobile import functionality
+        el('mobileImportFile').addEventListener('change', (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    // Check if it's a CSV file
+                    if (file.name.toLowerCase().endsWith('.csv')) {
+                        importCSV(String(reader.result));
+                        toggleMobileMenu(); // Close menu after action
+                    } else {
+                        // Try JSON import
+                        const data = JSON.parse(String(reader.result));
+                        if (!data || !Array.isArray(data.books)) throw new Error('Invalid file');
+                        state = data;
+                        save();
+                        renderAll();
+                        toast('Imported');
+                        toggleMobileMenu(); // Close menu after action
+                    }
+                } catch (err) {
+                    alert('Could not import. Make sure this is a valid export file.');
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        });
+
+        // Mobile search now handled by performMobileSearch function
+
+        // Mobile tab switching
+        let currentMobileTab = 'mobile-books';
+
+        function switchMobileTab(tab) {
+            currentMobileTab = tab;
+            
+            // Update mobile tab buttons
+            document.querySelectorAll('[data-tab^="mobile-"]').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tab);
+            });
+            
+            // Show/hide appropriate mobile lists
+            const mobileBookList = el('mobileBookList');
+            const mobileEntryList = el('mobileEntryList');
+            
+            if (tab === 'mobile-books') {
+                mobileBookList.style.display = 'block';
+                mobileEntryList.style.display = 'none';
+            } else {
+                mobileBookList.style.display = 'none';
+                mobileEntryList.style.display = 'block';
+            }
+            
+            // Re-run mobile search with current query
+            const searchQuery = el('mobileBookSearch').value;
+            if (searchQuery.trim()) {
+                performMobileSearch(searchQuery);
+            } else {
+                // Clear counts when switching tabs with no search
+                clearAllResultCounts();
+                // Reset displays to default state
+                if (tab === 'mobile-books') {
+                    renderMobileBooks(); // Show all books
+                } else {
+                    const mobileEntryList = el('mobileEntryList');
+                    if (mobileEntryList) {
+                        mobileEntryList.innerHTML = '<div class="empty">Enter a search term to find entries</div>';
+                    }
+                }
+            }
+        }
+
+        function performMobileSearch(query) {
+            // Clear counts first to ensure clean state
+            clearAllResultCounts();
+            
+            // Always calculate both book and entry results to show counts
+            const bookResults = calculateBookResults(query);
+            const entryResults = calculateEntryResults(query);
+            
+            // Update mobile result counts for both tabs
+            updateMobileResultCounts(bookResults, entryResults);
+            
+            if (currentMobileTab === 'mobile-books') {
+                // Filter mobile book list
+                const filter = query.trim().toLowerCase();
+                const mobileBookList = el('mobileBookList');
+                const books = mobileBookList.querySelectorAll('.book');
+
+                let visibleCount = 0;
+                books.forEach(book => {
+                    const title = book.querySelector('.name').textContent.toLowerCase();
+                    const author = book.querySelector('.author')?.textContent.toLowerCase() || '';
+                    const matches = title.includes(filter) || author.includes(filter);
+                    book.style.display = matches ? 'flex' : 'none';
+                    if (matches) visibleCount++;
+                });
+            } else {
+                // Render mobile entry search
+                renderMobileEntrySearch(query);
+            }
+        }
+
+        function renderMobileEntrySearch(query) {
+            const mobileEntryList = el('mobileEntryList');
+            mobileEntryList.innerHTML = '';
+
+            if (!query.trim()) {
+                mobileEntryList.innerHTML = '<div class="empty">Enter a search term to find entries</div>';
+                return;
+            }
+
+            // Use the pre-calculated results from calculateEntryResults
+            const entryResults = calculateEntryResults(query);
+            const results = entryResults.results;
+
+            if (results.length === 0) {
+                mobileEntryList.innerHTML = '<div class="empty">No entries found</div>';
+                return;
+            }
+
+            results.forEach(({ book, entry }) => {
+                const entryItem = document.createElement('div');
+                entryItem.className = 'entry-item';
+                entryItem.addEventListener('click', () => {
+                    // Select the book and close mobile menu
+                    state.activeBookId = book.id;
+                    save();
+                    renderAll();
+                    toggleMobileMenu();
+
+                    // Scroll to the specific entry in the entries table
+                    setTimeout(() => {
+                        scrollToEntry(entry);
+                    }, 100);
+                });
+
+                entryItem.innerHTML = `
+                    <div class="entry-header">
+                        <div class="book-title">${book.title}</div>
+                        <div class="page-number">p.${entry.page || '?'}</div>
+                    </div>
+                    <div class="entry-content">
+                        ${entry.note ? `<div class="note-label">Note</div><div class="note-content">${entry.note}</div>` : ''}
+                        ${entry.quote ? `<div class="quote-label">Quote</div><div class="quote-content">${entry.quote}</div>` : ''}
+                    </div>
+                `;
+
+                mobileEntryList.append(entryItem);
+            });
+
+            // Count is already updated by updateMobileResultCounts
+        }
+
+        // Add event listeners for mobile search tabs
+        document.addEventListener('click', (e) => {
+            if (e.target.dataset.tab && e.target.dataset.tab.startsWith('mobile-')) {
+                switchMobileTab(e.target.dataset.tab);
+            }
+        });
+
+        // Update mobile search to use new function
+        el('mobileBookSearch').addEventListener('input', e => {
+            const query = e.target.value.trim();
+            if (query) {
+                performMobileSearch(query);
+            } else {
+                // Clear mobile search results and counts when search is empty
+                clearAllResultCounts();
+                // Reset mobile book list to show all books
+                const mobileBookList = el('mobileBookList');
+                const mobileEntryList = el('mobileEntryList');
+                if (mobileBookList) {
+                    mobileBookList.style.display = 'block';
+                    renderMobileBooks(); // Re-render all books
+                }
+                if (mobileEntryList) {
+                    mobileEntryList.style.display = 'none';
+                    mobileEntryList.innerHTML = '<div class="empty">Enter a search term to find entries</div>';
+                }
+                // Reset mobile tab to books
+                currentMobileTab = 'mobile-books';
+                document.querySelectorAll('[data-tab^="mobile-"]').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.tab === 'mobile-books');
+                });
+            }
+        });
+
+        el('cancelModal').addEventListener('click', () => modal.close());
+        el('saveBook').addEventListener('click', () => {
+            const title = el('bookTitle').value; const author = el('bookAuthor').value;
+            if (!title.trim()) { el('bookTitle').focus(); return }
+            addBook(title, author); modal.close(); toast('Book added');
+        });
+
+        // Entry modal event listeners
+        el('entryCancelBtn').addEventListener('click', () => entryModal.close());
+        el('entryDeleteBtn').addEventListener('click', () => {
+            if (entryModal.currentEntry && entryModal.currentBookId) {
+                if (confirm('Are you sure you want to delete this entry?')) {
+                    deleteEntry(entryModal.currentBookId, entryModal.currentEntry.id);
+                    entryModal.close();
+                }
+            }
+        });
+
+        // Tab switching functionality
+        let currentSearchTab = 'books';
+
+        function switchSearchTab(tab) {
+            currentSearchTab = tab;
+            
+            // Update tab buttons
+            document.querySelectorAll('.search-tab').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tab);
+            });
+            
+            // Show/hide appropriate lists
+            const bookList = el('bookList');
+            const entryList = el('entryList');
+            
+            if (tab === 'books') {
+                bookList.style.display = 'block';
+                entryList.style.display = 'none';
+            } else {
+                bookList.style.display = 'none';
+                entryList.style.display = 'block';
+            }
+            
+            // Re-run search with current query
+            const searchQuery = el('bookSearch').value;
+            if (searchQuery.trim()) {
+                performSearch(searchQuery);
+            } else {
+                // Clear counts when switching tabs with no search
+                clearAllResultCounts();
+                // Reset displays to default state
+                if (tab === 'books') {
+                    renderBooks(''); // Show all books
+                } else {
+                    const entryList = el('entryList');
+                    if (entryList) {
+                        entryList.innerHTML = '<div class="empty">Enter a search term to find entries</div>';
+                    }
+                }
+            }
+        }
+
+        function performSearch(query) {
+            // Clear counts first to ensure clean state
+            clearAllResultCounts();
+            
+            // Always calculate both book and entry results to show counts
+            const bookResults = calculateBookResults(query);
+            const entryResults = calculateEntryResults(query);
+            
+            // Update result counts for both tabs
+            updateResultCounts(bookResults, entryResults);
+            
+            // Render the currently selected tab
+            if (currentSearchTab === 'books') {
+                renderBooks(query);
+            } else {
+                renderEntrySearch(query);
+            }
+        }
+
+        function calculateBookResults(query) {
+            if (!query.trim()) return { count: 0, books: [] };
+            
+            const f = query.trim().toLowerCase();
+            const books = state.books.filter(b => 
+                !f || b.title.toLowerCase().includes(f) || (b.author || '').toLowerCase().includes(f)
+            );
+            return { count: books.length, books };
+        }
+
+        function calculateEntryResults(query) {
+            if (!query.trim()) return { count: 0, results: [] };
+            
+            const results = [];
+            const q = query.toLowerCase();
+
+            state.books.forEach(book => {
+                book.entries.forEach(entry => {
+                    const noteMatch = (entry.note || '').toLowerCase().includes(q);
+                    const quoteMatch = (entry.quote || '').toLowerCase().includes(q);
+
+                    if (noteMatch || quoteMatch) {
+                        results.push({ book, entry });
+                    }
+                });
+            });
+            
+            return { count: results.length, results };
+        }
+
+        function updateResultCounts(bookResults, entryResults) {
+            // Update books result count
+            const booksResultCount = el('booksResultCount');
+            if (bookResults.count > 0) {
+                booksResultCount.textContent = bookResults.count;
+            } else {
+                booksResultCount.textContent = '';
+            }
+            
+            // Update entries result count
+            const entriesResultCount = el('entriesResultCount');
+            if (entryResults.count > 0) {
+                entriesResultCount.textContent = entryResults.count;
+            } else {
+                entriesResultCount.textContent = '';
+            }
+        }
+
+        function updateMobileResultCounts(bookResults, entryResults) {
+            // Update mobile books result count
+            const mobileBooksResultCount = el('mobileBooksResultCount');
+            if (bookResults.count > 0) {
+                mobileBooksResultCount.textContent = bookResults.count;
+            } else {
+                mobileBooksResultCount.textContent = '';
+            }
+            
+            // Update mobile entries result count
+            const mobileEntriesResultCount = el('mobileEntriesResultCount');
+            if (entryResults.count > 0) {
+                mobileEntriesResultCount.textContent = entryResults.count;
+            } else {
+                mobileEntriesResultCount.textContent = '';
+            }
+        }
+
+        function renderEntrySearch(query) {
+            const entryList = el('entryList');
+            entryList.innerHTML = '';
+
+            if (!query.trim()) {
+                entryList.innerHTML = '<div class="empty">Enter a search term to find entries</div>';
+                return;
+            }
+
+            // Use the pre-calculated results from calculateEntryResults
+            const entryResults = calculateEntryResults(query);
+            const results = entryResults.results;
+
+            if (results.length === 0) {
+                entryList.innerHTML = '<div class="empty">No entries found</div>';
+                return;
+            }
+
+            results.forEach(({ book, entry }) => {
+                const entryItem = document.createElement('div');
+                entryItem.className = 'entry-item';
+                entryItem.addEventListener('click', () => {
+                    // Select the book and scroll to the specific entry
+                    state.activeBookId = book.id;
+                    save();
+                    renderAll();
+
+                    // Scroll to the specific entry in the entries table
+                    setTimeout(() => {
+                        scrollToEntry(entry);
+                    }, 100);
+                });
+
+                entryItem.innerHTML = `
+                    <div class="entry-header">
+                        <div class="book-title">${book.title}</div>
+                        <div class="page-number">p.${entry.page || '?'}</div>
+                    </div>
+                    <div class="entry-content">
+                        ${entry.note ? `<div class="note-label">Note</div><div class="note-content">${entry.note}</div>` : ''}
+                        ${entry.quote ? `<div class="quote-label">Quote</div><div class="quote-content">${entry.quote}</div>` : ''}
+                    </div>
+                `;
+
+                entryList.append(entryItem);
+            });
+
+            // Update entries result count
+            const entriesResultCount = el('entriesResultCount');
+            if (query.trim() && results.length > 0) {
+                entriesResultCount.textContent = results.length;
+            } else {
+                entriesResultCount.textContent = '';
+            }
+        }
+
+        // Add event listeners for search tabs
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('search-tab')) {
+                switchSearchTab(e.target.dataset.tab);
+            }
+        });
+
+        el('bookSearch').addEventListener('input', e => {
+            const query = e.target.value;
+            if (query) {
+                performSearch(query);
+            } else {
+                // Clear search results and counts when search is empty
+                clearAllResultCounts();
+                renderBooks(''); // Show all books
+                // Reset entry search display
+                const entryList = el('entryList');
+                if (entryList) {
+                    entryList.style.display = 'none';
+                    entryList.innerHTML = '<div class="empty">Enter a search term to find entries</div>';
+                }
+                // Reset tab display
+                const bookList = el('bookList');
+                if (bookList) bookList.style.display = 'block';
+                // Reset search tab to books
+                currentSearchTab = 'books';
+                document.querySelectorAll('.search-tab').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.tab === 'books');
+                });
+            }
+        });
+
+        el('entry-form').addEventListener('submit', e => {
+            e.preventDefault();
+            const page = el('page').value; const note = el('note').value; const quote = el('quote').value;
+            addEntry({ page, note, quote });
+            el('page').value = ''; el('note').value = ''; el('quote').value = '';
+        });
+
+        el('entrySearch').addEventListener('input', () => renderEntries());
+
+        // Export / Import
+        el('exportBtn').addEventListener('click', () => {
+            const data = JSON.stringify(state, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'book-notes.json'; a.click(); URL.revokeObjectURL(url);
+        });
+
+        el('importFile').addEventListener('change', (e) => {
+            const file = e.target.files?.[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    // Check if it's a CSV file
+                    if (file.name.toLowerCase().endsWith('.csv')) {
+                        importCSV(String(reader.result));
+                    } else {
+                        // Try JSON import
+                        const data = JSON.parse(String(reader.result));
+                        if (!data || !Array.isArray(data.books)) throw new Error('Invalid file');
+                        state = data; save(); renderAll(); toast('Imported');
+                    }
+                } catch (err) { alert('Could not import. Make sure this is a valid export file.') }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        });
+
+        // CSV Import functionality using Papa Parse
+        function importCSV(csvText) {
+            // Check if there's an active book
+            if (!state.activeBookId) {
+                alert('Please select or create a book first before importing CSV entries.');
+                return;
+            }
+
+            const book = state.books.find(b => b.id === state.activeBookId);
+            if (!book) {
+                alert('No active book found.');
+                return;
+            }
+
+            // Use Papa Parse to parse the CSV
+            Papa.parse(csvText, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function (results) {
+                    if (results.errors.length > 0) {
+                        console.warn('CSV parsing warnings:', results.errors);
+                    }
+
+                    if (results.data.length === 0) {
+                        alert('No data found in CSV file.');
+                        return;
+                    }
+
+                    // Get headers from the parsed results
+                    const originalHeaders = results.meta.fields;
+                    const headers = originalHeaders.map(h => h.toLowerCase());
+                    console.log('CSV Headers (original):', originalHeaders);
+                    console.log('CSV Headers (lowercase):', headers);
+                    console.log('CSV Raw Data:', results.data);
+                    console.log('CSV Meta:', results.meta);
+
+                    // Find required column indices with flexible matching
+                    const pageIndex = headers.findIndex(h => h === 'page');
+                    const noteIndex = headers.findIndex(h => h === 'note' || h === 'my note' || h.includes('note'));
+                    const quoteIndex = headers.findIndex(h => h === 'quote');
+                    
+                    console.log('Column Indices:', { pageIndex, noteIndex, quoteIndex });
+                    console.log('Headers Search Details:', {
+                        page: {
+                            search: 'page',
+                            found: headers.findIndex(h => h === 'page'),
+                            allMatches: headers.filter(h => h === 'page')
+                        },
+                        note: {
+                            search: 'note OR "my note" OR contains "note"',
+                            found: headers.findIndex(h => h === 'note' || h === 'my note' || h.includes('note')),
+                            allMatches: headers.filter(h => h === 'note' || h === 'my note' || h.includes('note'))
+                        },
+                        quote: {
+                            search: 'quote',
+                            found: headers.findIndex(h => h === 'quote'),
+                            allMatches: headers.filter(h => h === 'quote')
+                        }
+                    });
+                    console.log('All Headers (lowercase):', headers);
+                    
+                    if (pageIndex === -1 || noteIndex === -1 || quoteIndex === -1) {
+                        const missingColumns = [];
+                        if (pageIndex === -1) missingColumns.push('Page');
+                        if (noteIndex === -1) missingColumns.push('Note (or "My note")');
+                        if (quoteIndex === -1) missingColumns.push('Quote');
+                        
+                        alert(`CSV must have columns: Page, Note (or "My note"), Quote (case insensitive)\n\nMissing: ${missingColumns.join(', ')}\n\nFound columns: ${originalHeaders.join(', ')}`);
+                        return;
+                    }
+
+                    let importedCount = 0;
+                    let skippedCount = 0;
+
+                    // Process each row
+                    results.data.forEach((row, index) => {
+                        const page = row[originalHeaders[pageIndex]]?.toString().trim();
+                        const note = row[originalHeaders[noteIndex]]?.toString().trim();
+                        const quote = row[originalHeaders[quoteIndex]]?.toString().trim();
+
+                        // Debug logging
+                        console.log(`Row ${index + 1}:`, { page, note, quote, raw: row });
+
+                        // Check if there's actual content (note or quote)
+                        const hasContent = (note && note.length > 0) || (quote && quote.length > 0);
+
+                        if (hasContent) {
+                            const entry = {
+                                id: uid(),
+                                page: page && !isNaN(Number(page)) ? Number(page) : undefined,
+                                note: note && note.length > 0 ? note : undefined,
+                                quote: quote && quote.length > 0 ? quote : undefined,
+                                createdAt: Date.now()
+                            };
+
+                            book.entries.push(entry);
+                            importedCount++;
+                            console.log(`Imported entry:`, entry);
+                        } else {
+                            skippedCount++;
+                            console.log(`Skipped row ${index + 1} - no content`);
+                        }
+                    });
+
+                    if (importedCount > 0) {
+                        save();
+                        renderAll();
+                        toast(`Imported ${importedCount} entries${skippedCount > 0 ? `, skipped ${skippedCount} empty rows` : ''}`);
+                    } else {
+                        console.error('CSV Import Debug Info:', {
+                            totalRows: results.data.length,
+                            headers: headers,
+                            pageIndex,
+                            noteIndex,
+                            quoteIndex,
+                            sampleRow: results.data[0]
+                        });
+                        alert(`No valid entries found in CSV file.\n\nDebug info:\n- Total rows: ${results.data.length}\n- Headers found: ${headers.join(', ')}\n- Required columns: Page, Note, Quote\n\nCheck the browser console for more details.`);
+                    }
+                },
+                error: function (error) {
+                    alert('Error parsing CSV file: ' + error.message);
+                }
+            });
+        }
+
+        // Function to scroll to a specific entry in the entries table
+        function scrollToEntry(targetEntry) {
+            const entriesBody = el('entriesBody');
+            const rows = entriesBody.querySelectorAll('tr');
+
+            // Find the row that matches the entry
+            for (let row of rows) {
+                const pageCell = row.cells[0];
+                const noteCell = row.cells[1];
+                const quoteCell = row.cells[2];
+
+                if (pageCell && noteCell && quoteCell) {
+                    const pageMatch = (pageCell.textContent === (targetEntry.page || '').toString());
+                    const noteMatch = (noteCell.textContent === (targetEntry.note || ''));
+                    const quoteMatch = (quoteCell.textContent === (targetEntry.quote || ''));
+
+                    if (pageMatch && noteMatch && quoteMatch) {
+                        // Highlight the row temporarily
+                        row.style.backgroundColor = 'var(--brand)';
+                        row.style.color = 'white';
+
+                        // Scroll to the row
+                        row.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+
+                        // Remove highlight after a delay
+                        setTimeout(() => {
+                            row.style.backgroundColor = '';
+                            row.style.color = '';
+                        }, 2000);
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Initialize the app
+        load();
+        loadTheme();
+        renderAll();
+        // Force update main content after everything is loaded
+        setTimeout(() => updateMainContent(), 0);
+
+        // Add scroll event listener to book list for overflow indicator
+        bookList.addEventListener('scroll', checkBookListOverflow);
+
+        // Check overflow on window resize
+        window.addEventListener('resize', checkBookListOverflow);
+
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', (e) => {
+            const mobileMenu = el('mobileMenu');
+            const mobileMenuBtn = el('mobileMenuBtn');
+
+            if (mobileMenu.classList.contains('active') &&
+                !mobileMenu.contains(e.target) &&
+                !mobileMenuBtn.contains(e.target)) {
+                mobileMenu.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+
+</html>
