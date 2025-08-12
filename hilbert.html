@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hilbert Curve → Audio Synth</title>
+<style>
+  :root {
+    --bg: #0b0e12;
+    --panel: #12161b;
+    --ink: #e8eef7;
+    --muted: #9fb0c6;
+    --accent: #5aa9ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; }
+  .wrap { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+  h1 { font-size: 20px; margin: 0 0 12px; letter-spacing: .2px; }
+  .grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid #1f2630; border-radius: 12px; padding: 14px; box-shadow: 0 6px 16px rgba(0,0,0,.25); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  input[type="range"] { width: 100%; }
+  select, input[type="file"], button {
+    width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #273141;
+    background: #0f1319; color: var(--ink); outline: none;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #031427; font-weight: 600; cursor: pointer; }
+  button.secondary { background: #0f1319; cursor: pointer; }
+  button:disabled { opacity: .6; cursor: not-allowed; }
+  canvas, video { width: 100%; height: auto; border-radius: 10px; background: #000; }
+  .mini { font-size: 12px; color: var(--muted); }
+  .meter { height: 8px; background: #0e1319; border: 1px solid #1f2630; border-radius: 999px; overflow: hidden; }
+  .meter > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #3ddc97, #5aa9ff); }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #0e1420; border: 1px solid #233049; color: var(--muted); margin-left: 6px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .note { color: var(--muted); }
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .controls .span2 { grid-column: span 2; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Hilbert Curve → Audio Synthesizer <span class="badge" id="stateBadge">stopped</span></h1>
+
+  <div class="grid">
+    <!-- Left: Visual -->
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Source</label>
+          <select id="sourceSel">
+            <option value="camera">Webcam</option>
+            <option value="video">Upload video</option>
+            <option value="image">Upload image</option>
+          </select>
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <button id="startBtn" class="primary">Start Audio</button>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:8px;">
+        <div>
+          <label>Hilbert size (power of 2)</label>
+          <select id="sizeSel">
+            <option>64</option>
+            <option selected>128</option>
+            <option>256</option>
+            <option>512</option>
+          </select>
+        </div>
+        <div>
+          <label>Frame rate cap</label>
+          <select id="fpsSel">
+            <option value="10">10 fps</option>
+            <option value="15">15 fps</option>
+            <option value="24">24 fps</option>
+            <option value="30" selected>30 fps</option>
+            <option value="60">60 fps</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:8px;">
+        <div>
+          <label>Upload file</label>
+          <input id="fileInput" type="file" accept="video/*,image/*" />
+        </div>
+        <div>
+          <label>Preview</label>
+          <div class="mini">Square center-crop is auto-applied</div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:8px;">
+        <div>
+          <video id="vid" playsinline muted style="display:none"></video>
+          <img id="img" alt="" style="display:none; max-width:100%; border-radius:10px;" />
+        </div>
+        <div>
+          <canvas id="cvs" width="512" height="512"></canvas>
+        </div>
+      </div>
+
+      <div class="mini" style="margin-top:8px;">
+        The canvas shows the square-cropped frame that is scanned along the Hilbert path. Luminance maps to audio sample values.
+      </div>
+    </div>
+
+    <!-- Right: Audio controls -->
+    <div class="card">
+      <div class="controls">
+        <div>
+          <label>Scan rate (cycles/s)</label>
+          <input id="rate" type="range" min="0.05" max="200" step="0.05" value="8" />
+          <div class="mini"><span id="rateVal">8.00</span> Hz</div>
+        </div>
+        <div>
+          <label>Gain</label>
+          <input id="gain" type="range" min="0" max="1" step="0.01" value="0.3" />
+          <div class="mini"><span id="gainVal">0.30</span></div>
+        </div>
+        <div>
+          <label>High-pass (Hz)</label>
+          <input id="hp" type="range" min="10" max="2000" step="1" value="60" />
+          <div class="mini"><span id="hpVal">60</span> Hz</div>
+        </div>
+        <div>
+          <label>Low-pass (Hz)</label>
+          <input id="lp" type="range" min="200" max="18000" step="10" value="8000" />
+          <div class="mini"><span id="lpVal">8000</span> Hz</div>
+        </div>
+
+        <div class="span2">
+          <label>Output meter</label>
+          <div class="meter"><i id="meterBar"></i></div>
+        </div>
+
+        <div class="span2">
+          <label>Debug</label>
+          <div class="mini mono" id="debug">—</div>
+        </div>
+
+        <div class="span2" style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <button id="stopBtn" class="secondary">Stop Audio</button>
+          <button id="reseedBtn" class="secondary">Reseed Wavetable Now</button>
+        </div>
+      </div>
+
+      <div class="note" style="margin-top:10px;">
+        Tips: try different Hilbert sizes. Higher sizes increase harmonic detail. Adjust scan rate for pitch and texture.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(async function () {
+  // Elements
+  const stateBadge = document.getElementById('stateBadge');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const reseedBtn = document.getElementById('reseedBtn');
+  const sourceSel = document.getElementById('sourceSel');
+  const sizeSel = document.getElementById('sizeSel');
+  const fpsSel = document.getElementById('fpsSel');
+  const fileInput = document.getElementById('fileInput');
+  const vid = document.getElementById('vid');
+  const img = document.getElementById('img');
+  const cvs = document.getElementById('cvs');
+  const ctx2d = cvs.getContext('2d', { willReadFrequently: true });
+
+  const rate = document.getElementById('rate');
+  const rateVal = document.getElementById('rateVal');
+  const gain = document.getElementById('gain');
+  const gainVal = document.getElementById('gainVal');
+  const hp = document.getElementById('hp');
+  const hpVal = document.getElementById('hpVal');
+  const lp = document.getElementById('lp');
+  const lpVal = document.getElementById('lpVal');
+  const meterBar = document.getElementById('meterBar');
+  const debugEl = document.getElementById('debug');
+
+  // State
+  let ac = null;
+  let workletNode = null;
+  let gainNode = null;
+  let hpf = null;
+  let lpf = null;
+  let rafId = null;
+  let srcStream = null;
+  let fileURL = null;
+  let lastSeedTime = 0;
+  let targetFPS = 30;
+  let hilbertOrder = 128; // default
+  let hilbertPath = null;
+  let wavetable = null;
+  let meterDecay = 0.96;
+
+  function setBadge(text, ok) {
+    stateBadge.textContent = text;
+    stateBadge.style.borderColor = ok ? '#2d8f5b' : '#233049';
+    stateBadge.style.background = ok ? '#0f1d17' : '#0e1420';
+    stateBadge.style.color = ok ? '#9be6c0' : '#9fb0c6';
+  }
+
+  // Utilities
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  // Build Hilbert path for n x n
+  function hilbertCurve(n) {
+    // returns array of [x,y] length n*n
+    // Adapted from classic bit-hacks method
+    const path = new Array(n * n);
+    for (let d = 0; d < n * n; d++) {
+      let rx, ry;
+      let t = d;
+      let x = 0, y = 0;
+      for (let s = 1; s < n; s <<= 1) {
+        rx = 1 & (t >> 1);
+        ry = 1 & (t ^ rx);
+        // rotate
+        if (ry === 0) {
+          if (rx === 1) {
+            x = s - 1 - x;
+            y = s - 1 - y;
+          }
+          // swap x, y
+          const tmp = x;
+          x = y;
+          y = tmp;
+        }
+        x += s * rx;
+        y += s * ry;
+        t >>= 2;
+      }
+      path[d] = [x, y];
+    }
+    return path;
+  }
+
+  function resizeCanvas(n) {
+    cvs.width = n;
+    cvs.height = n;
+  }
+
+  function setTargetFPS(val) {
+    targetFPS = parseInt(val, 10);
+  }
+
+  // Draw current source to canvas with center square crop
+  function drawSquareFrame() {
+    const w = cvs.width, h = cvs.height;
+    ctx2d.fillStyle = "#000";
+    ctx2d.fillRect(0, 0, w, h);
+
+    if (sourceSel.value === 'camera' || sourceSel.value === 'video') {
+      const v = vid;
+      if (!v.videoWidth || !v.videoHeight) return;
+
+      const vw = v.videoWidth, vh = v.videoHeight;
+      const side = Math.min(vw, vh);
+      const sx = Math.floor((vw - side) / 2);
+      const sy = Math.floor((vh - side) / 2);
+      ctx2d.drawImage(v, sx, sy, side, side, 0, 0, w, h);
+    } else if (sourceSel.value === 'image' && img.complete && img.naturalWidth) {
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+      const side = Math.min(iw, ih);
+      const sx = Math.floor((iw - side) / 2);
+      const sy = Math.floor((ih - side) / 2);
+      ctx2d.drawImage(img, sx, sy, side, side, 0, 0, w, h);
+    }
+  }
+
+  function luminance(r,g,b) {
+    // Rec. 709 luma
+    return 0.2126*r + 0.7152*g + 0.0722*b;
+  }
+
+  function seedWavetableFromCanvas() {
+    const n = hilbertOrder;
+    const img = ctx2d.getImageData(0, 0, n, n);
+    const data = img.data;
+    const table = new Float32Array(n * n);
+
+    for (let i = 0; i < hilbertPath.length; i++) {
+      const [x, y] = hilbertPath[i];
+      const idx = (y * n + x) * 4;
+      const l = luminance(data[idx], data[idx+1], data[idx+2]); // 0..255
+      // map to -1..+1
+      const s = (l / 127.5) - 1;
+      table[i] = s;
+    }
+    // DC removal on the table (subtract mean)
+    let mean = 0;
+    for (let i = 0; i < table.length; i++) mean += table[i];
+    mean /= table.length;
+    for (let i = 0; i < table.length; i++) table[i] -= mean;
+
+    wavetable = table;
+    lastSeedTime = performance.now();
+
+    if (workletNode) {
+      workletNode.port.postMessage({ type: 'wavetable', data: wavetable, length: wavetable.length });
+    }
+  }
+
+  function updateDebug() {
+    const secs = ((performance.now() - lastSeedTime) / 1000).toFixed(2);
+    debugEl.textContent =
+      `hilbert=${hilbertOrder}² (${hilbertOrder*hilbertOrder} samples)  |  last reseed ${secs}s ago`;
+  }
+
+  // Media setup
+  async function ensureCamera() {
+    if (srcStream) return;
+    srcStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    vid.srcObject = srcStream;
+    await vid.play();
+  }
+
+  function clearMedia() {
+    if (srcStream) {
+      srcStream.getTracks().forEach(t => t.stop());
+      srcStream = null;
+    }
+    if (fileURL) {
+      URL.revokeObjectURL(fileURL);
+      fileURL = null;
+    }
+    vid.pause();
+    vid.removeAttribute('src');
+    vid.load();
+    img.removeAttribute('src');
+    img.style.display = 'none';
+    vid.style.display = 'none';
+  }
+
+  fileInput.addEventListener('change', () => {
+    if (!fileInput.files || !fileInput.files[0]) return;
+    const f = fileInput.files[0];
+    clearMedia();
+    fileURL = URL.createObjectURL(f);
+    if (f.type.startsWith('image/')) {
+      sourceSel.value = 'image';
+      img.src = fileURL;
+      img.style.display = 'block';
+      img.onload = () => { drawSquareFrame(); seedWavetableFromCanvas(); updateDebug(); };
+    } else {
+      sourceSel.value = 'video';
+      vid.src = fileURL;
+      vid.crossOrigin = 'anonymous';
+      vid.loop = true;
+      vid.muted = true;
+      vid.playsInline = true;
+      vid.style.display = 'block';
+      vid.onloadeddata = () => { vid.play(); };
+    }
+  });
+
+  sourceSel.addEventListener('change', async () => {
+    clearMedia();
+    if (sourceSel.value === 'camera') {
+      await ensureCamera();
+      vid.style.display = 'block';
+    } else if (sourceSel.value === 'video') {
+      // wait for user file selection
+    } else {
+      // image mode waits for upload
+    }
+  });
+
+  sizeSel.addEventListener('change', () => {
+    hilbertOrder = parseInt(sizeSel.value, 10);
+    hilbertPath = hilbertCurve(hilbertOrder);
+    resizeCanvas(hilbertOrder);
+    drawSquareFrame();
+    seedWavetableFromCanvas();
+    updateDebug();
+  });
+
+  fpsSel.addEventListener('change', () => setTargetFPS(fpsSel.value));
+
+  // Audio worklet code (inlined via Blob)
+  const workletCode = `
+    class BufferReader extends AudioWorkletProcessor {
+      static get parameterDescriptors() {
+        return [{ name: 'rateHz', defaultValue: 8, minValue: 0.01, maxValue: 200 }];
+      }
+      constructor() {
+        super();
+        this.table = new Float32Array([0,0,0,0]);
+        this.tableLen = this.table.length;
+        this.phase = 0;
+        this.meter = 0;
+        this.port.onmessage = (e) => {
+          const msg = e.data;
+          if (msg.type === 'wavetable') {
+            // Copy into a new Float32Array inside worklet
+            const src = msg.data;
+            this.table = new Float32Array(src.length);
+            this.table.set(src);
+            this.tableLen = this.table.length;
+            if (this.phase >= this.tableLen) this.phase = this.phase % this.tableLen;
+          }
+        };
+      }
+      process(inputs, outputs, parameters) {
+        const output = outputs[0][0];
+        const rateHz = parameters.rateHz.length === 1 ? parameters.rateHz[0] : parameters.rateHz;
+        const sr = sampleRate;
+        const incr = (this.tableLen * (typeof rateHz === 'number' ? rateHz : rateHz[0])) / sr;
+
+        let absSum = 0;
+        for (let i = 0; i < output.length; i++) {
+          const idx = Math.floor(this.phase) % this.tableLen;
+          const frac = this.phase - Math.floor(this.phase);
+          // simple linear interpolation
+          const a = this.table[idx];
+          const b = this.table[(idx + 1) % this.tableLen];
+          const s = a + (b - a) * frac;
+          output[i] = s;
+          absSum += Math.abs(s);
+          this.phase += incr;
+          if (this.phase >= this.tableLen) this.phase -= this.tableLen;
+        }
+        // crude meter
+        const avg = absSum / output.length;
+        this.meter = this.meter * 0.9 + avg * 0.1;
+        this.port.postMessage({ type: 'meter', v: this.meter });
+        return true;
+      }
+    }
+    registerProcessor('buffer-reader', BufferReader);
+  `;
+
+  async function ensureAudio() {
+    if (ac) return;
+    ac = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+    // Load worklet
+    const blob = new Blob([workletCode], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    await ac.audioWorklet.addModule(url);
+    URL.revokeObjectURL(url);
+
+    workletNode = new AudioWorkletNode(ac, 'buffer-reader', {
+      numberOfInputs: 0,
+      numberOfOutputs: 1,
+      outputChannelCount: [1],
+      parameterData: { rateHz: parseFloat(rate.value) }
+    });
+
+    // Filters and gain
+    hpf = ac.createBiquadFilter();
+    hpf.type = 'highpass';
+    hpf.frequency.value = parseFloat(hp.value);
+
+    lpf = ac.createBiquadFilter();
+    lpf.type = 'lowpass';
+    lpf.frequency.value = parseFloat(lp.value);
+
+    gainNode = ac.createGain();
+    gainNode.gain.value = parseFloat(gain.value);
+
+    // Connect
+    workletNode.connect(hpf).connect(lpf).connect(gainNode).connect(ac.destination);
+
+    // Meter updates
+    workletNode.port.onmessage = (e) => {
+      const msg = e.data;
+      if (msg.type === 'meter') {
+        const v = clamp(msg.v * 1.2, 0, 1);
+        meterBar.style.width = (v * 100).toFixed(1) + '%';
+      }
+    };
+  }
+
+  // UI bindings
+  rate.addEventListener('input', () => {
+    rateVal.textContent = parseFloat(rate.value).toFixed(2);
+    if (workletNode) {
+      workletNode.parameters.get('rateHz').setValueAtTime(parseFloat(rate.value), ac.currentTime);
+    }
+  });
+  gain.addEventListener('input', () => {
+    gainVal.textContent = parseFloat(gain.value).toFixed(2);
+    if (gainNode) gainNode.gain.setValueAtTime(parseFloat(gain.value), ac.currentTime);
+  });
+  hp.addEventListener('input', () => {
+    hpVal.textContent = parseInt(hp.value,10);
+    if (hpf) hpf.frequency.setValueAtTime(parseFloat(hp.value), ac.currentTime);
+  });
+  lp.addEventListener('input', () => {
+    lpVal.textContent = parseInt(lp.value,10);
+    if (lpf) lpf.frequency.setValueAtTime(parseFloat(lp.value), ac.currentTime);
+  });
+
+  // Animation and reseeding loop
+  let lastFrameTime = 0;
+  function tick(ts) {
+    const minDelta = 1000 / targetFPS;
+    if (!lastFrameTime || (ts - lastFrameTime) >= minDelta) {
+      drawSquareFrame();
+      seedWavetableFromCanvas();
+      updateDebug();
+      lastFrameTime = ts;
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  reseedBtn.addEventListener('click', () => {
+    drawSquareFrame();
+    seedWavetableFromCanvas();
+    updateDebug();
+  });
+
+  startBtn.addEventListener('click', async () => {
+    try {
+      await ensureAudio();
+      hilbertOrder = parseInt(sizeSel.value, 10);
+      hilbertPath = hilbertCurve(hilbertOrder);
+      resizeCanvas(hilbertOrder);
+
+      // Prepare source
+      if (sourceSel.value === 'camera') {
+        await ensureCamera();
+        vid.style.display = 'block';
+      } else if (sourceSel.value === 'video') {
+        if (!fileURL) {
+          alert('Choose a video file first.');
+          return;
+        }
+        vid.play();
+      } else {
+        if (!img.src) {
+          alert('Choose an image file first.');
+          return;
+        }
+      }
+
+      setTargetFPS(fpsSel.value);
+      drawSquareFrame();
+      seedWavetableFromCanvas();
+      updateDebug();
+
+      // Prime a neutral table to avoid initial silence if needed
+      workletNode.port.postMessage({ type: 'wavetable', data: wavetable, length: wavetable.length });
+
+      if (!rafId) rafId = requestAnimationFrame(tick);
+
+      setBadge('running', true);
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    } catch (err) {
+      console.error(err);
+      alert('Error starting audio. Check browser console for details.');
+    }
+  });
+
+  stopBtn.addEventListener('click', () => {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    if (ac && ac.state !== 'closed') ac.suspend();
+    setBadge('stopped', false);
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+  });
+
+  // Defaults on load
+  hilbertPath = hilbertCurve(hilbertOrder);
+  resizeCanvas(hilbertOrder);
+  setTargetFPS(fpsSel.value);
+  rateVal.textContent = parseFloat(rate.value).toFixed(2);
+  gainVal.textContent = parseFloat(gain.value).toFixed(2);
+  hpVal.textContent = hp.value;
+  lpVal.textContent = lp.value;
+})();
+</script>
+</body>
+</html>
