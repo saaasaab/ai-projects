@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Atomic Orbitals 3D — WebGL2</title>
+<style>
+  :root { --bg:#0b0f14; --panel:#121821; --ink:#eaf2ff; --muted:#9ab0c8; --accent:#66b3ff; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial; }
+  #app { display:grid; grid-template-columns: 1fr 320px; gap:12px; height:100%; }
+  #glwrap { position:relative; }
+  #gl { width:100%; height:100%; display:block; background:#000; }
+  .ui { background:var(--panel); border-left:1px solid #1e2630; padding:14px; overflow:auto; }
+  h1 { font-size:16px; margin:8px 0 12px; }
+  label { display:block; font-size:12px; color:var(--muted); margin-top:8px; }
+  select,input[type="range"],input[type="number"],button { width:100%; padding:8px 10px; border-radius:8px; border:1px solid #283446; background:#0d141c; color:var(--ink); }
+  .row { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+  .note { color:var(--muted); font-size:12px; margin-top:10px; }
+  .badge { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; background:#0e1420; border:1px solid #233049; color:var(--muted); }
+  #log { white-space:pre-wrap; background:#0b1118; border:1px solid #1b2532; padding:8px; border-radius:8px; margin-top:10px; color:#c4d6ee; }
+  a { color:var(--accent); text-decoration:none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="glwrap"><canvas id="gl"></canvas></div>
+  <div class="ui">
+    <h1>Atomic Orbitals 3D <span class="badge" id="stat">init</span></h1>
+
+    <label>Mode</label>
+    <select id="mode">
+      <option value="0">Single atom</option>
+      <option value="1">Diatomic: bonding (ψA + ψB)</option>
+      <option value="2">Diatomic: antibonding (ψA − ψB)</option>
+    </select>
+
+    <div class="row">
+      <div>
+        <label>Orbital</label>
+        <select id="orbital">
+          <option value="1s">1s</option>
+          <option value="2s">2s</option>
+          <option value="2p_z" selected>2p_z</option>
+          <option value="2p_x">2p_x</option>
+          <option value="2p_y">2p_y</option>
+          <option value="3d_z2">3d z²</option>
+          <option value="3d_xz">3d xz</option>
+          <option value="3d_yz">3d yz</option>
+          <option value="3d_x2y2">3d x²−y²</option>
+          <option value="3d_xy">3d xy</option>
+        </select>
+      </div>
+      <div>
+        <label>Effective Z (Zeff)</label>
+        <input id="zeff" type="number" step="0.1" min="0.1" value="1.0" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Bond distance Å (diatomic)</label>
+        <input id="bond" type="range" min="0.4" max="3.5" step="0.01" value="0.74" />
+      </div>
+      <div>
+        <label>Isosurface threshold</label>
+        <input id="iso" type="range" min="0.02" max="0.6" step="0.005" value="0.12" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Density scale</label>
+        <input id="dens" type="range" min="0.2" max="3.0" step="0.01" value="1.0" />
+      </div>
+      <div>
+        <label>Steps</label>
+        <input id="steps" type="range" min="32" max="192" step="1" value="112" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Auto rotate</label>
+        <select id="autorot">
+          <option value="1" selected>On</option>
+          <option value="0">Off</option>
+        </select>
+      </div>
+      <div>
+        <label>Exposure</label>
+        <input id="exposure" type="range" min="0.5" max="2.0" step="0.01" value="1.1" />
+      </div>
+    </div>
+
+    <div class="note">
+      Drag to rotate, Shift+Drag to pan, wheel to zoom. Colors: blue positive phase, red negative.
+    </div>
+
+    <h1 style="margin-top:16px;">Self Tests</h1>
+    <button id="runTests">Run tests</button>
+    <div id="log"></div>
+
+    <div class="note" style="margin-top:10px;">
+      If tests fail, copy the log here and tell me your browser and OS.
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('gl');
+  const stat = document.getElementById('stat');
+  const logEl = document.getElementById('log');
+
+  // Resize to fill
+  function fit() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    const W = Math.floor(w * dpr), H = Math.floor(h * dpr);
+    if (canvas.width !== W || canvas.height !== H) {
+      canvas.width = W; canvas.height = H;
+    }
+  }
+  window.addEventListener('resize', fit);
+
+  // WebGL2 context
+  /** @type {WebGL2RenderingContext} */
+  const gl = canvas.getContext('webgl2', { antialias: true, alpha: false });
+  if (!gl) {
+    stat.textContent = 'no webgl2';
+    log('WebGL2 not supported.');
+    return;
+  }
+
+  // Shaders
+  const VS = `#version 300 es
+  in vec2 a_pos;
+  out vec2 v_uv;
+  void main() {
+    v_uv = a_pos * 0.5 + 0.5;
+    gl_Position = vec4(a_pos, 0.0, 1.0);
+  }`;
+
+  const FS = `#version 300 es
+  precision highp float;
+
+  in vec2 v_uv;
+  out vec4 fragColor;
+
+  uniform vec2 u_res;
+  uniform float u_time;
+  uniform mat3 u_camR;
+  uniform vec3 u_camP;
+  uniform float u_iso;
+  uniform float u_densityScale;
+  uniform int u_steps;
+  uniform float u_exposure;
+
+  // Orbital controls
+  uniform int u_orbital; // 0:1s 1:2s 2:2p_z 3:2p_x 4:2p_y 5:3d_z2 6:3d_xz 7:3d_yz 8:3d_x2y2 9:3d_xy
+  uniform float u_zeff;
+  uniform int u_mode;    // 0 single, 1 bonding, 2 antibonding
+  uniform float u_bond;  // separation in angstroms
+
+  // constants
+  const float PI = 3.14159265358979323846;
+
+  // Real spherical harmonic "shapes" (not fully normalized) for visual shape
+  float Y_00(vec3 n) { return 0.5 * inversesqrt(PI); }
+  float Y_10(vec3 n) { return sqrt(3.0/(4.0*PI)) * n.z; } // p_z
+  float Y_11c(vec3 n){ return sqrt(3.0/(4.0*PI)) * n.x; } // p_x
+  float Y_11s(vec3 n){ return sqrt(3.0/(4.0*PI)) * n.y; } // p_y
+
+  // 3d real set
+  float Y_20(vec3 n) { return 0.25*sqrt(5.0/PI)*(3.0*n.z*n.z - 1.0); } // z^2
+  float Y_21c(vec3 n){ return 0.5*sqrt(15.0/PI)*n.x*n.z; } // xz
+  float Y_21s(vec3 n){ return 0.5*sqrt(15.0/PI)*n.y*n.z; } // yz
+  float Y_22c(vec3 n){ return 0.25*sqrt(15.0/PI)*(n.x*n.x - n.y*n.y); } // x^2 - y^2
+  float Y_22s(vec3 n){ return 0.5*sqrt(15.0/PI)*n.x*n.y; } // xy
+
+  // Simple hydrogen-like radial envelope (qualitative)
+  float radial1s(float r, float a){ return exp(-a*r); }
+  float radial2s(float r, float a){ float rho = a*r*0.5; return (1.0 - rho) * exp(-rho); }
+  float radial2p(float r, float a){ float rho = a*r*0.5; return rho * exp(-rho); }
+  float radial3d(float r, float a){ float rho = a*r/3.0; return rho*rho * exp(-rho); }
+
+  float orbitalPsi(vec3 p, int orb, float a){
+    float r = length(p) + 1e-6;
+    vec3 n = p / r;
+    if (orb == 0) { // 1s
+      return radial1s(r, a) * Y_00(n);
+    } else if (orb == 1) { // 2s
+      return radial2s(r, a) * Y_00(n);
+    } else if (orb == 2) { // 2p_z
+      return radial2p(r, a) * Y_10(n);
+    } else if (orb == 3) { // 2p_x
+      return radial2p(r, a) * Y_11c(n);
+    } else if (orb == 4) { // 2p_y
+      return radial2p(r, a) * Y_11s(n);
+    } else if (orb == 5) { // 3d z2
+      return radial3d(r, a) * Y_20(n);
+    } else if (orb == 6) { // 3d xz
+      return radial3d(r, a) * Y_21c(n);
+    } else if (orb == 7) { // 3d yz
+      return radial3d(r, a) * Y_21s(n);
+    } else if (orb == 8) { // 3d x2-y2
+      return radial3d(r, a) * Y_22c(n);
+    } else { // 3d xy
+      return radial3d(r, a) * Y_22s(n);
+    }
+  }
+
+  // Density for visualization; sign retained separately for color
+  vec3 colorMap(float s){
+    // s in [-1,1], color by sign, brightness by |s|
+    float a = clamp(abs(s), 0.0, 1.0);
+    vec3 posC = vec3(0.4, 0.7, 1.0);
+    vec3 negC = vec3(1.0, 0.4, 0.4);
+    return mix(negC, posC, step(0.0, s)) * a;
+  }
+
+  // Scene density: single or diatomic
+  void psiAndColor(vec3 p, out float dens, out vec3 col){
+    float a = max(0.15, u_zeff); // decay scale ~ Zeff
+    if (u_mode == 0){
+      float psi = orbitalPsi(p, u_orbital, a);
+      dens = psi*psi;
+      col = colorMap(psi);
+    } else {
+      // diatomic along +X and -X by half bond distance (in Angstrom)
+      float d = u_bond * 0.5;
+      vec3 pA = p - vec3(d, 0.0, 0.0);
+      vec3 pB = p + vec3(d, 0.0, 0.0);
+      float psiA = orbitalPsi(pA, u_orbital, a);
+      float psiB = orbitalPsi(pB, u_orbital, a);
+      float psi = (u_mode == 1) ? (psiA + psiB) : (psiA - psiB);
+      dens = psi*psi;
+      col = colorMap(psi);
+    }
+    dens *= u_densityScale;
+  }
+
+  // Raymarch through density field
+  vec4 render(vec3 ro, vec3 rd){
+    float t = 0.0;
+    vec3 acc = vec3(0.0);
+    float alpha = 0.0;
+    float maxT = 8.0; // world radius
+    int STEPS = u_steps;
+    for (int i = 0; i < 256; ++i) {
+      if (i >= STEPS) break;
+      if (t > maxT || alpha > 0.99) break;
+      vec3 pos = ro + rd * t;
+      float dens; vec3 col;
+      psiAndColor(pos, dens, col);
+
+      // convert density to opacity via soft isosurface
+      float op = smoothstep(u_iso*0.5, u_iso*1.5, dens) * 0.06;
+      op *= (1.0 - alpha);
+      acc += col * op;
+      alpha += op;
+
+      // step: adaptive on density to reduce banding
+      float dt = mix(0.02, 0.08, 1.0 - clamp(dens*5.0, 0.0, 1.0));
+      t += dt;
+    }
+    vec3 col = acc / max(1e-4, alpha);
+    col = vec3(1.0) - exp(-col * u_exposure); // simple tonemap
+    return vec4(col, alpha);
+  }
+
+  // Camera
+  mat3 rotY(float a){ float c=cos(a), s=sin(a); return mat3(c,0.0,-s, 0.0,1.0,0.0, s,0.0,c); }
+  mat3 rotX(float a){ float c=cos(a), s=sin(a); return mat3(1.0,0.0,0.0, 0.0,c,s, 0.0,-s,c); }
+
+  void main(){
+    vec2 uv = (v_uv * 2.0 - 1.0);
+    uv.x *= u_res.x / max(1.0,u_res.y);
+
+    // camera ray
+    vec3 ro = u_camP;
+    vec3 rd = normalize(u_camR * normalize(vec3(uv, 1.8)));
+    vec4 col = render(ro, rd);
+    fragColor = vec4(col.rgb, 1.0);
+  }`;
+
+  function log(msg){ logEl.textContent += msg + "\n"; }
+
+  // Compile helpers
+  function compile(type, src){
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      const info = gl.getShaderInfoLog(sh);
+      gl.deleteShader(sh);
+      throw new Error("Shader compile error:\n" + info);
+    }
+    return sh;
+  }
+  function link(vs, fs){
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.bindAttribLocation(prog, 0, "a_pos");
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      const info = gl.getProgramInfoLog(prog);
+      gl.deleteProgram(prog);
+      throw new Error("Program link error:\n" + info);
+    }
+    return prog;
+  }
+
+  // Build program
+  let prog, uniforms = {};
+  function build(){
+    const vs = compile(gl.VERTEX_SHADER, VS);
+    const fs = compile(gl.FRAGMENT_SHADER, FS);
+    prog = link(vs, fs);
+    gl.deleteShader(vs); gl.deleteShader(fs);
+
+    // attributes
+    const quad = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    // 2-triangle full screen
+    const data = new Float32Array([
+      -1,-1,  1,-1, -1, 1,
+      -1, 1,  1,-1,  1, 1
+    ]);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+    // uniforms
+    const get = n => gl.getUniformLocation(prog, n);
+    const names = [
+      "u_res","u_time","u_camR","u_camP","u_iso","u_densityScale","u_steps","u_exposure",
+      "u_orbital","u_zeff","u_mode","u_bond"
+    ];
+    names.forEach(n => uniforms[n] = get(n));
+  }
+
+  // UI refs
+  const modeEl = document.getElementById('mode');
+  const orbEl = document.getElementById('orbital');
+  const zeffEl = document.getElementById('zeff');
+  const bondEl = document.getElementById('bond');
+  const isoEl = document.getElementById('iso');
+  const densEl = document.getElementById('dens');
+  const stepsEl = document.getElementById('steps');
+  const autorotEl = document.getElementById('autorot');
+  const exposureEl = document.getElementById('exposure');
+  const runTestsBtn = document.getElementById('runTests');
+
+  // Camera control
+  let camDist = 4.0;
+  let yaw = 0.6, pitch = 0.4;
+  let pan = [0,0];
+  let autorot = true;
+  let dragging = false, lastX = 0, lastY = 0, shift = false;
+
+  canvas.addEventListener('pointerdown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; shift = e.shiftKey; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointerup',   e => { dragging = false; canvas.releasePointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dx = (e.clientX - lastX) / canvas.clientHeight;
+    const dy = (e.clientY - lastY) / canvas.clientHeight;
+    lastX = e.clientX; lastY = e.clientY;
+    if (e.shiftKey) {
+      pan[0] += dx * camDist;
+      pan[1] -= dy * camDist;
+    } else {
+      yaw += dx * 3.0;
+      pitch = Math.max(-1.5, Math.min(1.5, pitch + dy * 3.0));
+    }
+  });
+  canvas.addEventListener('wheel', e => { camDist = Math.max(1.5, Math.min(12.0, camDist * (1 + e.deltaY * 0.001))); });
+
+  // Animate
+  let t0 = performance.now();
+  function draw(){
+    fit();
+    gl.viewport(0,0,canvas.width,canvas.height);
+    gl.useProgram(prog);
+
+    const t = (performance.now() - t0) * 0.001;
+    if (autorot) yaw += 0.15 * 0.016;
+
+    // Camera matrix
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const cx = Math.cos(pitch), sx = Math.sin(pitch);
+    // R = Ry * Rx
+    const R = [
+      cy, 0, -sy,
+      -sy*sx, cx, -cy*sx,
+      sy*cx,  sx,  cy*cx
+    ];
+    const camP = [pan[0], pan[1], -camDist];
+
+    gl.uniform2f(uniforms.u_res, canvas.width, canvas.height);
+    gl.uniform1f(uniforms.u_time, t);
+    gl.uniformMatrix3fv(uniforms.u_camR, false, R);
+    gl.uniform3f(uniforms.u_camP, camP[0], camP[1], camP[2]);
+    gl.uniform1f(uniforms.u_iso, parseFloat(isoEl.value));
+    gl.uniform1f(uniforms.u_densityScale, parseFloat(densEl.value));
+    gl.uniform1i(uniforms.u_steps, parseInt(stepsEl.value,10));
+    gl.uniform1f(uniforms.u_exposure, parseFloat(exposureEl.value));
+
+    const orbMap = {
+      "1s":0, "2s":1, "2p_z":2, "2p_x":3, "2p_y":4,
+      "3d_z2":5, "3d_xz":6, "3d_yz":7, "3d_x2y2":8, "3d_xy":9
+    };
+    gl.uniform1i(uniforms.u_orbital, orbMap[orbEl.value]);
+    gl.uniform1f(uniforms.u_zeff, parseFloat(zeffEl.value));
+    gl.uniform1i(uniforms.u_mode, parseInt(modeEl.value,10));
+    gl.uniform1f(uniforms.u_bond, parseFloat(bondEl.value));
+
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    requestAnimationFrame(draw);
+  }
+
+  // Build and run
+  try {
+    build();
+    stat.textContent = 'ready';
+    autorot = autorotEl.value === "1";
+    requestAnimationFrame(draw);
+  } catch (e) {
+    stat.textContent = 'shader error';
+    log(String(e));
+    console.error(e);
+  }
+
+  autorotEl.addEventListener('change', () => { autorot = autorotEl.value === "1"; });
+
+  // ---------- Self Tests ----------
+  async function runTests(){
+    logEl.textContent = '';
+    log('Running tests...');
+    // T1: compile/link is successful
+    try {
+      const vs = compile(gl.VERTEX_SHADER, VS);
+      const fs = compile(gl.FRAGMENT_SHADER, FS);
+      const p = link(vs, fs);
+      gl.deleteShader(vs); gl.deleteShader(fs); gl.deleteProgram(p);
+      log('T1 PASS: Shader compiles and links');
+    } catch (e) {
+      log('T1 FAIL: ' + e.message);
+      return;
+    }
+
+    // T2: render produces non-black center pixel in single-atom 2p_z
+    const fb = gl.createFramebuffer();
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 256, 256, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+
+    // draw one frame with known params
+    gl.viewport(0,0,256,256);
+    gl.useProgram(prog);
+    gl.uniform2f(uniforms.u_res, 256, 256);
+    gl.uniform1f(uniforms.u_time, 0.0);
+    // identity-ish camera
+    gl.uniformMatrix3fv(uniforms.u_camR, false, new Float32Array([1,0,0, 0,1,0, 0,0,1]));
+    gl.uniform3f(uniforms.u_camP, 0,0,-4);
+    gl.uniform1f(uniforms.u_iso, 0.12);
+    gl.uniform1f(uniforms.u_densityScale, 1.0);
+    gl.uniform1i(uniforms.u_steps, 112);
+    gl.uniform1f(uniforms.u_exposure, 1.1);
+    gl.uniform1i(uniforms.u_orbital, 2); // 2p_z
+    gl.uniform1f(uniforms.u_zeff, 1.0);
+    gl.uniform1i(uniforms.u_mode, 0);
+    gl.uniform1f(uniforms.u_bond, 0.74);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    const px = new Uint8Array(4);
+    gl.readPixels(128,128,1,1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    const sum = px[0]+px[1]+px[2];
+    if (sum > 5) log('T2 PASS: Center pixel shows content');
+    else log('T2 FAIL: Center pixel is black');
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.deleteFramebuffer(fb);
+    gl.deleteTexture(tex);
+
+    // T3: diatomic bonding vs antibonding produce different pixel values
+    function renderMode(m){
+      gl.viewport(0,0,256,256);
+      gl.uniform1i(uniforms.u_mode, m);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      const pxx = new Uint8Array(4);
+      gl.readPixels(128,128,1,1, gl.RGBA, gl.UNSIGNED_BYTE, pxx);
+      return pxx[0]+pxx[1]+pxx[2];
+    }
+    gl.uniform1f(uniforms.u_bond, 0.9);
+    const s1 = renderMode(1); // bonding
+    const s2 = renderMode(2); // antibonding
+    if (Math.abs(s1 - s2) > 3) log('T3 PASS: Bonding vs antibonding differ');
+    else log('T3 FAIL: Modes look the same at test sample');
+
+    log('Tests complete.');
+  }
+  runTestsBtn.addEventListener('click', runTests);
+})();
+</script>
+</body>
+</html>

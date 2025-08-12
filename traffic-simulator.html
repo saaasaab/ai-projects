@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>City Traffic Simulator (Standalone)</title>
+  <style>
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    #app { display: grid; grid-template-columns: 340px 1fr; grid-template-rows: 48px 1fr 28px; height: 100%; }
+    header { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid #ddd; background: #fafafa; }
+    header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+    header .pill { font-size: 11px; padding: 2px 8px; border: 1px solid #ddd; border-radius: 999px; background: white; }
+
+    #sidebar { padding: 12px; border-right: 1px solid #ddd; overflow: auto; }
+    #map { position: relative; }
+    #map, #leaflet { height: 100%; width: 100%; }
+
+    .section { margin-bottom: 14px; }
+    .section h3 { margin: 8px 0 6px; font-size: 13px; font-weight: 700; }
+    .row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+    label { font-size: 12px; color: #333; }
+    input[type="text"], select, input[type="number"] { padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 12px; }
+    button { padding: 6px 10px; font-size: 12px; border: 1px solid #bbb; background: #fff; border-radius: 8px; cursor: pointer; }
+    button.primary { background: #0f62fe; color: white; border-color: #0f62fe; }
+    button.ghost { background: white; }
+    button.tiny { padding: 4px 8px; font-size: 11px; }
+    .toolbar button { margin-right: 6px; }
+    .badge { font-size: 11px; padding: 1px 6px; border: 1px solid #ddd; border-radius: 999px; }
+
+    .legend { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; font-size: 12px; align-items: center; }
+    .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); }
+    .sw-road { background: #5b7cff; }
+    .sw-home { background: #2ecc71; }
+    .sw-apt { background: #27ae60; }
+    .sw-biz { background: #f39c12; }
+    .sw-parking { background: #95a5a6; }
+    .sw-car { background: #e74c3c; }
+
+    footer { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-top: 1px solid #ddd; background: #fafafa; font-size: 12px; }
+
+    /* Leaflet inlined */
+    .leaflet-pane,
+    .leaflet-tile,
+    .leaflet-marker-icon,
+    .leaflet-marker-shadow,
+    .leaflet-tile-container,
+    .leaflet-pane > svg,
+    .leaflet-pane > canvas,
+    .leaflet-zoom-box,
+    .leaflet-image-layer,
+    .leaflet-layer { position: absolute; left: 0; top: 0; }
+    .leaflet-container { overflow: hidden; }
+    .leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow { -webkit-user-select: none; -moz-user-select: none; user-select: none; -webkit-user-drag: none; }
+    .leaflet-container { outline: 0; }
+    .leaflet-pane > svg { -moz-user-select: none; }
+    .leaflet-container a { -webkit-tap-highlight-color: transparent; }
+    .leaflet-container a, .leaflet-container a:hover { color: #0078A8; }
+    .leaflet-control { position: relative; z-index: 800; pointer-events: auto; }
+    .leaflet-top, .leaflet-bottom { position: absolute; z-index: 1000; pointer-events: none; }
+    .leaflet-top { top: 0; }
+    .leaflet-right { right: 0; }
+    .leaflet-bottom { bottom: 0; }
+    .leaflet-left { left: 0; }
+    .leaflet-control { float: left; clear: both; }
+    .leaflet-bar { box-shadow: 0 1px 5px rgba(0,0,0,0.65); border-radius: 4px; }
+    .leaflet-bar a, .leaflet-bar a:hover { background-color: #fff; border-bottom: 1px solid #ccc; width: 26px; height: 26px; line-height: 26px; display: block; text-align: center; text-decoration: none; color: black; }
+    .leaflet-bar a:last-child { border-bottom: none; }
+    .leaflet-control-zoom-in, .leaflet-control-zoom-out { font: bold 18px 'Lucida Console', Monaco, monospace; }
+    .leaflet-control-attribution { background: rgba(255, 255, 255, 0.8); margin: 0; }
+    .leaflet-control-attribution, .leaflet-control-scale-line { padding: 0 5px; color: #333; }
+    .leaflet-control-attribution a { text-decoration: none; }
+    .leaflet-container .leaflet-control-attribution { box-shadow: none; }
+    .leaflet-marker-icon.car { width: 8px; height: 8px; border-radius: 50%; background: #e74c3c; border: 1px solid rgba(0,0,0,0.5); transform: translate(-4px, -4px); }
+    .leaflet-div-icon { background: transparent; border: none; }
+
+    /* Floating panel over map */
+    .floating { position: absolute; top: 12px; right: 12px; z-index: 10000; background: rgba(255,255,255,0.92); padding: 8px 10px; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); font-size: 12px; }
+    .floating .row { margin-bottom: 6px; }
+    .ok { color: #2e7d32; }
+    .warn { color: #d32f2f; }
+    pre#testOut { max-height: 120px; overflow: auto; background: #f7f7f7; border: 1px solid #eee; padding: 6px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>City Traffic Simulator</h1>
+      <span class="pill">Standalone</span>
+      <div class="badge">Draw roads, place homes and businesses, then simulate flows.</div>
+    </header>
+
+    <aside id="sidebar">
+      <div class="section">
+        <h3>Location</h3>
+        <div class="row">
+          <input id="cityInput" type="text" placeholder="City... e.g., Canby, Oregon" value="Canby, Oregon" />
+          <button id="goCity" class="primary">Go</button>
+        </div>
+        <div class="row">
+          <label>Base:</label>
+          <select id="baseSelect">
+            <option value="streets" selected>OSM Streets</option>
+            <option value="sat">Esri Satellite</option>
+          </select>
+          <button id="toggleOverlay" class="ghost tiny" title="Convert view">Roads/Buildings overlay</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Design tools</h3>
+        <div class="toolbar">
+          <button data-tool="draw-road">Draw road</button>
+          <button data-tool="add-home">Add home</button>
+          <button data-tool="add-apt">Add apartments</button>
+          <button data-tool="add-biz">Add business</button>
+          <button data-tool="add-parking">Add parking</button>
+          <button data-tool="delete">Delete</button>
+        </div>
+        <div class="legend" style="margin-top:8px;">
+          <div class="swatch sw-road"></div><div>Road</div>
+          <div class="swatch sw-home"></div><div>Home (trip gen)</div>
+          <div class="swatch sw-apt"></div><div>Apartments (trip gen)</div>
+          <div class="swatch sw-biz"></div><div>Business (attractor)</div>
+          <div class="swatch sw-parking"></div><div>Parking</div>
+          <div class="swatch sw-car"></div><div>Car</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Simulation</h3>
+        <div class="row">
+          <label>Cars limit</label>
+          <input id="maxCars" type="number" min="0" value="300" style="width:90px" />
+          <label>Speed</label>
+          <input id="speed" type="number" step="0.1" value="1.0" style="width:80px" />
+        </div>
+        <div class="row">
+          <label>Traffic multiplier</label>
+          <input id="trafficMult" type="number" min="0" step="0.1" value="1.0" style="width:80px" />
+        </div>
+        <div class="row">
+          <label title="Trips per unit per minute">Home trips/min</label>
+          <input id="homeRate" type="number" step="0.01" value="0.02" style="width:80px" />
+          <label>Apt trips/min</label>
+          <input id="aptRate" type="number" step="0.01" value="0.05" style="width:80px" />
+        </div>
+        <div class="row">
+          <label>Business draw</label>
+          <input id="bizWeight" type="number" step="0.1" value="1.0" style="width:80px" />
+        </div>
+        <div class="row">
+          <button id="startBtn" class="primary">Start</button>
+          <button id="pauseBtn">Pause</button>
+          <button id="resetBtn">Reset</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Scenario</h3>
+        <div class="row">
+          <button id="exportBtn">Export JSON</button>
+          <button id="importBtn">Import JSON</button>
+          <input id="fileInput" type="file" accept="application/json" style="display:none" />
+        </div>
+        <small>Tip: add or remove a road, home, apartments, or business to see traffic change. Roads have simple capacities. Congestion slows cars.</small>
+      </div>
+
+      <div class="section">
+        <h3>Tests</h3>
+        <div class="row">
+          <button id="runTests">Run self tests</button>
+          <span id="testStatus" class="badge">Idle</span>
+        </div>
+        <pre id="testOut"></pre>
+      </div>
+    </aside>
+
+    <main id="map">
+      <div id="leaflet"></div>
+      <div class="floating" id="stats">
+        <div class="row"><strong>Cars:</strong>&nbsp;<span id="carCount">0</span>&nbsp;&nbsp;|&nbsp;&nbsp;<strong>Avg speed:</strong>&nbsp;<span id="avgSpeed">0</span> m/s</div>
+        <div class="row"><strong>VKT:</strong>&nbsp;<span id="vkt">0</span> km&nbsp;&nbsp;|&nbsp;&nbsp;<strong>Mean delay:</strong>&nbsp;<span id="delay">0</span>%</div>
+      </div>
+    </main>
+
+    <footer>
+      <div>Data tiles © OpenStreetMap contributors, Esri imagery. Demo only.</div>
+      <div>Zoom, draw, and simulate. City search uses Nominatim.</div>
+    </footer>
+  </div>
+
+  <!-- Leaflet core inlined (trimmed, defensive updates) -->
+  <script>
+    (function(){
+      function extend(t){for(var e=1;e<arguments.length;e++){var i=arguments[e]||{};for(var n in i)if(Object.prototype.hasOwnProperty.call(i,n))t[n]=i[n]}return t}
+      var L={};
+      function Point(x,y,round){this.x=round?Math.round(x):x;this.y=round?Math.round(y):y}
+      Point.prototype={add:function(t){if(!t||typeof t.x!=='number'||typeof t.y!=='number') return new Point(this.x,this.y);return new Point(this.x+t.x,this.y+t.y)},subtract:function(t){if(!t||typeof t.x!=='number'||typeof t.y!=='number') return new Point(this.x,this.y);return new Point(this.x-t.x,this.y-t.y)},scaleBy:function(t){return new Point(this.x*t.x,this.y*t.y)},unscaleBy:function(t){return new Point(this.x/t.x,this.y/t.y)}};
+      L.point=function(x,y,round){return x instanceof Point?x:new Point(x,y,round)};
+      function LatLng(lat,lng){this.lat=+lat;this.lng=+lng}
+      L.latLng=function(lat,lng){return lat instanceof LatLng?lat:new LatLng(lat,lng)};
+      function Bounds(t,e){if(!t) return;var i=Array.isArray(t)?t:[t,e];this.min=L.point(i[0]);this.max=L.point(i[1])}
+      function DomUtil(){}
+      DomUtil.get=function(id){return typeof id==="string"?document.getElementById(id):id};
+      DomUtil.create=function(tagName,className,container){var el=document.createElement(tagName);className&&(el.className=className);container&&container.appendChild(el);return el};
+      var CRS={
+        project:function(latlng){if(!latlng||typeof latlng.lat!=="number"||typeof latlng.lng!=="number") return L.point(0,0);var d=Math.PI/180,lat=latlng.lat*d,lng=latlng.lng*d;var x=256*(lng+Math.PI)/(2*Math.PI), y=256*(Math.PI-Math.log(Math.tan(Math.PI/4+lat/2)))/(2*Math.PI);return L.point(x,y)},
+        unproject:function(point){if(!point||typeof point.x!=="number"||typeof point.y!=="number") return L.latLng(0,0);var d=180/Math.PI,lng=point.x*2*Math.PI/256-Math.PI,lat=2*Math.atan(Math.exp((Math.PI-point.y*2*Math.PI/256)))-Math.PI/2;return L.latLng(lat*d,lng*d)}
+      };
+      function Map(id,opts){this._container=DomUtil.get(id);this._zoom=(opts&&opts.zoom)||12;this._center=(opts&&opts.center)||L.latLng(45.263,-122.691);this._initLayout();this._tileLayers=[];this._initEvents()}
+      Map.prototype={
+        _initLayout:function(){this._pane=DomUtil.create('div','leaflet-pane',this._container);this._tilePane=DomUtil.create('div','leaflet-tile-pane',this._pane);this._overlayPane=DomUtil.create('div','leaflet-overlay-pane',this._pane);this._markerPane=DomUtil.create('div','leaflet-marker-pane',this._pane);var ctl=DomUtil.create('div','leaflet-top leaflet-left',this._container);this._controlZoomIn=DomUtil.create('a','leaflet-control-zoom-in',ctl);this._controlZoomIn.href='#';this._controlZoomIn.innerHTML='+';this._controlZoomOut=DomUtil.create('a','leaflet-control-zoom-out',ctl);this._controlZoomOut.href='#';this._controlZoomOut.innerHTML='-';
+          var self=this;this._controlZoomIn.addEventListener('click',function(e){e.preventDefault();self.setZoom(self._zoom+1)});this._controlZoomOut.addEventListener('click',function(e){e.preventDefault();self.setZoom(self._zoom-1)})},
+        _initEvents:function(){var self=this; var dragging=false, last=null; this._container.addEventListener('mousedown',function(e){dragging=true; last=L.point(e.clientX,e.clientY)});
+          window.addEventListener('mousemove',function(e){if(!dragging) return; var now=L.point(e.clientX,e.clientY); var dx=now.x-last.x, dy=now.y-last.y; self._panBy(dx,dy); last=now});
+          window.addEventListener('mouseup',function(){dragging=false});
+          this._container.addEventListener('wheel',function(e){e.preventDefault(); var delta=e.deltaY>0?-1:1; var zc=L.point(e.offsetX||0,e.offsetY||0); self.setZoom(self._zoom+delta, zc)},{passive:false});
+          window.addEventListener('resize',()=>this._update())
+        },
+        _panBy:function(dx,dy){var c1=this.latLngToLayerPoint(this._center);var c2=c1.subtract(L.point(dx,dy));this._center=this.layerPointToLatLng(c2);this._update()},
+        addLayer:function(layer){layer.onAdd(this); return this},
+        removeLayer:function(layer){layer.onRemove&&layer.onRemove(this); return this},
+        setView:function(center,zoom){this._center=L.latLng(center); if(zoom!=null) this._zoom=zoom; this._update(); return this},
+        setZoom:function(zoom,zoomCenter){zoom=Math.max(2,Math.min(19,zoom)); if(zoomCenter){ var before=this.latLngToLayerPoint(this._center); this._zoom=zoom; var after=this.latLngToLayerPoint(this._center); var offset=after.subtract(before); this._panBy(offset.x,offset.y)} else { this._zoom=zoom; this._update();} },
+        latLngToLayerPoint:function(latlng){var world=CRS.project(latlng);return L.point(world.x*Math.pow(2,this._zoom),world.y*Math.pow(2,this._zoom))},
+        layerPointToLatLng:function(point){var z=this._zoom; var world=L.point(point.x/Math.pow(2,z), point.y/Math.pow(2,z)); return CRS.unproject(world)},
+        getZoom:function(){return this._zoom},
+        getCenter:function(){return this._center},
+        getSize:function(){return L.point(this._container.clientWidth,this._container.clientHeight)},
+        getPixelOrigin:function(){var centerPoint=this.latLngToLayerPoint(this._center); var half=this.getSize().scaleBy(L.point(0.5,0.5)); return centerPoint.subtract(half)},
+        getZoomScale:function(){return Math.pow(2,this._zoom)},
+        _update:function(){var origin=this.getPixelOrigin(); for(var i=0;i<this._tileLayers.length;i++){this._tileLayers[i]._update(origin,this._zoom)} if(this._vectorRoot){this._vectorRoot.setAttribute('transform','translate('+-origin.x+','+-origin.y+')')}
+        },
+        _addTileLayer:function(layer){this._tileLayers.push(layer)},
+        createPane:function(name){return DomUtil.create('div','leaflet-'+name+'-pane',this._pane)}
+      };
+      L.map=function(id,opts){return new Map(id,opts||{})};
+
+      function TileLayer(urlTemplate,options){this._url=urlTemplate; this.options=extend({tileSize:256, minZoom:0, maxZoom:19, attribution:''},options||{})}
+      TileLayer.prototype={onAdd:function(map){this._map=map; this._container=DomUtil.create('div','leaflet-layer',map._tilePane); map._addTileLayer(this); this._update()},
+        _update:function(origin){if(!this._map) return; var z=this._map.getZoom(); if(z<this.options.minZoom||z>this.options.maxZoom) return; var size=this.options.tileSize; var boundsMin=origin.unscaleBy(L.point(size,size)).subtract(L.point(1,1)); var boundsMax=origin.add(this._map.getSize()).unscaleBy(L.point(size,size)).add(L.point(1,1)); var frag=document.createDocumentFragment(); this._container.innerHTML=''; for(var j=Math.floor(boundsMin.y); j<=Math.floor(boundsMax.y); j++) for(var i=Math.floor(boundsMin.x); i<=Math.floor(boundsMax.x); i++){var tile=document.createElement('img'); tile.alt=''; tile.referrerPolicy='no-referrer'; tile.width=size; tile.height=size; var url=this._url.replace('{z}',z).replace('{x}',i).replace('{y}',j); tile.style.cssText='position:absolute; left:'+(i*size-origin.x)+'px; top:'+(j*size-origin.y)+'px;'; tile.src=url; frag.appendChild(tile)} this._container.appendChild(frag)}
+      };
+      L.tileLayer=function(url,opts){return new TileLayer(url,opts)};
+
+      function Path(options){this.options=options||{}};
+      function Polyline(latlngs,options){Path.call(this,options); this._latlngs=(latlngs||[]).map(function(ll){return L.latLng(ll.lat,ll.lng)})}
+      Polyline.prototype=extend(Object.create(Path.prototype),{
+        onAdd:function(map){this._map=map; if(!map._vectorRoot){var svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('class','leaflet-zoom-animated'); svg.style.position='absolute'; map._pane.appendChild(svg); map._vectorRoot=svg;}
+          this._path=document.createElementNS('http://www.w3.org/2000/svg','path'); this._path.setAttribute('stroke',this.options.color||'#5b7cff'); this._path.setAttribute('stroke-width',this.options.weight||3); this._path.setAttribute('fill','none'); this._path.setAttribute('opacity',this.options.opacity==null?0.9:this.options.opacity); this._map._vectorRoot.appendChild(this._path); this._update()},
+        onRemove:function(){this._map&&this._path&&this._path.remove()},
+        setLatLngs:function(latlngs){this._latlngs=(latlngs||[]); this._update()},
+        getLatLngs:function(){return this._latlngs},
+        _update:function(){if(!this._map||!this._path) return; var origin=this._map.getPixelOrigin(); if(!origin||typeof origin.x!=="number") return; var d=''; for(var i=0;i<this._latlngs.length;i++){var ll=this._latlngs[i]; if(!ll||typeof ll.lat!=="number"||typeof ll.lng!=="number") continue; var p=this._map.latLngToLayerPoint(ll); d+=(i?'L':'M')+(p.x-origin.x)+' '+(p.y-origin.y)+' '; } this._path.setAttribute('d',d)}
+      });
+      L.polyline=function(latlngs,options){return new Polyline(latlngs,options)};
+
+      function Marker(latlng,options){this._latlng=L.latLng((latlng&&latlng.lat)||0,(latlng&&latlng.lng)||0); this.options=extend({className:'', html:''},options||{})}
+      Marker.prototype={onAdd:function(map){this._map=map; var el=DomUtil.create('div','leaflet-marker-icon '+(this.options.className||''), map._markerPane); el.style.position='absolute'; this._icon=el; if(this.options.html){el.innerHTML=this.options.html} this._update()},
+        onRemove:function(){this._icon&&this._icon.remove()},
+        setLatLng:function(latlng){ if(!latlng||typeof latlng.lat!=="number"||typeof latlng.lng!=="number") return; this._latlng=L.latLng(latlng.lat,latlng.lng); this._update()},
+        getLatLng:function(){return this._latlng},
+        _update:function(){if(!this._map||!this._icon) return; if(!this._latlng||isNaN(this._latlng.lat)||isNaN(this._latlng.lng)) return; var p=this._map.latLngToLayerPoint(this._latlng); var o=this._map.getPixelOrigin(); this._icon.style.left=(p.x-o.x-4)+'px'; this._icon.style.top=(p.y-o.y-4)+'px'}
+      };
+      L.marker=function(latlng,options){return new Marker(latlng,options)};
+
+      window.L=L;
+    })();
+  </script>
+
+  <script>
+    // --- Small helpers ---
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+    const rnd = (a,b)=>a+Math.random()*(b-a);
+
+    // --- Map setup ---
+    const map = L.map('leaflet', { center: L.latLng(45.262, -122.691), zoom: 14 });
+
+    const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+    const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{x}/{y}', { maxZoom: 19 });
+    osm.onAdd(map);
+
+    // --- Data structures ---
+    const nodes = new Map(); // id -> {id, lat, lng}
+    const edges = new Map(); // id -> {id, a, b, len, cap, poly: [latlng...]}
+    const roads = []; // polyline layers
+
+    const poi = []; // {id, type: 'home'|'apt'|'biz'|'parking', units, marker}
+
+    let nextNodeId = 1, nextEdgeId = 1, nextPoiId = 1;
+
+    const cars = []; // agent list
+    let running = false;
+
+    // --- UI wiring ---
+    const toolState = { tool: null, drawing: false, drawPts: [] };
+
+    function setTool(tool){ toolState.tool = tool; $$('[data-tool]').forEach(b=>b.classList.remove('primary')); if(tool){
+      const btn = document.querySelector(`[data-tool="${tool}"]`); if(btn) btn.classList.add('primary');
+    }}
+
+    $$('[data-tool]').forEach(btn => btn.addEventListener('click', ()=> setTool(btn.dataset.tool)));
+
+    $('#baseSelect').addEventListener('change', (e)=>{
+      if(e.target.value==='sat'){ map.removeLayer(osm); esri.onAdd(map); }
+      else { map.removeLayer(esri); osm.onAdd(map); }
+    });
+
+    // City search via Nominatim
+    async function geocode(city){
+      try{
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}`;
+        const res = await fetch(url,{headers:{'Accept-Language':'en'}});
+        const data = await res.json();
+        if(data && data[0]){
+          const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
+          map.setView(L.latLng(lat, lon), 14);
+        }
+      }catch(err){ console.warn('Geocode failed', err); }
+    }
+
+    $('#goCity').addEventListener('click', ()=> geocode($('#cityInput').value.trim()));
+
+    // Overlay toggle placeholder
+    $('#toggleOverlay').addEventListener('click', ()=>{
+      alert('Overlay shows your drawn roads and placed buildings/parking. Satellite vs Streets via selector.');
+    });
+
+    // --- Geometry helpers ---
+    function polyLength(poly){ let d=0; for(let i=1;i<poly.length;i++){ d+=distance(poly[i-1], poly[i]); } return d; }
+    function distance(a,b){ const R = 6371000; const dLat = (b.lat-a.lat)*Math.PI/180; const dLon = (b.lng-a.lng)*Math.PI/180; const la1 = a.lat*Math.PI/180, la2 = b.lat*Math.PI/180; const x = Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(x)); }
+
+    // --- Roads ---
+    let currentRoadLayer = null;
+    function addNode(latlng){ const id = nextNodeId++; const n = { id, lat: latlng.lat, lng: latlng.lng }; nodes.set(id, n); return id; }
+    function addEdge(aId,bId,poly){ const id = nextEdgeId++; const len = polyLength(poly); const cap = 600; const e = { id, a: aId, b: bId, len, cap, poly }; edges.set(id, e); return id; }
+
+    function startRoad(latlng){ if(!latlng) return; toolState.drawing=true; toolState.drawPts=[latlng]; currentRoadLayer=L.polyline([latlng],{color:'#5b7cff', weight:4, opacity:0.9}); currentRoadLayer.onAdd(map); roads.push(currentRoadLayer); }
+    function extendRoad(latlng){ if(!latlng||!currentRoadLayer) return; toolState.drawPts.push(latlng); currentRoadLayer.setLatLngs(toolState.drawPts); }
+    function finishRoad(){ if(toolState.drawPts.length>1){ let prevId = addNode(toolState.drawPts[0]); for(let i=1;i<toolState.drawPts.length;i++){ const nid = addNode(toolState.drawPts[i]); addEdge(prevId, nid, [toolState.drawPts[i-1], toolState.drawPts[i]]); prevId = nid; } }
+      toolState.drawing=false; toolState.drawPts=[]; currentRoadLayer=null; }
+
+    // --- POI placement ---
+    function addPOI(type,latlng){ if(!latlng) return null; const id = nextPoiId++; const color = type==='home'? '#2ecc71' : type==='apt'? '#27ae60' : type==='biz'? '#f39c12' : '#95a5a6'; const html = `<div style="transform:translate(-50%,-50%); width:14px;height:14px;border-radius:4px;border:1px solid rgba(0,0,0,.4); background:${color}"></div>`; const marker = L.marker(latlng,{className:'', html}); marker.onAdd(map); const units = type==='apt'? 24 : type==='home'? 1 : 1; const p = { id, type, units, marker }; poi.push(p); return p; }
+
+    function pickPOI(latlng, tolPx){ const origin = map.getPixelOrigin(); if(!origin||typeof origin.x!=="number") return null; function toPx(ll){ if(!ll) return null; const p = map.latLngToLayerPoint(ll); return {x:p.x-origin.x, y:p.y-origin.y}; } const target = toPx(latlng); if(!target) return null; for(const p of poi){ const pl = p.marker.getLatLng(); const s = toPx(pl); if(!s) continue; const d = Math.hypot(s.x-target.x, s.y-target.y); if(d<=tolPx) return p; } return null; }
+
+    function removePOIAt(latlng){ const p = pickPOI(latlng, 12); if(p){ p.marker.onRemove(); const idx = poi.findIndex(q=>q.id===p.id); if(idx>=0) poi.splice(idx,1); } }
+
+    // Delete last road helper
+    function deleteLastRoad(){ const layer = roads.pop(); if(layer){ layer.onRemove(); } }
+
+    // Map clicks to draw/place/delete (defensive against undefined latlng)
+    const mapEl = document.getElementById('leaflet');
+    mapEl.addEventListener('dblclick', (e)=>{ if(toolState.tool==='draw-road' && toolState.drawing){ finishRoad(); }});
+
+    mapEl.addEventListener('click', (e)=>{
+      const r = mapEl.getBoundingClientRect(); if(!r) return;
+      const px = L.point(e.clientX - r.left, e.clientY - r.top);
+      const origin = (map && typeof map.getPixelOrigin==='function') ? map.getPixelOrigin() : null;
+      if(!origin || typeof origin.x!== 'number' || typeof origin.y!=='number'){ console.warn('Pixel origin not ready'); return; }
+      const layerPoint = px.add(origin);
+      let latlng=null; try { latlng = map.layerPointToLatLng(layerPoint); } catch(err){ console.warn('layerPointToLatLng failed', err); return; }
+      if(!latlng || !isFinite(latlng.lat) || !isFinite(latlng.lng)) return;
+
+      if(toolState.tool==='draw-road'){
+        if(!toolState.drawing) startRoad(latlng); else extendRoad(latlng);
+      } else if(toolState.tool==='add-home'){ addPOI('home', latlng); }
+      else if(toolState.tool==='add-apt'){ addPOI('apt', latlng); }
+      else if(toolState.tool==='add-biz'){ addPOI('biz', latlng); }
+      else if(toolState.tool==='add-parking'){ addPOI('parking', latlng); }
+      else if(toolState.tool==='delete'){ removePOIAt(latlng); deleteLastRoad(); }
+    });
+
+    // --- Routing (simple Dijkstra) ---
+    function buildAdj(){ const adj = new Map(); edges.forEach(e=>{ if(!adj.has(e.a)) adj.set(e.a, []); if(!adj.has(e.b)) adj.set(e.b, []); adj.get(e.a).push({to:e.b, edge:e}); adj.get(e.b).push({to:e.a, edge:e}); }); return adj; }
+    function nearestNode(latlng){ let best=null, bestD=1e12; nodes.forEach(n=>{ const d = distance(latlng,{lat:n.lat,lng:n.lng}); if(d<bestD){bestD=d; best=n;} }); return best; }
+    function route(fromLL,toLL){ const start = nearestNode(fromLL), goal = nearestNode(toLL); if(!start||!goal) return null; const adj = buildAdj(); const Q = new Set(nodes.keys()); const dist = new Map(); const prev = new Map(); const viaEdge = new Map(); nodes.forEach((_,id)=>dist.set(id, Infinity)); dist.set(start.id, 0); while(Q.size){ let u=null, best=Infinity; Q.forEach(id=>{ const d=dist.get(id); if(d<best){best=d; u=id;} }); if(u===null) break; Q.delete(u); if(u===goal.id) break; const nbrs = adj.get(u)||[]; for(const nb of nbrs){ const v = nb.to; const e = nb.edge; const w = e.len * (1 + (e._load||0)/e.cap); const alt = dist.get(u) + w; if(alt < dist.get(v)){ dist.set(v, alt); prev.set(v, u); viaEdge.set(v, e); } } } if(!prev.has(goal.id)) return null; const pathEdges = []; let cur=goal.id; while(cur!==start.id){ const e = viaEdge.get(cur); if(!e) break; pathEdges.push(e); cur = prev.get(cur); } pathEdges.reverse(); const pts = [ {lat:nodes.get(pathEdges[0].a).lat, lng:nodes.get(pathEdges[0].a).lng} ]; pathEdges.forEach(e=> pts.push({lat:nodes.get(e.b).lat, lng:nodes.get(e.b).lng})); return { edges: pathEdges, poly: pts }; }
+
+    // --- Cars ---
+    function spawnCar(origin,target){ const r = route(origin, target); if(!r) return null; const icon = L.marker(origin,{className:'car'}); icon.onAdd(map); const car = { icon, route:r, segIdx:0, pos:0, speed: parseFloat($('#speed').value) + rnd(-0.3,0.3), alive:true, dist:0 }; r.edges.forEach(e=> e._load=(e._load||0)+1); cars.push(car); return car; }
+    function removeCar(car){ if(!car.alive) return; car.alive=false; car.icon.onRemove(); car.route.edges.forEach(e=> e._load=Math.max(0,(e._load||0)-1)); }
+
+    function stepCars(dt){ const speedBase = parseFloat($('#speed').value); let totalSpeed=0, aliveCount=0, totalDelay=0, vkt=0; for(const car of cars){ if(!car.alive) continue; const e = car.route.edges[car.segIdx]; if(!e){ removeCar(car); continue; } const cong = 1 + (e._load||0)/e.cap; const v = Math.max(0.2, (speedBase + (car.speed-speedBase)) / cong); const segLen = e.len || 1; const move = v*dt; car.pos += move; car.dist += move; totalSpeed+=v; aliveCount++; totalDelay += (cong-1); if(car.pos >= segLen){ car.segIdx++; car.pos=0; if(car.segIdx>=car.route.edges.length){ removeCar(car); continue; } } const a = {lat:nodes.get(e.a).lat, lng:nodes.get(e.a).lng}; const b = {lat:nodes.get(e.b).lat, lng:nodes.get(e.b).lng}; const t = Math.min(1, car.pos/segLen); const ll = { lat: a.lat + (b.lat-a.lat)*t, lng: a.lng + (b.lng-a.lng)*t }; if(isFinite(ll.lat)&&isFinite(ll.lng)) car.icon.setLatLng(ll); else removeCar(car); vkt += move/1000; } for(let i=cars.length-1;i>=0;i--) if(!cars[i].alive) cars.splice(i,1); $('#carCount').textContent = String(aliveCount); $('#avgSpeed').textContent = aliveCount? (totalSpeed/aliveCount).toFixed(2):'0'; $('#delay').textContent = aliveCount? Math.max(0,totalDelay/aliveCount*100).toFixed(1):'0'; stats.vkt += vkt; $('#vkt').textContent = stats.vkt.toFixed(2); }
+
+    const stats = { vkt: 0 };
+
+    // Trip generation
+    function pickBiz(){ const candidates = poi.filter(p=>p.type==='biz'); if(!candidates.length) return null; return candidates[Math.floor(Math.random()*candidates.length)]; }
+    function pickHomeOrApt(){ const homes = poi.filter(p=>p.type==='home' || p.type==='apt'); if(!homes.length) return null; return homes[Math.floor(Math.random()*homes.length)]; }
+
+    function stepSpawn(dt){ const mult = parseFloat($('#trafficMult').value); const homeRate = parseFloat($('#homeRate').value)*mult; const aptRate  = parseFloat($('#aptRate').value)*mult; const maxCars = parseInt($('#maxCars').value,10); if(cars.length>=maxCars) return; const homes = poi.filter(p=>p.type==='home'); const apts = poi.filter(p=>p.type==='apt'); function trySpawnFrom(p){ const target = pickBiz() || pickHomeOrApt(); if(!target) return; const o = p.marker.getLatLng(); const d = target.marker.getLatLng(); spawnCar(o,d); } for(const p of homes){ if(Math.random() < homeRate*dt) trySpawnFrom(p); } for(const p of apts){ if(Math.random() < aptRate*dt) trySpawnFrom(p); } }
+
+    // --- Main loop ---
+    let lastTs=null; function frame(ts){ if(!running){ lastTs = ts; requestAnimationFrame(frame); return; } if(lastTs==null) lastTs = ts; const dt = Math.min(0.1, (ts-lastTs)/1000); lastTs = ts; stepSpawn(dt); stepCars(dt); requestAnimationFrame(frame); } requestAnimationFrame(frame);
+
+    // Controls
+    $('#startBtn').addEventListener('click', ()=> running=true);
+    $('#pauseBtn').addEventListener('click', ()=> running=false);
+    $('#resetBtn').addEventListener('click', ()=>{ running=false; cars.slice().forEach(removeCar); cars.length=0; stats.vkt=0; $('#vkt').textContent='0'; $('#carCount').textContent='0'; $('#avgSpeed').textContent='0'; $('#delay').textContent='0'; edges.forEach(e=> e._load=0); });
+
+    // Export / Import
+    function exportScenario(){ const data = { nodes: Array.from(nodes.values()), edges: Array.from(edges.values()).map(e=>({id:e.id,a:e.a,b:e.b,poly:e.poly})), poi: poi.map(p=>({id:p.id,type:p.type,units:p.units,lat:p.marker.getLatLng().lat,lng:p.marker.getLatLng().lng})) }; const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='traffic_scenario.json'; a.click(); }
+    function importScenario(obj){ roads.forEach(r=> r.onRemove()); roads.length=0; poi.slice().forEach(p=>p.marker.onRemove()); poi.length=0; nodes.clear(); edges.clear(); nextNodeId=1; nextEdgeId=1; nextPoiId=1; for(const n of obj.nodes){ nodes.set(n.id,{id:n.id,lat:n.lat,lng:n.lng}); nextNodeId=Math.max(nextNodeId,n.id+1); } for(const e of obj.edges){ const id=e.id; const a=e.a,b=e.b; const poly=e.poly; edges.set(id,{id,a,b,len:polyLength(poly),cap:600,poly}); nextEdgeId=Math.max(nextEdgeId,id+1); const layer=L.polyline(poly,{color:'#5b7cff',weight:4,opacity:0.9}); layer.onAdd(map); roads.push(layer); } for(const p of obj.poi){ const marker=L.marker({lat:p.lat,lng:p.lng},{className:'',html:`<div style="transform:translate(-50%,-50%); width:14px;height:14px;border-radius:4px;border:1px solid rgba(0,0,0,.4); background:${p.type==='home'?'#2ecc71':p.type==='apt'?'#27ae60':p.type==='biz'?'#f39c12':'#95a5a6'}"></div>`}); marker.onAdd(map); poi.push({id:p.id,type:p.type,units:p.units,marker}); nextPoiId=Math.max(nextPoiId,p.id+1); } }
+
+    $('#exportBtn').addEventListener('click', exportScenario);
+    $('#importBtn').addEventListener('click', ()=> $('#fileInput').click());
+    $('#fileInput').addEventListener('change', async (e)=>{ const f = e.target.files[0]; if(!f) return; const txt = await f.text(); const obj = JSON.parse(txt); importScenario(obj); });
+
+    // --- Self tests ---
+    function logTest(ok,msg){ const out = document.getElementById('testOut'); const line = (ok? '✅ ' : '❌ ') + msg + '\n'; out.textContent += line; return ok; }
+    function clearTests(){ document.getElementById('testOut').textContent=''; }
+    function runTests(){ clearTests(); const status = document.getElementById('testStatus'); status.textContent='Running';
+      try{
+        // Test 1: pixel origin exists and has numeric x/y
+        const origin = map.getPixelOrigin(); logTest(origin && typeof origin.x==='number' && typeof origin.y==='number', 'Pixel origin is numeric.');
+        // Test 2: round trip center -> layer -> latlng within tolerance
+        const c0 = map.getCenter(); const lp = map.latLngToLayerPoint(c0); const c1 = map.layerPointToLatLng(lp); const ok2 = Math.abs(c0.lat-c1.lat)<1e-6 && Math.abs(c0.lng-c1.lng)<1e-6; logTest(ok2, 'Round-trip center conversion accurate.');
+        // Test 3: synth click at map center converts safely
+        const rect = mapEl.getBoundingClientRect(); const px = L.point(rect.width/2, rect.height/2); const ll = map.layerPointToLatLng(px.add(origin)); logTest(ll && isFinite(ll.lat) && isFinite(ll.lng), 'Synthetic click produces valid latlng.');
+        // Test 4: marker safety on bad input
+        const m = L.marker({lat:c0.lat,lng:c0.lng}); m.onAdd(map); let threw=false; try{ m.setLatLng(null); }catch(e){ threw=true; } logTest(!threw, 'Marker.setLatLng ignores invalid input without throwing.'); m.onRemove();
+        status.textContent='Done'; status.className='badge ok';
+      }catch(e){ logTest(false, 'Unexpected error: '+e.message); status.textContent='Failed'; status.className='badge warn'; }
+    }
+    document.getElementById('runTests').addEventListener('click', runTests);
+
+    // Startup defaults
+    geocode('Canby, Oregon');
+    setTool('draw-road');
+  </script>
+</body>
+</html>

@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Land Plot Generator</title>
+<style>
+  :root {
+    --bg:#0f172a;
+    --panel:#111827;
+    --muted:#6b7280;
+    --text:#e5e7eb;
+    --accent:#22c55e;
+    --warn:#f59e0b;
+    --danger:#ef4444;
+    --line:#334155;
+  }
+  html,body {height:100%; margin:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif}
+  .app {display:grid; grid-template-columns: 320px 1fr; height:100%;}
+  .left {border-right:1px solid var(--line); background:var(--panel); overflow:auto;}
+  .right {position:relative;}
+  .toolbar {padding:14px; display:grid; gap:12px;}
+  .group {border:1px solid var(--line); border-radius:10px; padding:12px; background:rgba(255,255,255,0.02)}
+  .group h3 {font-size:13px; margin:0 0 8px 0; color:#cbd5e1; letter-spacing:.02em}
+  .row {display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  label {color:#cbd5e1; font-size:12px}
+  input[type="number"], input[type="text"] {
+    background:#0b1220; color:var(--text); border:1px solid var(--line);
+    padding:6px 8px; border-radius:8px; width:100%;
+  }
+  input[type="file"] {width:100%}
+  button {
+    background:#0b1220; color:var(--text); border:1px solid var(--line);
+    padding:8px 10px; border-radius:8px; cursor:pointer;
+  }
+  button.primary {background:var(--accent); color:#052e16; border-color:#16a34a; font-weight:600}
+  button.warn {background:var(--warn); color:#1f1300; border-color:#d97706}
+  button.danger {background:var(--danger); color:#3b0a0a; border-color:#dc2626}
+  button:disabled {opacity:.6; cursor:not-allowed}
+  .mode-btns {display:flex; gap:6px; flex-wrap:wrap}
+  .mode-btns button.active {outline:2px solid var(--accent)}
+  canvas {background:#0b1220; display:block; width:100%; height:100%}
+  .hint {color:var(--muted); font-size:12px}
+  .status {padding:8px 12px; border-top:1px solid var(--line); color:#cbd5e1}
+  .legend {display:flex; gap:10px; flex-wrap:wrap; font-size:12px; color:#cbd5e1}
+  .legend > span {display:flex; align-items:center; gap:6px}
+  .swatch {width:14px; height:14px; border-radius:3px; display:inline-block}
+  .tests {font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; white-space:pre-wrap; background:#0b1220; padding:8px; border-radius:8px; border:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="left">
+    <div class="toolbar">
+      <div class="group">
+        <h3>1) Base image</h3>
+        <input id="imgFile" type="file" accept="image/*" />
+        <div class="hint">Upload a site photo or map. You can pan with right mouse and zoom with wheel.</div>
+      </div>
+
+      <div class="group">
+        <h3>2) Parcel outline</h3>
+        <div class="mode-btns">
+          <button id="modeOutline">Draw outline</button>
+          <button id="closeOutline">Close outline</button>
+          <button id="clearOutline" class="warn">Clear outline</button>
+        </div>
+        <div class="hint">Click to add vertices. Double click or press “Close outline” to finish.</div>
+      </div>
+
+      <div class="group">
+        <h3>3) Scale</h3>
+        <div class="mode-btns">
+          <button id="modeScale">Draw scale line</button>
+        </div>
+        <div class="row">
+          <label for="scaleFeet">Line length (ft)</label>
+          <input id="scaleFeet" type="number" min="1" step="1" value="100"/>
+        </div>
+        <div class="row">
+          <button id="applyScale" class="primary">Apply scale</button>
+          <span id="scaleDisplay" class="hint"></span>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>4) Roads</h3>
+        <div class="mode-btns">
+          <button id="modeRoad">Draw road</button>
+          <button id="finishRoad">Finish road</button>
+          <button id="eraseRoad" class="warn">Erase last</button>
+        </div>
+        <div class="row">
+          <label for="roadWidth">Road width (ft)</label>
+          <input id="roadWidth" type="number" min="10" step="1" value="50"/>
+        </div>
+        <div class="hint">Click to add points. Finish road to start a new one. Dead ends get cul‑de‑sacs on generate.</div>
+      </div>
+
+      <div class="group">
+        <h3>5) Lots</h3>
+        <div class="row">
+          <label for="lotSize">Target lot size (sq ft)</label>
+          <input id="lotSize" type="number" min="500" step="50" value="6000"/>
+        </div>
+        <div class="row">
+          <button id="generate" class="primary">Generate lots</button>
+          <button id="clearLots" class="warn">Clear lots</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Export</h3>
+        <div class="row">
+          <button id="exportPNG">Export PNG</button>
+          <button id="exportGeoJSON">Export GeoJSON</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Legend</h3>
+        <div class="legend">
+          <span><i class="swatch" style="background:#ef4444"></i> Parcel</span>
+          <span><i class="swatch" style="background:#3b82f6"></i> Roads</span>
+          <span><i class="swatch" style="background:#f59e0b"></i> Cul‑de‑sac</span>
+          <span><i class="swatch" style="background:#22c55e"></i> Lots</span>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Self tests</h3>
+        <div id="testArea" class="tests">Running tests…</div>
+      </div>
+    </div>
+    <div id="status" class="status">Ready.</div>
+  </aside>
+
+  <section class="right">
+    <canvas id="canvas"></canvas>
+  </section>
+</div>
+
+<script>
+(function(){
+  // Basic UI state
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0;
+  function fitCanvas(){ W = canvas.clientWidth; H = canvas.clientHeight; canvas.width = W; canvas.height = H; draw(); }
+  new ResizeObserver(fitCanvas).observe(canvas);
+
+  // Panning and zooming
+  let view = {x:0,y:0, scale:1};
+  let dragging = false, last = {x:0,y:0};
+  canvas.addEventListener('mousedown', e=>{
+    if (e.button === 2) { dragging = true; last = {x:e.clientX, y:e.clientY}; }
+  });
+  window.addEventListener('mousemove', e=>{
+    if (!dragging) return;
+    const dx = e.clientX - last.x;
+    const dy = e.clientY - last.y;
+    view.x += dx; view.y += dy; last = {x:e.clientX, y:e.clientY}; draw();
+  });
+  window.addEventListener('mouseup', ()=> dragging = false);
+  canvas.addEventListener('contextmenu', e=> e.preventDefault());
+  canvas.addEventListener('wheel', e=>{
+    const prev = view.scale;
+    const delta = Math.sign(e.deltaY) * -0.1;
+    const s = Math.max(0.2, Math.min(5, view.scale * (1 + delta)));
+    // zoom to cursor
+    const mx = (e.offsetX - view.x) / prev;
+    const my = (e.offsetY - view.y) / prev;
+    view.x = e.offsetX - mx * s;
+    view.y = e.offsetY - my * s;
+    view.scale = s; draw();
+  }, {passive:true});
+
+  function toWorld(px, py){ return {x:(px - view.x)/view.scale, y:(py - view.y)/view.scale}; }
+  function toScreen(wx, wy){ return {x:wx*view.scale + view.x, y:wy*view.scale + view.y}; }
+
+  // Image
+  let img = null;
+  document.getElementById('imgFile').addEventListener('change', e=>{
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = ()=>{
+      const im = new Image();
+      im.onload = ()=>{ img = im; view = {x:0,y:0, scale: Math.min(W/im.width, H/im.height)}; draw(); };
+      im.src = r.result;
+    };
+    r.readAsDataURL(f);
+  });
+
+  // Geometry helpers
+  const dist = (a,b)=> Math.hypot(a.x-b.x, a.y-b.y);
+  const segmentLength = (a,b)=> Math.hypot(b.x-a.x, b.y-a.y);
+  const polygonArea = poly=>{
+    let area = 0;
+    for(let i=0;i<poly.length;i++){
+      const j = (i+1)%poly.length;
+      area += poly[i].x*poly[j].y - poly[j].x*poly[i].y;
+    }
+    return Math.abs(area)/2;
+  };
+  const pointInPoly = (p, poly)=>{
+    // ray cast
+    let inside = false;
+    for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+      const xi=poly[i].x, yi=poly[i].y;
+      const xj=poly[j].x, yj=poly[j].y;
+      const intersect = ((yi>p.y)!=(yj>p.y)) && (p.x < (xj-xi)*(p.y-yi)/(yj-yi+1e-9)+xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  };
+
+  // Drawing state
+  let mode = 'idle'; // 'outline' | 'scale' | 'road'
+  let parcel = []; let parcelClosed = false;
+  let scalePxPerFt = 1; // pixels per foot
+  let scaleTemp = []; // [p1, p2]
+  let roads = []; // array of polylines: [{pts:[{x,y},...]}]
+  let currentRoad = [];
+  let culdesacs = []; // {center:{x,y}, rPx:number}
+  let lots = []; // array of polygons
+
+  // UI elements
+  const el = id=>document.getElementById(id);
+  const status = msg=>el('status').textContent = msg;
+
+  // Modes
+  function setMode(m){
+    mode = m;
+    for(const b of [el('modeOutline'), el('modeScale'), el('modeRoad')]) b.classList.remove('active');
+    if (m==='outline') el('modeOutline').classList.add('active');
+    if (m==='scale') el('modeScale').classList.add('active');
+    if (m==='road') el('modeRoad').classList.add('active');
+    status(`Mode: ${m}`);
+  }
+
+  el('modeOutline').onclick = ()=> setMode('outline');
+  el('closeOutline').onclick = ()=>{
+    if (parcel.length>=3) { parcelClosed = true; setMode('idle'); draw(); }
+  };
+  el('clearOutline').onclick = ()=>{
+    parcel=[]; parcelClosed=false; draw();
+  };
+
+  el('modeScale').onclick = ()=> { scaleTemp=[]; setMode('scale'); };
+  el('applyScale').onclick = ()=>{
+    if (scaleTemp.length===2){
+      const feet = parseFloat(el('scaleFeet').value)||100;
+      const pix = segmentLength(scaleTemp[0], scaleTemp[1]);
+      if (feet>0 && pix>0){
+        scalePxPerFt = pix/feet;
+        el('scaleDisplay').textContent = `Scale set: ${scalePxPerFt.toFixed(3)} px/ft`;
+        setMode('idle');
+      }
+    }
+  };
+
+  el('modeRoad').onclick = ()=> setMode('road');
+  el('finishRoad').onclick = ()=>{
+    if (currentRoad.length>=2){
+      roads.push({pts: currentRoad.slice()});
+      currentRoad = [];
+      draw();
+    }
+  };
+  el('eraseRoad').onclick = ()=>{
+    if (currentRoad.length>0) currentRoad.pop();
+    else roads.pop();
+    draw();
+  };
+
+  el('clearLots').onclick = ()=> { lots=[]; culdesacs=[]; draw(); };
+
+  // Canvas interactions
+  canvas.addEventListener('mousedown', e=>{
+    if (e.button!==0) return;
+    const p = toWorld(e.offsetX, e.offsetY);
+    if (mode==='outline'){
+      if (parcelClosed){
+        // start new outline
+        parcel=[]; parcelClosed=false;
+      }
+      parcel.push(p);
+      draw();
+    } else if (mode==='scale'){
+      if (scaleTemp.length<2){ scaleTemp.push(p); draw(); }
+    } else if (mode==='road'){
+      currentRoad.push(p);
+      draw();
+    }
+  });
+
+  // Generation
+  el('generate').onclick = ()=>{
+    if (!parcelClosed || parcel.length<3){
+      status('Close the parcel outline first.'); return;
+    }
+    finalizeRoadsWithCuldesacs();
+    lots = generateLots(); // fixed function with correct braces
+    draw();
+    status(`Generated ${lots.length} lots.`);
+  };
+
+  function finalizeRoadsWithCuldesacs(){
+    culdesacs = [];
+    const widthFt = parseFloat(el('roadWidth').value)||50;
+    const rPx = Math.max(0, widthFt*0.75*scalePxPerFt); // bulb radius 0.75x width
+    const deadEnds = findDeadEnds();
+    for(const de of deadEnds){
+      culdesacs.push({center: de, rPx});
+    }
+  }
+
+  // Detect road polyline endpoints that are not shared with other polylines
+  function findDeadEnds(){
+    const ends = [];
+    // collect all endpoints
+    const all = [];
+    const EPS = 6/Math.max(1, view.scale); // cluster tolerance in world px
+    function clusterPoint(pt){
+      for(const a of all){ if (dist(a, pt)<EPS) return a; }
+      all.push({...pt, degree:0});
+      return all[all.length-1];
+    }
+    for(const r of roads){
+      if (r.pts.length<2) continue;
+      const a = clusterPoint(r.pts[0]);
+      const b = clusterPoint(r.pts[r.pts.length-1]);
+      a.degree++; b.degree++;
+      // mid points raise degree on both sides to reduce false dead ends for sharply broken polylines
+      for(let i=1;i<r.pts.length-1;i++){
+        const m = clusterPoint(r.pts[i]);
+        m.degree += 2;
+      }
+    }
+    for(const n of all){
+      if (n.degree===1) ends.push({x:n.x,y:n.y});
+    }
+    return ends;
+  }
+
+  // Raster mask helpers for clipping against parcel and roads
+  function rasterizeMask(width, height, drawFn){
+    const off = new OffscreenCanvas(width, height);
+    const c = off.getContext('2d');
+    c.clearRect(0,0,width,height);
+    drawFn(c);
+    return off;
+  }
+  function pointFreeOfRoadsAndOutsideMask(p, roadMaskData){
+    const x = Math.round(p.x), y = Math.round(p.y);
+    if (x<0||y<0||x>=roadMaskData.width||y>=roadMaskData.height) return false;
+    const idx = (y*roadMaskData.width + x)*4 + 3; // alpha
+    return roadMaskData.data[idx]===0; // alpha 0 means free
+  }
+
+  // Main lot generation
+  function generateLots(){
+    const targetSqFt = parseFloat(el('lotSize').value)||6000;
+    const targetSqPx = targetSqFt * scalePxPerFt * scalePxPerFt;
+    if (!(targetSqPx>0)) { status('Invalid lot size.'); return []; }
+
+    // 1) Build masks
+    const width = Math.max(1, Math.ceil(W / view.scale * 2));
+    const height = Math.max(1, Math.ceil(H / view.scale * 2));
+
+    const roadWidthFt = parseFloat(el('roadWidth').value)||50;
+    const roadHalfPx = (roadWidthFt*scalePxPerFt)/2;
+
+    const worldToMask = p => ({x: Math.round(p.x), y: Math.round(p.y)});
+
+    const parcelMask = rasterizeMask(width, height, c=>{
+      c.fillStyle = '#fff';
+      c.beginPath();
+      parcel.forEach((pt,i)=> { const p = worldToMask(pt); if (i===0) c.moveTo(p.x,p.y); else c.lineTo(p.x,p.y); });
+      c.closePath(); c.fill();
+    });
+
+    const roadsMask = rasterizeMask(width, height, c=>{
+      c.fillStyle = '#fff';
+      c.strokeStyle = '#fff';
+      c.lineCap = 'round';
+      c.lineJoin = 'round';
+      // roads
+      c.lineWidth = Math.max(1, roadHalfPx*2);
+      for(const r of roads){
+        c.beginPath();
+        r.pts.forEach((pt,i)=>{ const p=worldToMask(pt); if (i===0) c.moveTo(p.x,p.y); else c.lineTo(p.x,p.y); });
+        c.stroke();
+      }
+      // culdesac bulbs
+      for(const bulb of culdesacs){
+        const c0 = worldToMask(bulb.center);
+        c.beginPath(); c.arc(c0.x, c0.y, Math.max(1, bulb.rPx), 0, Math.PI*2); c.fill();
+      }
+    });
+
+    // 2) Sample a grid of candidate lot rectangles
+    // Use square-ish lots sized to target area
+    const side = Math.sqrt(targetSqPx);
+    const pad = 6; // avoid touching roads/boundaries
+    const step = side * 1.05; // small spacing so we do not overpack
+    const candidates = [];
+
+    // Read mask data
+    const parcelCtx = parcelMask.getContext('2d');
+    const roadsCtx = roadsMask.getContext('2d');
+    const parcelImg = parcelCtx.getImageData(0,0,width,height);
+    const roadsImg = roadsCtx.getImageData(0,0,width,height);
+
+    // helper: is rectangle valid
+    function rectValid(x,y,w,h){
+      // corners inside parcel and not on road
+      const pts = [
+        {x:x+pad, y:y+pad},
+        {x:x+w-pad, y:y+pad},
+        {x:x+w-pad, y:y+h-pad},
+        {x:x+pad, y:y+h-pad},
+      ];
+      for(const p of pts){
+        // check parcel via alpha channel
+        const xi = Math.round(p.x), yi = Math.round(p.y);
+        if (xi<0||yi<0||xi>=width||yi>=height) return false;
+        const idx = (yi*width + xi)*4 + 3;
+        if (parcelImg.data[idx]===0) return false;
+        if (roadsImg.data[idx]!==0) return false;
+      }
+      return true;
+    }
+
+    // Find bounding box of parcel to limit scanning
+    let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+    for(const p of parcel){ minx=Math.min(minx,p.x); miny=Math.min(miny,p.y); maxx=Math.max(maxx,p.x); maxy=Math.max(maxy,p.y); }
+    const startX = Math.floor(minx + side/2);
+    const startY = Math.floor(miny + side/2);
+
+    for(let y=startY; y<=maxy - side/2; y+=step){
+      for(let x=startX; x<=maxx - side/2; x+=step){
+        const rx = x - side/2;
+        const ry = y - side/2;
+        if (rectValid(rx, ry, side, side)){
+          candidates.push([{x:rx,y:ry},{x:rx+side,y:ry},{x:rx+side,y:ry+side},{x:rx,y:ry+side}]);
+        }
+      }
+    }
+
+    // 3) Greedy pack candidates without overlap
+    const placed = [];
+    const occ = rasterizeMask(width, height, c=>{});
+    const occCtx = occ.getContext('2d');
+
+    function rectOverlaps(maskCtx, poly){
+      maskCtx.save();
+      maskCtx.globalCompositeOperation = 'source-over';
+      maskCtx.fillStyle = '#fff';
+      maskCtx.beginPath();
+      const p0 = worldToMask(poly[0]); maskCtx.moveTo(p0.x, p0.y);
+      for(let i=1;i<poly.length;i++){ const p = worldToMask(poly[i]); maskCtx.lineTo(p.x,p.y); }
+      maskCtx.closePath();
+      // test overlap by reading pixels after compositing with destination-in
+      maskCtx.globalCompositeOperation = 'destination-in';
+      maskCtx.fill();
+      const data = maskCtx.getImageData(0,0,1,1).data; // we do not read, just force raster op
+      maskCtx.restore();
+      return false; // we use a simpler approach below
+    }
+
+    function markRect(maskCtx, poly){
+      maskCtx.save();
+      maskCtx.fillStyle = '#fff';
+      maskCtx.beginPath();
+      const p0 = worldToMask(poly[0]); maskCtx.moveTo(p0.x, p0.y);
+      for(let i=1;i<poly.length;i++){ const p = worldToMask(poly[i]); maskCtx.lineTo(p.x,p.y); }
+      maskCtx.closePath();
+      maskCtx.fill();
+      maskCtx.restore();
+    }
+
+    function rectConflicts(maskCtx, poly){
+      // quick overlap test by sampling center point against occ mask alpha
+      const cx = (poly[0].x + poly[2].x)/2;
+      const cy = (poly[0].y + poly[2].y)/2;
+      const xi = Math.round(cx), yi = Math.round(cy);
+      if (xi<0||yi<0||xi>=width||yi>=height) return true;
+      const d = maskCtx.getImageData(xi, yi, 1, 1).data[3];
+      return d!==0;
+    }
+
+    for(const poly of candidates){
+      if (!rectConflicts(occCtx, poly)){
+        placed.push(poly);
+        markRect(occCtx, poly);
+      }
+    }
+
+    // 4) Filter out lots too close to roads
+    const safe = [];
+    for(const lot of placed){
+      const cx = (lot[0].x + lot[2].x)/2;
+      const cy = (lot[0].y + lot[2].y)/2;
+      if (pointFreeOfRoadsAndOutsideMask({x:cx,y:cy}, roadsImg)){
+        safe.push(lot);
+      }
+    }
+
+    return safe; // ensured path returns an array in all cases
+  } // <-- proper closing brace for generateLots()
+
+  // Drawing
+  function draw(){
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,W,H);
+    ctx.setTransform(view.scale,0,0,view.scale,view.x,view.y);
+
+    if (img){ ctx.drawImage(img, 0, 0); }
+
+    // parcel
+    if (parcel.length>0){
+      ctx.lineWidth = 2/Math.max(1, view.scale);
+      ctx.strokeStyle = '#ef4444';
+      ctx.fillStyle = 'rgba(239,68,68,0.08)';
+      ctx.beginPath();
+      parcel.forEach((p,i)=>{ if (i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+      if (parcelClosed) ctx.closePath();
+      ctx.fill(); ctx.stroke();
+
+      // show vertices
+      ctx.fillStyle='#ef4444';
+      for(const p of parcel){ ctx.beginPath(); ctx.arc(p.x,p.y,3/Math.max(1,view.scale),0,Math.PI*2); ctx.fill(); }
+    }
+
+    // scale temp
+    if (scaleTemp.length>0){
+      ctx.strokeStyle='#a78bfa';
+      ctx.lineWidth = 2/Math.max(1,view.scale);
+      ctx.beginPath();
+      ctx.moveTo(scaleTemp[0].x, scaleTemp[0].y);
+      if (scaleTemp[1]) ctx.lineTo(scaleTemp[1].x, scaleTemp[1].y);
+      ctx.stroke();
+    }
+
+    // roads
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    const rw = (parseFloat(el('roadWidth').value)||50)*scalePxPerFt;
+    ctx.lineWidth = Math.max(1, rw);
+    ctx.strokeStyle = 'rgba(59,130,246,0.9)';
+    for(const r of roads){
+      ctx.beginPath();
+      r.pts.forEach((p,i)=>{ if (i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+      ctx.stroke();
+    }
+    // current road
+    if (currentRoad.length>1){
+      ctx.beginPath();
+      currentRoad.forEach((p,i)=>{ if (i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+      ctx.stroke();
+    }
+    // culdesacs
+    ctx.fillStyle='rgba(245,158,11,0.85)';
+    for(const c0 of culdesacs){
+      ctx.beginPath(); ctx.arc(c0.center.x, c0.center.y, c0.rPx, 0, Math.PI*2); ctx.fill();
+    }
+
+    // lots
+    ctx.lineWidth = 1/Math.max(1,view.scale);
+    ctx.strokeStyle = 'rgba(16,185,129,1)';
+    ctx.fillStyle = 'rgba(34,197,94,0.25)';
+    for(const lot of lots){
+      ctx.beginPath();
+      ctx.moveTo(lot[0].x, lot[0].y);
+      for(let i=1;i<lot.length;i++) ctx.lineTo(lot[i].x, lot[i].y);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    }
+  }
+
+  // Exporters
+  el('exportPNG').onclick = ()=>{
+    // render at current view into a new canvas at 2x resolution
+    const out = document.createElement('canvas');
+    out.width = Math.floor(W*2); out.height = Math.floor(H*2);
+    const c = out.getContext('2d');
+    c.scale(2,2);
+    // mimic draw
+    const oldView = {...view};
+    view = {...view};
+    const saved = ctx;
+    // temporarily draw to c by swapping ctx
+    const realCtx = ctx;
+    window.ctx = c; // reuse draw using c
+    draw();
+    window.ctx = realCtx;
+    view = oldView;
+    const url = out.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url; a.download = 'land-plot.png';
+    a.click();
+  };
+
+  el('exportGeoJSON').onclick = ()=>{
+    const gj = {
+      type: 'FeatureCollection',
+      features: []
+    };
+    if (parcel.length>2){
+      gj.features.push({
+        type:'Feature',
+        geometry:{type:'Polygon', coordinates:[parcel.map(p=>[p.x,p.y])]},
+        properties:{kind:'parcel'}
+      });
+    }
+    for(const r of roads){
+      gj.features.push({
+        type:'Feature',
+        geometry:{type:'LineString', coordinates:r.pts.map(p=>[p.x,p.y])},
+        properties:{kind:'road', width_ft: parseFloat(el('roadWidth').value)||50}
+      });
+    }
+    for(const c0 of culdesacs){
+      gj.features.push({
+        type:'Feature',
+        geometry:{type:'Point', coordinates:[c0.center.x, c0.center.y]},
+        properties:{kind:'culdesac', radius_px:c0.rPx}
+      });
+    }
+    for(const lot of lots){
+      gj.features.push({
+        type:'Feature',
+        geometry:{type:'Polygon', coordinates:[lot.map(p=>[p.x,p.y])]},
+        properties:{kind:'lot'}
+      });
+    }
+    const blob = new Blob([JSON.stringify(gj,null,2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'land-plot.geojson';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  // Minimal test harness
+  function runTests(){
+    const logs = [];
+    function assert(name, cond){
+      logs.push((cond?'✓ ':'✗ ')+name);
+      if (!cond) console.warn('Test failed:', name);
+    }
+    // area
+    assert('polygonArea unit square', Math.abs(polygonArea([{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}]) - 1) < 1e-6);
+    // point in poly
+    assert('pointInPoly center inside', pointInPoly({x:0.5,y:0.5}, [{x:0,y:0},{x:2,y:0},{x:2,y:2},{x:0,y:2}])===true);
+    // dead ends detection
+    roads = [{pts:[{x:0,y:0},{x:10,y:0}]},{pts:[{x:10,y:0},{x:20,y:0}]}]; // single polyline broken in 2, no dead end at join, but 2 ends overall
+    let ends = findDeadEnds();
+    assert('findDeadEnds returns 2 ends', ends.length===2);
+    // scale compute
+    scalePxPerFt = 2; const px = segmentLength({x:0,y:0},{x:10,y:0}); const feet = px/scalePxPerFt;
+    assert('scale inverse check', Math.abs(feet-5) < 1e-6);
+    // lot generator returns array
+    parcel = [{x:0,y:0},{x:400,y:0},{x:400,y:400},{x:0,y:400}]; parcelClosed=true;
+    roads = []; culdesacs=[]; view.scale=1; view.x=0; view.y=0; scalePxPerFt=1;
+    el('lotSize').value = 10000; // 100 x 100 px
+    const L = generateLots();
+    assert('generateLots returns array', Array.isArray(L));
+    assert('generateLots places some lots', L.length>0);
+    document.getElementById('testArea').textContent = logs.join('\n');
+  }
+
+  // Kick things off
+  fitCanvas();
+  runTests();
+  status('Ready. Upload an image, outline the parcel, set scale, draw roads, then generate lots.');
+})();
+</script>
+</body>
+</html>
