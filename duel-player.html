@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dual Audio Player — YouTube / Spotify / Direct Audio</title>
+<style>
+  :root {
+    --bg: #0b0e12; --panel: #11161c; --ink: #e8eef7; --muted: #9fb0c6; --accent: #58a6ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; }
+  .wrap { max-width: 1100px; margin: 20px auto; padding: 0 16px; }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { background: var(--panel); border: 1px solid #1e2633; border-radius: 12px; padding: 12px; }
+  .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+  .controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  input[type="text"], input[type="url"], input[type="file"], select, button { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #283343; background: #0f141a; color: var(--ink); outline: none; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #041525; font-weight: 600; cursor: pointer; }
+  button.secondary { background: #0f141a; cursor: pointer; }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #0f1520; border: 1px solid #233049; color: var(--muted); margin-left: 6px; }
+  .deckTitle { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .mini { font-size: 12px; color: var(--muted); }
+  .queue { margin: 10px 0 0; padding: 0; list-style: none; max-height: 160px; overflow: auto; border: 1px dashed #2a3342; border-radius: 10px; }
+  .queue li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid #1c2430; }
+  .queue li:last-child { border-bottom: 0; }
+  .queue .idx { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 6px; background: #0e1620; color: var(--muted); font-size: 12px; }
+  .queue .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hidden { display: none !important; }
+  .mediaBox { background: #0a0f15; border: 1px solid #1b2330; border-radius: 10px; padding: 8px; height: 240px; display: grid; place-items: center; }
+  iframe { width: 100%; height: 100%; border: 0; border-radius: 8px; background: #000; }
+  audio { width: 100%; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid #2a3342; color: var(--muted); font-size: 11px; }
+  .warn { color: #f6d06b; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Dual Audio Player <span class="badge">plays two sources at once</span></h1>
+
+  <div class="card" style="margin-bottom:12px;">
+    <div class="row" style="grid-template-columns: 1.2fr 1fr 1fr auto;">
+      <input id="urlInput" type="url" placeholder="Paste a YouTube URL, Spotify episode URL, or direct MP3/OGG URL" />
+      <input id="fileInput" type="file" accept="audio/*" />
+      <select id="addToSel">
+        <option value="A">Add to Deck A</option>
+        <option value="B">Add to Deck B</option>
+      </select>
+      <button id="addBtn" class="primary">Add</button>
+    </div>
+    <div class="mini" style="margin-top:6px;">
+      Direct audio files and CORS‑enabled URLs support ear isolation. YouTube and Spotify work as embedded players with volume sync but no ear isolation.
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card" id="deckA">
+      <div class="deckTitle">
+        <div><strong>Deck A</strong> <span class="pill" id="typeA">—</span></div>
+        <div class="mini" id="nowA">idle</div>
+      </div>
+      <div class="mediaBox"><div id="mediaA"></div></div>
+      <div class="controls" style="margin-top:8px;">
+        <button id="prevA" class="secondary">Prev</button>
+        <button id="playA" class="primary">Play</button>
+        <button id="pauseA" class="secondary">Pause</button>
+        <button id="nextA" class="secondary">Next</button>
+        <label class="mini">Vol <input id="volA" type="range" min="0" max="1" step="0.01" value="0.8" /></label>
+        <label class="mini">Pan <input id="panA" type="range" min="-1" max="1" step="0.01" value="0" /></label>
+        <label class="mini">Seek <input id="seekA" type="range" min="0" max="100" step="0.1" value="0" /></label>
+        <div class="mini" id="timeA">00:00 / 00:00</div>
+      </div>
+      <ul class="queue" id="queueA"></ul>
+    </div>
+
+    <div class="card" id="deckB">
+      <div class="deckTitle">
+        <div><strong>Deck B</strong> <span class="pill" id="typeB">—</span></div>
+        <div class="mini" id="nowB">idle</div>
+      </div>
+      <div class="mediaBox"><div id="mediaB"></div></div>
+      <div class="controls" style="margin-top:8px;">
+        <button id="prevB" class="secondary">Prev</button>
+        <button id="playB" class="primary">Play</button>
+        <button id="pauseB" class="secondary">Pause</button>
+        <button id="nextB" class="secondary">Next</button>
+        <label class="mini">Vol <input id="volB" type="range" min="0" max="1" step="0.01" value="0.8" /></label>
+        <label class="mini">Pan <input id="panB" type="range" min="-1" max="1" step="0.01" value="0" /></label>
+        <label class="mini">Seek <input id="seekB" type="range" min="0" max="100" step="0.1" value="0" /></label>
+        <div class="mini" id="timeB">00:00 / 00:00</div>
+      </div>
+      <ul class="queue" id="queueB"></ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <div class="row" style="grid-template-columns: repeat(6, 1fr);">
+      <button id="playBoth" class="primary">Play Both</button>
+      <button id="pauseBoth" class="secondary">Pause Both</button>
+      <button id="stopBoth" class="secondary">Stop Both</button>
+      <select id="mixMode">
+        <option value="overlap" selected>Overlap</option>
+        <option value="split">Split: A left, B right</option>
+        <option value="splitReverse">Split: A right, B left</option>
+      </select>
+      <button id="clearA" class="secondary">Clear A</button>
+      <button id="clearB" class="secondary">Clear B</button>
+    </div>
+    <div class="mini" style="margin-top:6px;">
+      Note: ear isolation needs direct audio or CORS‑enabled URLs. YouTube and Spotify iframes do not expose raw audio to the Web Audio API.
+    </div>
+  </div>
+</div>
+
+<!-- YouTube IFrame API -->
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+(function(){
+  const $ = (id)=>document.getElementById(id);
+  const fmt = (t)=>{ t = Math.max(0, t|0); const m=(t/60)|0, s=(t%60)|0; return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; };
+
+  // Simple source detector
+  function detect(url){
+    if (!url) return {kind:'none'};
+    try{ const u = new URL(url);
+      if (/youtube\.com|youtu\.be/.test(u.hostname)) return {kind:'youtube', url};
+      if (/open\.spotify\.com/.test(u.hostname)) return {kind:'spotify', url};
+      if (/\.mp3$|\.ogg$|\.wav$|\.m4a$/i.test(u.pathname)) return {kind:'audio', url};
+      return {kind:'audio', url}; // optimistic for direct streams
+    } catch{ return {kind:'audio', url}; }
+  }
+
+  // Deck class
+  class Deck {
+    constructor(prefix) {
+      this.prefix = prefix;
+      this.mediaBox = $(`media${prefix}`);
+      this.typetag = $(`type${prefix}`);
+      this.nowlab = $(`now${prefix}`);
+      this.qel = $(`queue${prefix}`);
+      this.playBtn = $(`play${prefix}`);
+      this.pauseBtn = $(`pause${prefix}`);
+      this.prevBtn = $(`prev${prefix}`);
+      this.nextBtn = $(`next${prefix}`);
+      this.vol = $(`vol${prefix}`);
+      this.pan = $(`pan${prefix}`);
+      this.seek = $(`seek${prefix}`);
+      this.timelab = $(`time${prefix}`);
+
+      this.queue = []; this.idx = -1; this.player = null; this.kind = 'none';
+      this.ac = null; this.srcNode = null; this.gainNode = null; this.panNode = null;
+      this.audioEl = null; this.ytPlayer = null; this.spEl = null;
+
+      this._bind();
+    }
+
+    _bind(){
+      this.playBtn.addEventListener('click', ()=>this.play());
+      this.pauseBtn.addEventListener('click', ()=>this.pause());
+      this.prevBtn.addEventListener('click', ()=>this.prev());
+      this.nextBtn.addEventListener('click', ()=>this.next());
+      this.vol.addEventListener('input', ()=>this._setVolume(parseFloat(this.vol.value)));
+      this.pan.addEventListener('input', ()=>this._applyPan(parseFloat(this.pan.value)));
+      this.seek.addEventListener('input', ()=>this._seekPercent(parseFloat(this.seek.value)));
+    }
+
+    add(item){
+      this.queue.push(item);
+      this._renderQueue();
+      if (this.idx === -1) { this.idx = 0; this.loadCurrent(); }
+    }
+
+    clear(){
+      this.pause();
+      this.queue = []; this.idx = -1; this.kind='none';
+      this.mediaBox.innerHTML = '';
+      this._teardownAudio(); this._teardownYT(); this._teardownSP();
+      this._renderQueue();
+      this.nowlab.textContent = 'idle';
+      this.typetag.textContent = '—';
+    }
+
+    prev(){ if (this.queue.length===0) return; this.idx = (this.idx-1+this.queue.length)%this.queue.length; this.loadCurrent(true); }
+    next(){ if (this.queue.length===0) return; this.idx = (this.idx+1)%this.queue.length; this.loadCurrent(true); }
+
+    loadCurrent(autoplay=false){
+      if (this.queue.length===0 || this.idx<0) return;
+      const item = this.queue[this.idx];
+      this.nowlab.textContent = item.title || item.url || item.file?.name || 'item';
+      this._loadByKind(item, autoplay);
+      this._renderQueue();
+    }
+
+    _renderQueue(){
+      this.qel.innerHTML = '';
+      this.queue.forEach((it, i)=>{
+        const li = document.createElement('li');
+        const idx = document.createElement('div'); idx.className='idx'; idx.textContent = i===this.idx?'▶':'#';
+        const title = document.createElement('div'); title.className='title'; title.textContent = it.title || it.url || it.file?.name || 'item';
+        const btn = document.createElement('button'); btn.className='secondary'; btn.textContent='Play';
+        btn.addEventListener('click', ()=>{ this.idx=i; this.loadCurrent(true); });
+        li.append(idx,title,btn); this.qel.appendChild(li);
+      });
+    }
+
+    _setStatus(kind){ this.kind = kind; this.typetag.textContent = kind; this.pan.disabled = (kind!=='audio'); }
+
+    _teardownAudio(){ if (this.audioEl){ this.audioEl.pause(); this.audioEl.src=''; this.audioEl.remove(); this.audioEl=null; }
+      if (this.srcNode){ try{ this.srcNode.disconnect(); }catch{} this.srcNode=null; }
+      if (this.panNode){ try{ this.panNode.disconnect(); }catch{} this.panNode=null; }
+      if (this.gainNode){ try{ this.gainNode.disconnect(); }catch{} this.gainNode=null; }
+      // keep ac for reuse
+    }
+    _teardownYT(){ if (this.ytPlayer){ try{ this.ytPlayer.destroy(); }catch{} this.ytPlayer=null; } }
+    _teardownSP(){ if (this.spEl){ this.spEl.remove(); this.spEl=null; } }
+
+    _loadByKind(item, autoplay){
+      this.mediaBox.innerHTML = '';
+      this._teardownAudio(); this._teardownYT(); this._teardownSP();
+
+      if (item.file){ // local file -> audio
+        const url = URL.createObjectURL(item.file);
+        this._loadAudio(url, autoplay);
+        return;
+      }
+
+      const info = detect(item.url||'');
+      if (info.kind==='youtube') { this._loadYouTube(info.url, autoplay); }
+      else if (info.kind==='spotify') { this._loadSpotify(info.url); }
+      else { this._loadAudio(info.url, autoplay); }
+    }
+
+    _ensureAC(){ if (!this.ac) this.ac = new (window.AudioContext||window.webkitAudioContext)(); }
+
+    _loadAudio(url, autoplay){
+      this._ensureAC();
+      const el = document.createElement('audio');
+      el.controls = true; el.crossOrigin = 'anonymous'; el.src = url; el.preload='auto';
+      this.mediaBox.appendChild(el);
+      this.audioEl = el;
+
+      // WebAudio graph: media -> gain -> pan -> dest
+      try {
+        this.srcNode = this.ac.createMediaElementSource(el);
+        this.gainNode = this.ac.createGain();
+        this.panNode = new StereoPannerNode(this.ac, { pan: parseFloat(this.pan.value) });
+        this.srcNode.connect(this.gainNode).connect(this.panNode).connect(this.ac.destination);
+      } catch(err) {
+        console.warn('Audio routing failed (CORS?)', err);
+      }
+
+      el.volume = parseFloat(this.vol.value);
+      el.addEventListener('timeupdate', ()=>{
+        if (!isFinite(el.duration)) return;
+        this.seek.value = (el.currentTime/el.duration)*100;
+        this.timelab.textContent = `${fmt(el.currentTime)} / ${fmt(el.duration|0)}`;
+      });
+      el.addEventListener('ended', ()=>this.next());
+      this._setStatus('audio');
+      if (autoplay) { this.play(); }
+    }
+
+    _loadYouTube(url, autoplay){
+      // Parse video id
+      function vidId(u){ try{ const a = new URL(u); if (a.hostname==='youtu.be') return a.pathname.slice(1); const p = a.searchParams.get('v'); return p || ''; }catch{return '';} }
+      const id = vidId(url); if (!id){ this.nowlab.textContent = 'Invalid YouTube URL'; return; }
+      const div = document.createElement('div'); div.id = `yt_${this.prefix}_${Math.random().toString(36).slice(2)}`; div.style.width='100%'; div.style.height='100%';
+      this.mediaBox.appendChild(div);
+      let ready = false;
+      this.ytPlayer = new YT.Player(div.id, {
+        videoId: id,
+        playerVars: { autoplay: autoplay?1:0, controls:1, rel:0, modestbranding:1 },
+        events: {
+          onReady: ()=>{ ready=true; this._setStatus('youtube'); this._syncYTVolume(); if (autoplay) this.play(); },
+          onStateChange: (e)=>{ /* update seek via poll */ }
+        }
+      });
+      // YouTube: cannot access raw audio for panning; disable pan
+      this.pan.disabled = true;
+      this._ytTicker();
+    }
+
+    _ytTicker(){ // poll time for UI
+      if (!this.ytPlayer) return;
+      const p = this.ytPlayer;
+      const update = ()=>{
+        if (!this.ytPlayer) return;
+        try{
+          const ct = p.getCurrentTime? p.getCurrentTime(): 0;
+          const du = p.getDuration? p.getDuration(): 0;
+          if (isFinite(du) && du>0){ this.seek.value = (ct/du)*100; this.timelab.textContent = `${fmt(ct)} / ${fmt(du|0)}`; }
+        }catch{}
+        requestAnimationFrame(update);
+      };
+      requestAnimationFrame(update);
+    }
+
+    _syncYTVolume(){ try{ if (this.ytPlayer && this.ytPlayer.setVolume){ this.ytPlayer.setVolume(Math.round(parseFloat(this.vol.value)*100)); } }catch{} }
+
+    _loadSpotify(url){
+      // Expect episode URLs. Use embed if allowed by Spotify.
+      // Example: https://open.spotify.com/episode/{id}
+      let embedUrl = url;
+      try{
+        const u = new URL(url);
+        if (u.hostname==='open.spotify.com'){
+          const path = u.pathname;
+          embedUrl = `https://open.spotify.com/embed${path}`;
+        }
+      }catch{}
+      const ifr = document.createElement('iframe');
+      ifr.allow = 'autoplay; clipboard-write; encrypted-media; picture-in-picture';
+      ifr.src = embedUrl; this.mediaBox.appendChild(ifr);
+      // No programmatic volume or pan available
+      this._setStatus('spotify');
+      this.pan.disabled = true;
+      this.timelab.textContent = '—';
+    }
+
+    play(){
+      if (this.kind==='audio' && this.audioEl){ this.ac.resume(); this.audioEl.play(); }
+      else if (this.kind==='youtube' && this.ytPlayer){ try{ this.ytPlayer.playVideo(); }catch{} this._syncYTVolume(); }
+      else if (this.kind==='spotify'){ /* user must click inside iframe to start due to autoplay policy */ }
+    }
+
+    pause(){
+      if (this.kind==='audio' && this.audioEl){ this.audioEl.pause(); }
+      else if (this.kind==='youtube' && this.ytPlayer){ try{ this.ytPlayer.pauseVideo(); }catch{} }
+    }
+
+    stop(){ if (this.kind==='audio' && this.audioEl){ this.audioEl.pause(); this.audioEl.currentTime=0; }
+      else if (this.kind==='youtube' && this.ytPlayer){ try{ this.ytPlayer.stopVideo(); }catch{} }
+    }
+
+    _setVolume(v){
+      if (this.kind==='audio' && this.audioEl){ this.audioEl.volume = v; if (this.gainNode) this.gainNode.gain.value = v; }
+      else if (this.kind==='youtube'){ this._syncYTVolume(); }
+    }
+
+    _applyPan(v){ if (this.panNode) try{ this.panNode.pan.value = v; }catch{} }
+
+    _seekPercent(pct){
+      if (this.kind==='audio' && this.audioEl && isFinite(this.audioEl.duration)){
+        this.audioEl.currentTime = (pct/100) * this.audioEl.duration;
+      } else if (this.kind==='youtube' && this.ytPlayer) {
+        try{
+          const du = this.ytPlayer.getDuration? this.ytPlayer.getDuration(): 0;
+          if (du>0) this.ytPlayer.seekTo((pct/100)*du, true);
+        }catch{}
+      }
+    }
+  }
+
+  const deckA = new Deck('A');
+  const deckB = new Deck('B');
+
+  // Top bar add
+  $('addBtn').addEventListener('click', ()=>{
+    const sel = $('addToSel').value;
+    const url = $('urlInput').value.trim();
+    const file = $('fileInput').files[0] || null;
+    if (!url && !file) { alert('Paste a URL or choose a file'); return; }
+    const item = file ? { file, title: file.name } : { url, title: url };
+    (sel==='A'? deckA: deckB).add(item);
+    if (file) $('fileInput').value = '';
+  });
+
+  // Global controls
+  $('playBoth').addEventListener('click', ()=>{ deckA.play(); deckB.play(); applyMixMode(); });
+  $('pauseBoth').addEventListener('click', ()=>{ deckA.pause(); deckB.pause(); });
+  $('stopBoth').addEventListener('click', ()=>{ deckA.stop(); deckB.stop(); });
+  $('clearA').addEventListener('click', ()=>deckA.clear());
+  $('clearB').addEventListener('click', ()=>deckB.clear());
+
+  function applyMixMode(){
+    const mode = $('mixMode').value;
+    if (mode==='overlap'){ deckA._applyPan(0); deckB._applyPan(0); $('panA').value = 0; $('panB').value = 0; }
+    if (mode==='split'){ deckA._applyPan(-1); deckB._applyPan(1); $('panA').value = -1; $('panB').value = 1; }
+    if (mode==='splitReverse'){ deckA._applyPan(1); deckB._applyPan(-1); $('panA').value = 1; $('panB').value = -1; }
+  }
+  $('mixMode').addEventListener('change', applyMixMode);
+})();
+</script>
+</body>
+</html>
