@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Motion Extraction (Duplicate + Invert + Offset)</title>
+  <style>
+    :root { --bg:#0b0f14; --card:#111820; --fg:#e8eef6; --muted:#9fb0c3; --accent:#57b2ff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; color: var(--fg); background: radial-gradient(1200px 800px at 20% 0%, #0e1621 0%, var(--bg) 40%); }
+    header { padding: 18px 20px 10px; }
+    h1 { margin:0; font-size: 20px; letter-spacing:.2px; }
+    p.sub { margin:6px 0 0; color: var(--muted); font-size: 13px; }
+    .wrap { display:grid; gap:14px; grid-template-columns: 320px 1fr; align-items:start; padding: 12px 20px 24px; }
+    @media (max-width: 900px){ .wrap{ grid-template-columns: 1fr; } }
+    .card { background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01)); border:1px solid rgba(255,255,255,.06); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.3), inset 0 1px rgba(255,255,255,.06); }
+    .controls { padding: 14px; display:flex; flex-direction:column; gap:12px; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    label { font-size: 13px; color: var(--muted); }
+    input[type="file"] { width:100%; }
+    button { appearance:none; border:none; padding:10px 12px; border-radius:10px; background:#172332; color:var(--fg); cursor:pointer; font-weight:600; font-size:13px; border:1px solid rgba(255,255,255,.08); }
+    button:hover { background:#1b2a3d; }
+    button.secondary { background:#111820; }
+    button:disabled { opacity:.55; cursor:not-allowed; }
+    .slider { width:100%; }
+    .num { display:inline-block; min-width:54px; text-align:right; font-variant-numeric: tabular-nums; }
+    .stage { position:relative; padding: 10px; }
+    .stage .inner { position:relative; background: #000; border-radius: 14px; overflow:hidden; border:1px solid rgba(255,255,255,.08); }
+    canvas { display:block; width:100%; height:auto; background:#000; }
+    .badge { position:absolute; top:10px; left:10px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.12); padding:6px 10px; border-radius:999px; font-size:12px; color:#cfe6ff; backdrop-filter: blur(6px); }
+    .small { font-size:12px; color: var(--muted); }
+    footer { padding: 8px 20px 20px; color: var(--muted); font-size: 12px; text-align:center; }
+    .grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Motion Extraction</h1>
+    <p class="sub">Technique: duplicate the clip, invert the top layer at 50% opacity, and offset it in time. Works with file upload or webcam.</p>
+  </header>
+
+  <div class="wrap">
+    <section class="card controls" id="controls">
+      <div class="row">
+        <label for="file">Upload video</label>
+        <input id="file" type="file" accept="video/*" />
+      </div>
+
+      <div class="row">
+        <button id="startCam">Start webcam</button>
+        <button id="stopCam" class="secondary" disabled>Stop</button>
+      </div>
+
+      <div class="row">
+        <label for="offset">Temporal offset <span id="offsetVal" class="num">120 ms</span></label>
+        <input id="offset" class="slider" type="range" min="0" max="1000" step="10" value="120" />
+      </div>
+
+      <div class="row">
+        <label for="scale">Downscale for performance <span id="scaleVal" class="num">1.00×</span></label>
+        <input id="scale" class="slider" type="range" min="0.3" max="1" step="0.05" value="1" />
+      </div>
+
+      <div class="row grid-2">
+        <button id="pauseBtn">Pause</button>
+        <button id="snapBtn" class="secondary">Save snapshot</button>
+      </div>
+
+      <div class="small">Tip: higher offset generally increases motion sensitivity. 0 ms shows near-original.
+        This method is visually similar to difference matte without per-pixel math.
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="inner">
+        <span class="badge" id="badge">Idle</span>
+        <canvas id="out"></canvas>
+      </div>
+      <div style="display:flex; gap:10px; justify-content:space-between; margin-top:8px" class="small">
+        <span>Output canvas</span>
+        <span id="dim">0×0</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- Hidden media elements -->
+  <video id="video" class="hidden" playsinline muted></video>
+
+  <script>
+  (() => {
+    const fileEl = document.getElementById('file');
+    const startCamBtn = document.getElementById('startCam');
+    const stopCamBtn = document.getElementById('stopCam');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const snapBtn = document.getElementById('snapBtn');
+    const offsetEl = document.getElementById('offset');
+    const offsetValEl = document.getElementById('offsetVal');
+    const scaleEl = document.getElementById('scale');
+    const scaleValEl = document.getElementById('scaleVal');
+    const badge = document.getElementById('badge');
+    const canvas = document.getElementById('out');
+    const dim = document.getElementById('dim');
+    const video = document.getElementById('video');
+
+    const out = canvas.getContext('2d', { alpha: false });
+
+    // Offscreen canvases for layering
+    const baseCanvas = document.createElement('canvas');
+    const baseCtx = baseCanvas.getContext('2d');
+    const invCanvas = document.createElement('canvas');
+    const invCtx = invCanvas.getContext('2d');
+
+    // A simple timestamped frame buffer for temporal offset
+    const buffer = []; // {t: number, bmp: ImageBitmap}
+    let useOffsetMs = +offsetEl.value;
+    let paused = false;
+    let playing = false;
+    let usingCam = false;
+    let stream = null;
+
+    function setBadge(text){ badge.textContent = text; }
+
+    function fmt(n){ return n.toFixed(2); }
+
+    function resizeTargets(){
+      const s = parseFloat(scaleEl.value);
+      const w = Math.floor((video.videoWidth || 1280) * s) || 640;
+      const h = Math.floor((video.videoHeight || 720) * s) || 360;
+
+      [canvas, baseCanvas, invCanvas].forEach(c => { c.width = w; c.height = h; });
+      dim.textContent = `${w}×${h}`;
+    }
+
+    function clearBuffer(){
+      buffer.splice(0, buffer.length);
+    }
+
+    // Render loop: draw delayed frame, then draw inverted current frame at 50% alpha
+    async function tick(){
+      if (!playing){ return; }
+      if (!paused && (video.readyState >= 2)){
+        // Draw current frame to offscreen, scale applied
+        baseCtx.drawImage(video, 0, 0, baseCanvas.width, baseCanvas.height);
+        // Stash an ImageBitmap with timestamp for efficient draw later
+        const bmp = await createImageBitmap(baseCanvas);
+        buffer.push({ t: performance.now(), bmp });
+
+        // Find a buffered frame older than offset
+        const now = performance.now();
+        let delayed = null;
+        while (buffer.length && (now - buffer[0].t) > useOffsetMs * 1.25){
+          // keep buffer tight; drop frames that are too old compared to desired offset
+          buffer.shift()?.bmp.close?.();
+        }
+        // choose the earliest frame that meets or exceeds the offset
+        for (let i = 0; i < buffer.length; i++){
+          if (now - buffer[i].t >= useOffsetMs){ delayed = buffer[i]; break; }
+        }
+        if (!delayed){ delayed = buffer[0]; }
+
+        // Compose to output
+        out.save();
+        out.globalAlpha = 1;
+        out.filter = 'none';
+        out.drawImage(delayed ? delayed.bmp : bmp, 0, 0);
+        // draw current frame inverted at 50% to produce a difference-like look
+        invCtx.clearRect(0,0,invCanvas.width, invCanvas.height);
+        invCtx.filter = 'invert(100%)';
+        invCtx.drawImage(video, 0, 0, invCanvas.width, invCanvas.height);
+        out.globalAlpha = 0.5;
+        out.filter = 'none';
+        out.drawImage(invCanvas, 0, 0);
+        out.restore();
+
+        // Free the oldest bitmaps to avoid memory leaks
+        while (buffer.length > 120){ buffer.shift()?.bmp.close?.(); }
+      }
+      requestAnimationFrame(tick);
+    }
+
+    // UI wiring
+    offsetEl.addEventListener('input', () => { useOffsetMs = +offsetEl.value; offsetValEl.textContent = `${useOffsetMs} ms`; });
+    scaleEl.addEventListener('input', () => { scaleValEl.textContent = `${fmt(parseFloat(scaleEl.value))}×`; resizeTargets(); });
+
+    pauseBtn.addEventListener('click', () => {
+      paused = !paused;
+      pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+      setBadge(paused ? 'Paused' : usingCam ? 'Webcam' : 'Playing');
+    });
+
+    snapBtn.addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.download = `motion-extraction-${Date.now()}.png`;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    });
+
+    fileEl.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        stopCameraIfNeeded();
+        video.srcObject = null;
+        video.src = URL.createObjectURL(file);
+        await video.play();
+        playing = true;
+        usingCam = false;
+        setBadge('Playing');
+        resizeTargets();
+        clearBuffer();
+        requestAnimationFrame(tick);
+      } catch(err){ console.error(err); setBadge('File error'); }
+    });
+
+    startCamBtn.addEventListener('click', async () => {
+      try {
+        stopCameraIfNeeded();
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+        video.srcObject = stream;
+        video.src = '';
+        await video.play();
+        usingCam = true;
+        playing = true;
+        stopCamBtn.disabled = false;
+        setBadge('Webcam');
+        resizeTargets();
+        clearBuffer();
+        requestAnimationFrame(tick);
+      } catch(err){ console.error(err); setBadge('Cam blocked'); }
+    });
+
+    stopCamBtn.addEventListener('click', () => { stopCameraIfNeeded(); setBadge('Idle'); });
+
+    function stopCameraIfNeeded(){
+      if (stream){ for (const t of stream.getTracks()) t.stop(); stream = null; }
+      stopCamBtn.disabled = true;
+      usingCam = false;
+    }
+
+    // Autoresize once metadata is loaded
+    video.addEventListener('loadedmetadata', () => { resizeTargets(); });
+
+    // Accessibility keys
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space'){ e.preventDefault(); pauseBtn.click(); }
+      if (e.key === 's'){ snapBtn.click(); }
+    });
+
+    // Initial label values
+    offsetValEl.textContent = `${useOffsetMs} ms`;
+    scaleValEl.textContent = `${fmt(parseFloat(scaleEl.value))}×`;
+  })();
+  </script>
+</body>
+</html>
