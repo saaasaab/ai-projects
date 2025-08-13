@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Motion Extraction — Overlay Mode</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --card: #111820;
+      --fg: #e8eef6;
+      --muted: #9fb0c3;
+      --accent: #57b2ff;
+      --ok: #53d86a;
+      --bad: #ff6b6b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      color: var(--fg);
+      background: radial-gradient(1200px 800px at 20% 0%, #0e1621 0%, var(--bg) 40%);
+    }
+
+    header {
+      padding: 18px 20px 10px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: .2px;
+    }
+
+    p.sub {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .wrap {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 380px 1fr;
+      align-items: start;
+      padding: 12px 20px 24px;
+    }
+
+    @media (max-width: 1024px) {
+      .wrap {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255, 255, 255, .03), rgba(255, 255, 255, .01));
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .3), inset 0 1px rgba(255, 255, 255, .06);
+    }
+
+    .controls {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .row>* {
+      flex: none;
+    }
+
+    label {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    input[type="file"] {
+      width: 100%;
+    }
+
+    select {
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #172332;
+      color: var(--fg);
+      border: 1px solid rgba(255, 255, 255, .08);
+      font-size: 13px;
+    }
+
+    button {
+      appearance: none;
+      border: none;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #172332;
+      color: var(--fg);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      border: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    button:hover {
+      background: #1b2a3d;
+    }
+
+    button.secondary {
+      background: #111820;
+    }
+
+    button.ghost {
+      background: transparent;
+      border: 1px dashed rgba(255, 255, 255, .2);
+    }
+
+    button:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .slider {
+      width: 100%;
+    }
+
+    .num {
+      display: inline-block;
+      min-width: 54px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stage {
+      position: relative;
+      padding: 10px;
+    }
+
+    .stage .inner {
+      position: relative;
+      background: #000;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #000;
+    }
+
+    .badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, .55);
+      border: 1px solid rgba(255, 255, 255, .12);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: #cfe6ff;
+      backdrop-filter: blur(6px);
+    }
+
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .pass {
+      color: var(--ok);
+    }
+
+    .fail {
+      color: var(--bad);
+    }
+
+    details.diag {
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 12px;
+      background: rgba(0, 0, 0, .2);
+    }
+
+    details.diag summary {
+      cursor: pointer;
+      color: #cfe6ff;
+    }
+
+    ul.tlist {
+      list-style: none;
+      padding-left: 0;
+      margin: 6px 0 0;
+    }
+
+    ul.tlist li {
+      padding: 6px 0;
+      border-top: 1px dashed rgba(255, 255, 255, .08);
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Motion Extraction</h1>
+    <p class="sub">Choose between classic invert-blend or motion-only overlay. Works with upload, webcam, or a built in
+      synthetic stream.</p>
+  </header>
+
+  <div class="wrap">
+    <section class="card controls" id="controls">
+      <div class="row">
+        <label for="file">Upload video</label>
+        <input id="file" type="file" accept="video/*" />
+      </div>
+
+      <div class="row">
+        <button id="startCam" title="Requires https or localhost">Start webcam</button>
+        <button id="stopCam" class="secondary" disabled>Stop</button>
+        <button id="startSynthetic" class="ghost" title="Runs with no permissions">Use synthetic demo</button>
+      </div>
+
+      <div class="row">
+        <label for="mode">Mode</label>
+        <select id="mode" title="Select motion extraction mode">
+          <option value="invertBlend">Classic invert overlay</option>
+          <option value="motionOverlay" selected>Motion only over original</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label for="offset">Temporal offset <span id="offsetVal" class="num">120 ms</span></label>
+        <input id="offset" class="slider" type="range" min="0" max="1000" step="10" value="120" />
+      </div>
+
+      <div class="row" id="gainRow">
+        <label for="gain">Motion gain <span id="gainVal" class="num">160 %</span></label>
+        <input id="gain" class="slider" type="range" min="100" max="400" step="10" value="160" />
+      </div>
+
+      <div class="row" id="alphaRow">
+        <label for="alpha">Motion opacity <span id="alphaVal" class="num">1.00</span></label>
+        <input id="alpha" class="slider" type="range" min="0" max="1" step="0.05" value="1" />
+      </div>
+
+      <div class="row">
+        <label for="scale">Downscale for performance <span id="scaleVal" class="num">1.00×</span></label>
+        <input id="scale" class="slider" type="range" min="0.3" max="1" step="0.05" value="1" />
+      </div>
+
+      <div class="row grid-2">
+        <button id="pauseBtn">Pause</button>
+        <button id="snapBtn" class="secondary">Save snapshot</button>
+      </div>
+
+      <details class="diag">
+        <summary>Environment tests and webcam help</summary>
+        <ul class="tlist" id="testList"></ul>
+        <div class="small" id="helpText" style="margin-top:8px"></div>
+        <div class="small" style="margin-top:8px">If webcam is disabled, serve over https or localhost. Quick local
+          server: <code>python3 -m http.server 8080</code> then open <code>http://localhost:8080</code>.</div>
+      </details>
+    </section>
+
+    <section class="stage">
+      <div class="inner">
+        <span class="badge" id="badge">Idle</span>
+        <canvas id="out"></canvas>
+      </div>
+      <div style="display:flex; gap:10px; justify-content:space-between; margin-top:8px" class="small">
+        <span>Output canvas</span>
+        <span id="dim">0×0</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- Hidden media elements -->
+  <video id="video" class="hidden" playsinline muted></video>
+  <canvas id="synthetic" class="hidden" width="640" height="360"></canvas>
+
+  <script>
+    (() => {
+      const $ = sel => document.querySelector(sel);
+      const fileEl = $('#file');
+      const startCamBtn = $('#startCam');
+      const stopCamBtn = $('#stopCam');
+      const startSyntheticBtn = $('#startSynthetic');
+      const pauseBtn = $('#pauseBtn');
+      const snapBtn = $('#snapBtn');
+      const modeSel = $('#mode');
+      const offsetEl = $('#offset');
+      const offsetValEl = $('#offsetVal');
+      const scaleEl = $('#scale');
+      const scaleValEl = $('#scaleVal');
+      const gainEl = $('#gain');
+      const gainValEl = $('#gainVal');
+      const alphaEl = $('#alpha');
+      const alphaValEl = $('#alphaVal');
+      const badge = $('#badge');
+      const canvas = $('#out');
+      const dim = $('#dim');
+      const video = $('#video');
+      const syntheticCanvas = $('#synthetic');
+      const testList = $('#testList');
+      const helpText = $('#helpText');
+      const gainRow = $('#gainRow');
+      const alphaRow = $('#alphaRow');
+
+      const out = canvas.getContext('2d', { alpha: false });
+
+      // Offscreen canvases for layering
+      const baseCanvas = document.createElement('canvas'); // current frame
+      const baseCtx = baseCanvas.getContext('2d');
+      const invCanvas = document.createElement('canvas');  // inverted current
+      const invCtx = invCanvas.getContext('2d');
+      const diffCanvas = document.createElement('canvas'); // difference between delayed and current
+      const diffCtx = diffCanvas.getContext('2d');
+
+      // Frame buffer for temporal offset
+      const buffer = []; // {t: number, bmp: ImageBitmap}
+      let useOffsetMs = +offsetEl.value;
+      let paused = false;
+      let playing = false;
+      let usingCam = false;
+      let usingSynthetic = false;
+      let stream = null;
+
+      function setBadge(text) { badge.textContent = text; }
+      function fmt(n) { return n.toFixed(2); }
+
+      function resizeTargets() {
+        const s = parseFloat(scaleEl.value);
+        const w = Math.floor((video.videoWidth || 1280) * s) || 640;
+        const h = Math.floor((video.videoHeight || 720) * s) || 360;
+        [canvas, baseCanvas, invCanvas, diffCanvas].forEach(c => { c.width = w; c.height = h; });
+        dim.textContent = `${w}×${h}`;
+      }
+
+      function clearBuffer() {
+        while (buffer.length) { buffer.shift()?.bmp.close?.(); }
+      }
+
+      // Render loop
+      async function tick() {
+        if (!playing) { return; }
+        if (!paused && (video.readyState >= 2)) {
+          try {
+            // draw current frame
+            baseCtx.drawImage(video, 0, 0, baseCanvas.width, baseCanvas.height);
+            const bmp = await createImageBitmap(baseCanvas);
+            buffer.push({ t: performance.now(), bmp });
+
+            // pick delayed frame
+            const now = performance.now();
+            let delayed = null;
+            while (buffer.length && (now - buffer[0].t) > Math.max(1000, useOffsetMs + 400)) {
+              buffer.shift()?.bmp.close?.();
+            }
+            for (let i = 0; i < buffer.length; i++) {
+              if (now - buffer[i].t >= useOffsetMs) { delayed = buffer[i]; break; }
+            }
+            if (!delayed) { delayed = buffer[0]; }
+
+            const mode = modeSel.value;
+            out.save();
+            out.globalAlpha = 1;
+            out.filter = 'none';
+
+            if (mode === 'invertBlend') {
+              // Base: delayed frame
+              out.drawImage(delayed ? delayed.bmp : bmp, 0, 0);
+              // Invert current at 50 percent
+              invCtx.clearRect(0, 0, invCanvas.width, invCanvas.height);
+              invCtx.filter = 'invert(100%)';
+              invCtx.drawImage(video, 0, 0, invCanvas.width, invCanvas.height);
+              out.globalAlpha = 0.5;
+              out.drawImage(invCanvas, 0, 0);
+            } else {
+              // Motion-only overlay: compute |current - delayed| using difference blend
+              diffCtx.save();
+              diffCtx.globalCompositeOperation = 'source-over';
+              diffCtx.filter = 'none';
+              diffCtx.clearRect(0, 0, diffCanvas.width, diffCanvas.height);
+              diffCtx.drawImage(delayed ? delayed.bmp : bmp, 0, 0);
+              diffCtx.globalCompositeOperation = 'difference';
+              diffCtx.drawImage(video, 0, 0);
+              diffCtx.globalCompositeOperation = 'source-over';
+              diffCtx.restore();
+
+              // Compose: draw original current frame, then boosted difference as an additive overlay
+              out.drawImage(video, 0, 0, canvas.width, canvas.height);
+              const gain = parseInt(gainEl.value, 10); // 100..400
+              const alpha = parseFloat(alphaEl.value); // 0..1
+              out.globalAlpha = alpha;
+              // Use additive blending so non‑motion (black) contributes nothing and remains transparent over the base
+              out.globalCompositeOperation = 'lighter';
+              out.filter = `contrast(${gain}%) brightness(${Math.max(100, Math.min(300, gain))}%)`;
+              out.drawImage(diffCanvas, 0, 0);
+              // reset for next ops
+              out.globalCompositeOperation = 'source-over';
+            }
+
+            out.restore();
+            while (buffer.length > 120) { buffer.shift()?.bmp.close?.(); }
+          } catch (err) { console.error(err); setBadge('Render error'); }
+        }
+        requestAnimationFrame(tick);
+      }
+
+      // UI wiring
+      offsetEl.addEventListener('input', () => { useOffsetMs = +offsetEl.value; offsetValEl.textContent = `${useOffsetMs} ms`; });
+      scaleEl.addEventListener('input', () => { scaleValEl.textContent = `${fmt(parseFloat(scaleEl.value))}×`; resizeTargets(); });
+      modeSel.addEventListener('change', () => { updateModeUI(); });
+      gainEl.addEventListener('input', () => { gainValEl.textContent = `${gainEl.value} %`; });
+      alphaEl.addEventListener('input', () => { alphaValEl.textContent = `${fmt(parseFloat(alphaEl.value))}`; });
+
+      pauseBtn.addEventListener('click', () => {
+        paused = !paused;
+        pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+        setBadge(paused ? 'Paused' : usingCam ? 'Webcam' : usingSynthetic ? 'Synthetic' : 'Playing');
+      });
+
+      snapBtn.addEventListener('click', () => {
+        const a = document.createElement('a');
+        a.download = `motion-extraction-${Date.now()}.png`;
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+      });
+
+      fileEl.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          stopAll();
+          video.srcObject = null;
+          video.src = URL.createObjectURL(file);
+          await video.play();
+          playing = true;
+          usingCam = false;
+          usingSynthetic = false;
+          setBadge('Playing');
+          resizeTargets();
+          clearBuffer();
+          requestAnimationFrame(tick);
+        } catch (err) { console.error(err); setBadge('File error'); }
+      });
+
+      startCamBtn.addEventListener('click', async () => {
+        try {
+          if (!canUseCamera()) { setBadge('Insecure context'); return; }
+          stopAll();
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+          video.srcObject = stream;
+          video.src = '';
+          await video.play();
+          usingCam = true;
+          usingSynthetic = false;
+          playing = true;
+          stopCamBtn.disabled = false;
+          setBadge('Webcam');
+          resizeTargets();
+          clearBuffer();
+          requestAnimationFrame(tick);
+        } catch (err) {
+          console.error(err);
+          if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+            setBadge('Permission denied');
+            helpText.innerHTML = 'Camera access was blocked. Allow the camera for this origin in site settings, then reload.';
+          } else if (err && err.name === 'NotFoundError') {
+            setBadge('No camera found');
+          } else { setBadge('Cam error'); }
+        }
+      });
+
+      startSyntheticBtn.addEventListener('click', async () => {
+        try {
+          stopAll();
+          const s = startSyntheticStream();
+          stream = s;
+          video.srcObject = stream;
+          video.src = '';
+          await video.play();
+          usingSynthetic = true;
+          usingCam = false;
+          playing = true;
+          stopCamBtn.disabled = false;
+          setBadge('Synthetic');
+          resizeTargets();
+          clearBuffer();
+          requestAnimationFrame(tick);
+        } catch (e) { console.error(e); setBadge('Synthetic failed'); }
+      });
+
+      stopCamBtn.addEventListener('click', () => { stopAll(); setBadge('Idle'); });
+
+      function stopAll() {
+        if (stream) { for (const t of stream.getTracks()) t.stop(); stream = null; }
+        stopCamBtn.disabled = true;
+        usingCam = false;
+        usingSynthetic = false;
+        playing = false;
+        clearBuffer();
+      }
+
+      video.addEventListener('loadedmetadata', () => { resizeTargets(); });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') { e.preventDefault(); pauseBtn.click(); }
+        if (e.key === 's') { snapBtn.click(); }
+      });
+
+      // Initial labels and mode UI
+      offsetValEl.textContent = `${useOffsetMs} ms`;
+      scaleValEl.textContent = `${fmt(parseFloat(scaleEl.value))}×`;
+      gainValEl.textContent = `${gainEl.value} %`;
+      alphaValEl.textContent = `${fmt(parseFloat(alphaEl.value))}`;
+
+      runEnvTests();
+      updateCameraButtonState();
+      updateModeUI();
+
+      async function runEnvTests() {
+        const tests = [];
+        const isSecure = window.isSecureContext === true;
+        const host = location.hostname;
+        const hostOk = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost') || host.endsWith('.local');
+        const secureOk = isSecure || hostOk;
+
+        tests.push({ name: 'Secure context or localhost', pass: secureOk, detail: secureOk ? 'OK' : 'Not secure. Use https or localhost' });
+        const hasMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+        tests.push({ name: 'mediaDevices.getUserMedia available', pass: hasMedia, detail: hasMedia ? 'OK' : 'Unavailable in this context' });
+
+        // Difference blend support
+        const gco = out.globalCompositeOperation;
+        let diffSupported = true;
+        try { out.globalCompositeOperation = 'difference'; diffSupported = (out.globalCompositeOperation === 'difference'); }
+        catch { diffSupported = false; }
+        finally { out.globalCompositeOperation = gco; }
+        tests.push({ name: 'Canvas difference blend', pass: diffSupported, detail: diffSupported ? 'OK' : 'Not supported' });
+
+        let permState = 'n/a';
+        if ('permissions' in navigator && navigator.permissions.query) {
+          try { const st = await navigator.permissions.query({ name: 'camera' }); permState = st.state; } catch { permState = 'unknown'; }
+        } else { permState = 'unsupported'; }
+        tests.push({ name: 'Permissions API camera', pass: permState === 'granted' || permState === 'prompt' || permState === 'unsupported', detail: `state: ${permState}` });
+
+        // Device enumeration test
+        let deviceCount = 0;
+        try { if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) { const devs = await navigator.mediaDevices.enumerateDevices(); deviceCount = devs.filter(d => d.kind === 'videoinput').length; } }
+        catch { }
+        tests.push({ name: 'Video input devices found', pass: deviceCount > 0 || permState !== 'denied', detail: `count: ${deviceCount}` });
+
+        // Synthetic stream pipeline test
+        try { const s = startSyntheticStream(); s.getTracks().forEach(t => t.stop()); tests.push({ name: 'Synthetic stream available', pass: true, detail: 'OK' }); }
+        catch { tests.push({ name: 'Synthetic stream available', pass: false, detail: 'Failed' }); }
+
+        renderTests(tests);
+        helpText.innerHTML = !secureOk ? 'Page not in secure context. Use a local server or https for webcam.' : 'If permission is denied, allow camera access in site settings and reload.';
+      }
+
+      function renderTests(items) {
+        testList.innerHTML = '';
+        for (const it of items) {
+          const li = document.createElement('li');
+          const left = document.createElement('span');
+          const right = document.createElement('span');
+          left.textContent = it.name;
+          right.textContent = it.pass ? `PASS — ${it.detail || ''}` : `FAIL — ${it.detail || ''}`;
+          right.className = it.pass ? 'pass' : 'fail';
+          li.appendChild(left); li.appendChild(right);
+          testList.appendChild(li);
+        }
+      }
+
+      function canUseCamera() {
+        const isSecure = window.isSecureContext === true;
+        const host = location.hostname;
+        const hostOk = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost') || host.endsWith('.local');
+        return (isSecure || hostOk) && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+      }
+
+      function updateCameraButtonState() {
+        const ok = canUseCamera();
+        startCamBtn.disabled = !ok;
+        startCamBtn.title = ok ? 'Start webcam' : 'Requires https or localhost';
+      }
+
+      function updateModeUI() {
+        const motionMode = modeSel.value === 'motionOverlay';
+        gainRow.style.display = motionMode ? '' : 'none';
+        alphaRow.style.display = motionMode ? '' : 'none';
+      }
+
+      // Synthetic stream
+      function startSyntheticStream() {
+        const ctx = syntheticCanvas.getContext('2d');
+        const W = syntheticCanvas.width, H = syntheticCanvas.height;
+        let t = 0; let raf;
+
+
+        // let frameBuffer = [];
+        // let delayMs = parseInt(delayEl.value, 10);
+
+        // function updateDelay() {
+        //   delayMs = parseInt(delayEl.value, 10);
+        // }
+        // delayEl.addEventListener('input', updateDelay);
+
+        // function draw() {
+        //   const now = performance.now();
+
+        //   // Capture current frame
+        //   const currentFrame = document.createElement('canvas');
+        //   currentFrame.width = video.videoWidth;
+        //   currentFrame.height = video.videoHeight;
+        //   currentFrame.getContext('2d').drawImage(video, 0, 0);
+        //   frameBuffer.push({ time: now, canvas: currentFrame });
+
+        //   // Remove old frames
+        //   while (frameBuffer.length && now - frameBuffer[0].time > 2000) {
+        //     frameBuffer.shift();
+        //   }
+
+        //   // Find closest frame to desired delay
+        //   let delayedFrame = frameBuffer.find(f => Math.abs((now - f.time) - delayMs) < 20);
+
+        //   if (delayedFrame) {
+        //     // Use delayedFrame.canvas in your motion extraction logic
+        //   }
+
+        //   requestAnimationFrame(draw);
+        // }
+
+
+
+        // function draw(){
+        //   t += 1/60;
+        //   ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
+        //   ctx.fillStyle = '#35a1ff'; ctx.fillRect(40 + Math.sin(t)*80, 60 + Math.cos(t*1.3)*40, 80, 80);
+        //   ctx.fillStyle = '#8cff66'; ctx.beginPath(); const r = 30 + 20*Math.sin(t*1.7);
+        //   ctx.arc(420 + Math.cos(t*0.9)*100, 200 + Math.sin(t*1.1)*60, r, 0, Math.PI*2); ctx.fill();
+        //   ctx.fillStyle = '#ff7ab5'; ctx.fillRect(300 + Math.cos(t*0.7)*120, 40 + Math.sin(t*1.4)*90, 60, 60);
+        //   raf = requestAnimationFrame(draw);
+        // }
+        draw();
+        const s = syntheticCanvas.captureStream(60);
+        const tr = s.getVideoTracks()[0];
+        tr.addEventListener('ended', () => cancelAnimationFrame(raf));
+        return s;
+      }
+    })();
+  </script>
+</body>
+
+</html>

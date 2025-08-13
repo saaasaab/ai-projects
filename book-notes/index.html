@@ -1725,10 +1725,43 @@
                 createdAt: Date.now()
             };
             if (clean.page === undefined && !clean.note && !clean.quote) { return }
-            book.entries.push(clean);
+            
+            try {
+                // Use the new efficient endpoint to add just the entry
+                const response = await apiRequest(`/books/${book.id}/add-entry`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        bookId: book.id,
+                        entry: clean
+                    })
+                });
 
-            // Save to localStorage immediately for UI responsiveness
-            save();
+                if (response.success) {
+                    // Update local state with the response data
+                    const updatedBook = response.data.book;
+                    const newEntry = response.data.newEntry;
+                    
+                    // Find and update the book in local state
+                    const bookIndex = state.books.findIndex(b => b.id === book.id);
+                    if (bookIndex !== -1) {
+                        state.books[bookIndex] = updatedBook;
+                    }
+                    
+                    // Update active book if it's the current one
+                    if (state.activeBookId === book.id) {
+                        state.activeBookId = updatedBook.id;
+                    }
+                    
+                    console.log('Entry added successfully via API');
+                } else {
+                    console.warn('API add entry failed');
+                   
+                }
+            } catch (error) {
+                console.error('Failed to add entry via API, falling back to local save:', error);
+                
+            }
+            
             renderEntries();
         }
 
