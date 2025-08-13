@@ -237,6 +237,11 @@
             margin-bottom: .5rem
         }
 
+        .mobile-search-container{
+            display: flex;
+            gap: .5rem;
+            margin-bottom: .5rem
+        }
         .search-tabs {
             display: flex;
             gap: 0.2rem;
@@ -390,7 +395,7 @@
             gap: .6rem;
             align-items: center;
             flex-wrap: wrap;
-            padding:1rem 1rem 1rem 1rem;
+            padding: 1rem 1rem 1rem 1rem;
         }
 
         .toolbar .info {
@@ -777,6 +782,20 @@
             font-weight: 600;
         }
 
+        .mobile-actions {
+            display: flex;
+            justify-content: space-around;
+        }
+
+        .mobile-actions button.btn,
+        .mobile-actions label.btn {
+            max-width: 50px;
+            max-height: 50px;
+            width: 50px;
+            height: 50px;
+            font-size: 1.5rem;
+        }
+
         /* Mobile */
         @media (max-width: 900px) {
             .layout {
@@ -843,11 +862,14 @@
 
             .mobile-menu-content {
                 padding: 1rem;
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
             }
 
-            .mobile-section {
+            /* .mobile-section {
                 margin-bottom: 1.5rem;
-            }
+            } */
 
             .mobile-section:last-child {
                 margin-bottom: 0;
@@ -885,7 +907,20 @@
 
             .mobile-sort-container {
                 margin: 0.5rem 0;
-                padding: 0 0.25rem;
+            }
+
+            .mobile-section .btn {
+                width: 100%;
+                margin-bottom: 0.5rem;
+                text-align: center;
+                font-size: 1.2rem;
+                padding: 0.8rem;
+                min-height: 44px;
+                /* Better touch target */
+            }
+
+            .mobile-section .btn:last-child {
+                margin-bottom: 0;
             }
 
 
@@ -984,7 +1019,7 @@
             #entriesTable th,
             #entriesTable td {
                 font-size: 0.85rem;
-                padding: 0.5rem 0.4rem 0.25rem 0 ;
+                padding: 0.5rem 0.4rem 0.25rem 0;
                 word-wrap: break-word;
                 overflow-wrap: break-word;
                 max-width: 0;
@@ -1064,37 +1099,51 @@
             <div class="mobile-menu-content">
                 <!-- Book search and list -->
                 <div class="mobile-section">
-                    <h4>Search</h4>
-                    <input id="mobileBookSearch" class="search" type="search" placeholder="Search books and entries" />
-                    <div class="search-tabs">
-                        <button class="search-tab active" data-tab="mobile-books">Books <span class="result-count"
-                                id="mobileBooksResultCount"></span></button>
-                        <button class="search-tab" data-tab="mobile-entries">Entries <span class="result-count"
-                                id="mobileEntriesResultCount"></span></button>
+                    <label for="mobileBookSearch"
+                        style="display: block; margin: 0.5rem 0 0.3rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">Search</label>
+
+                    <div class="mobile-search-container">
+                        <input id="mobileBookSearch" class="search" type="search"
+                            placeholder="Search books and entries" />
+                        <div class="search-tabs">
+                            <button class="search-tab active" data-tab="mobile-books">Books <span class="result-count"
+                                    id="mobileBooksResultCount"></span></button>
+                            <button class="search-tab" data-tab="mobile-entries">Entries <span class="result-count"
+                                    id="mobileEntriesResultCount"></span></button>
+                        </div>
                     </div>
-                    
+
                     <!-- Mobile sort options - reuse desktop sort dropdown -->
                     <div class="mobile-sort-container">
-                        <label for="bookSort" style="display: block; margin: 0.5rem 0 0.3rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">Sort Books</label>
+                        <label for="bookSort"
+                            style="display: block; margin: 0.5rem 0 0.3rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">Sort
+                            Books</label>
                         <div id="mobileSortWrapper"></div>
                     </div>
-                    
+
                     <div id="mobileBookList" class="mobile-book-list"></div>
                     <div id="mobileEntryList" class="mobile-entry-list" style="display: none;"></div>
+
+
+                    <!-- Actions -->
+                    <h4
+                        style="display: block; margin: 0.5rem 0 0.3rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">
+                        Actions</h4>
+                    <div id="mobile-actions-row" class="mobile-actions">
+                        <button class="btn" id="mobileThemeBtn" title="Change Theme">🎨</button>
+                        <button class="btn" id="mobileSyncBtn" title="Sync with API">🔄</button>
+                        <button class="btn" id="mobileExportBtn" title="Export">📤</button>
+                        <label class="btn" for="mobileImportFile" title="Import books JSON or CSV entries">
+                            <input id="mobileImportFile" type="file" accept=".json,.csv,application/json,text/csv"
+                                hidden>
+                            📥
+                        </label>
+                    </div>
+                    <button class="btn primary" id="mobileNewBookBtn">New Book</button>
+
                 </div>
 
-                <!-- Actions -->
-                <div class="mobile-section">
-                    <h4>Actions</h4>
-                    <button class="btn" id="mobileThemeBtn">🎨 Change Theme</button>
-                    <button class="btn" id="mobileSyncBtn">🔄 Sync with API</button>
-                    <button class="btn" id="mobileExportBtn">Export</button>
-                    <label class="btn" for="mobileImportFile" title="Import books JSON or CSV entries">
-                        <input id="mobileImportFile" type="file" accept=".json,.csv,application/json,text/csv" hidden>
-                        Import
-                    </label>
-                    <button class="btn primary" id="mobileNewBookBtn">New Book</button>
-                </div>
+
             </div>
         </div>
     </header>
@@ -1541,10 +1590,10 @@
             // Use the existing renderBooks function but target mobile elements
             const mobileBookList = el('mobileBookList');
             const mobileEntryList = el('mobileEntryList');
-            
+
             // Initialize entry list
             mobileEntryList.innerHTML = '<div class="empty">Enter a search term to find entries</div>';
-            
+
             // Use existing renderBooks logic but render to mobile container
             const filter = el('mobileBookSearch')?.value || '';
             const f = filter.trim().toLowerCase();
@@ -1562,7 +1611,7 @@
                 mobileBookList.append(div);
                 return;
             }
-            
+
             mobileBookList.innerHTML = '';
             books.forEach(b => {
                 const item = document.createElement('div');
@@ -1576,9 +1625,9 @@
                 const count = document.createElement('div'); count.className = 'count'; count.textContent = `${b.entries.length} entries`;
                 meta.append(count);
                 item.append(meta);
-                item.addEventListener('click', () => { 
-                    state.activeBookId = b.id; 
-                    renderAll(); 
+                item.addEventListener('click', () => {
+                    state.activeBookId = b.id;
+                    renderAll();
                     toggleMobileMenu(); // Close menu after selection
                 });
                 mobileBookList.append(item);
@@ -1674,7 +1723,7 @@
             if (book) {
                 if (book.entries.length === 0) {
                     setEntryFormState(true);
-                } 
+                }
             }
         }
 
@@ -1788,7 +1837,7 @@
                 createdAt: Date.now()
             };
             if (clean.page === undefined && !clean.note && !clean.quote) { return }
-            
+
             try {
                 // Use the new efficient endpoint to add just the entry
                 const response = await apiRequest(`/books/${book.id}/add-entry`, {
@@ -1803,28 +1852,28 @@
                     // Update local state with the response data
                     const updatedBook = response.data.book;
                     const newEntry = response.data.newEntry;
-                    
+
                     // Find and update the book in local state
                     const bookIndex = state.books.findIndex(b => b.id === book.id);
                     if (bookIndex !== -1) {
                         state.books[bookIndex] = updatedBook;
                     }
-                    
+
                     // Update active book if it's the current one
                     if (state.activeBookId === book.id) {
                         state.activeBookId = updatedBook.id;
                     }
-                    
+
                     console.log('Entry added successfully via API');
                 } else {
                     console.warn('API add entry failed');
-                   
+
                 }
             } catch (error) {
                 console.error('Failed to add entry via API, falling back to local save:', error);
-                
+
             }
-            
+
             renderEntries();
         }
 
@@ -1940,7 +1989,7 @@
                     const clonedSort = desktopSort.cloneNode(true);
                     clonedSort.id = 'mobileBookSort'; // Give it a unique ID
                     mobileSortWrapper.appendChild(clonedSort);
-                    
+
                     // Add event listener to the cloned sort dropdown
                     clonedSort.addEventListener('change', (e) => {
                         // Update the desktop sort dropdown
@@ -1951,7 +2000,7 @@
                         renderMobileBooks();
                     });
                 }
-                
+
                 // Populate mobile book list when menu opens
                 renderMobileBooks();
             }
