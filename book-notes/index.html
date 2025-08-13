@@ -413,7 +413,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 1rem 1rem 0 1rem;
+            gap: 15px;
+            padding: 0rem 1rem 0 0rem;
             cursor: pointer;
         }
 
@@ -785,7 +786,8 @@
             }
 
             main {
-                order: 1
+                order: 1;
+                padding: .25rem;
             }
 
             .desktop-actions {
@@ -961,11 +963,6 @@
                 width: 42.5%;
             }
 
-            #entriesTable th,
-            #entriesTable td {
-                font-size: 0.85rem;
-                padding: 0.5rem 0.4rem;
-            }
 
             /* Fix table overflow on mobile */
             #entriesTable {
@@ -978,7 +975,7 @@
             #entriesTable th,
             #entriesTable td {
                 font-size: 0.85rem;
-                padding: 0.5rem 0.4rem;
+                padding: 0.5rem 0.4rem 0.25rem 0 ;
                 word-wrap: break-word;
                 overflow-wrap: break-word;
                 max-width: 0;
