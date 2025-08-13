@@ -888,12 +888,6 @@
                 padding: 0 0.25rem;
             }
 
-            .mobile-sort-container .sort-select {
-                width: 100%;
-                font-size: 0.85rem;
-                padding: 0.4rem 0.5rem;
-            }
-
 
         }
 
@@ -1079,17 +1073,10 @@
                                 id="mobileEntriesResultCount"></span></button>
                     </div>
                     
-                    <!-- Mobile sort options -->
+                    <!-- Mobile sort options - reuse desktop sort dropdown -->
                     <div class="mobile-sort-container">
-                        <label for="mobileBookSort" style="display: block; margin: 0.5rem 0 0.3rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">Sort Books</label>
-                        <select id="mobileBookSort" class="sort-select" aria-label="Sort books by">
-                            <option value="title-asc">Title A-Z</option>
-                            <option value="title-desc">Title Z-A</option>
-                            <option value="recent">Most Recent</option>
-                            <option value="oldest">First Added</option>
-                            <option value="entries-desc">Most Entries</option>
-                            <option value="entries-asc">Least Entries</option>
-                        </select>
+                        <label for="bookSort" style="display: block; margin: 0.5rem 0 0.3rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">Sort Books</label>
+                        <div id="mobileSortWrapper"></div>
                     </div>
                     
                     <div id="mobileBookList" class="mobile-book-list"></div>
@@ -1548,6 +1535,57 @@
             }
         }
 
+
+
+        function renderMobileBooks() {
+            // Use the existing renderBooks function but target mobile elements
+            const mobileBookList = el('mobileBookList');
+            const mobileEntryList = el('mobileEntryList');
+            
+            // Initialize entry list
+            mobileEntryList.innerHTML = '<div class="empty">Enter a search term to find entries</div>';
+            
+            // Use existing renderBooks logic but render to mobile container
+            const filter = el('mobileBookSearch')?.value || '';
+            const f = filter.trim().toLowerCase();
+            let books = state.books.filter(b => !f || b.title.toLowerCase().includes(f) || (b.author || '').toLowerCase().includes(f));
+
+            // Apply sorting using existing logic
+            const sortValue = el('bookSort')?.value || 'title-asc';
+            books = sortBooks(books, sortValue);
+
+            if (books.length === 0) {
+                const div = document.createElement('div');
+                div.className = 'empty';
+                div.textContent = f ? 'No books found' : 'No books. Click "New Book" to add one.';
+                mobileBookList.innerHTML = '';
+                mobileBookList.append(div);
+                return;
+            }
+            
+            mobileBookList.innerHTML = '';
+            books.forEach(b => {
+                const item = document.createElement('div');
+                item.className = 'book' + (b.id === state.activeBookId ? ' active' : '');
+                item.dataset.id = b.id;
+                const meta = document.createElement('div'); meta.className = 'meta';
+                const name = document.createElement('div'); name.className = 'name'; name.textContent = b.title; meta.append(name);
+                if (b.author) {
+                    const author = document.createElement('div'); author.className = 'author'; author.textContent = b.author; meta.append(author);
+                }
+                const count = document.createElement('div'); count.className = 'count'; count.textContent = `${b.entries.length} entries`;
+                meta.append(count);
+                item.append(meta);
+                item.addEventListener('click', () => { 
+                    state.activeBookId = b.id; 
+                    renderAll(); 
+                    toggleMobileMenu(); // Close menu after selection
+                });
+                mobileBookList.append(item);
+            });
+        }
+
+
         function activeBook() { return state.books.find(b => b.id === state.activeBookId) }
 
         function checkBookListOverflow() {
@@ -1894,68 +1932,29 @@
             mobileMenu.classList.toggle('active');
 
             if (mobileMenu.classList.contains('active')) {
+                // Clone the desktop sort dropdown into mobile
+                const desktopSort = el('bookSort');
+                const mobileSortWrapper = el('mobileSortWrapper');
+                if (desktopSort && mobileSortWrapper) {
+                    mobileSortWrapper.innerHTML = '';
+                    const clonedSort = desktopSort.cloneNode(true);
+                    clonedSort.id = 'mobileBookSort'; // Give it a unique ID
+                    mobileSortWrapper.appendChild(clonedSort);
+                    
+                    // Add event listener to the cloned sort dropdown
+                    clonedSort.addEventListener('change', (e) => {
+                        // Update the desktop sort dropdown
+                        desktopSort.value = e.target.value;
+                        // Re-render both desktop and mobile
+                        renderAll();
+                        // Also re-render mobile books specifically
+                        renderMobileBooks();
+                    });
+                }
+                
                 // Populate mobile book list when menu opens
                 renderMobileBooks();
             }
-        }
-
-        function renderMobileBooks() {
-            const mobileBookList = el('mobileBookList');
-            const mobileEntryList = el('mobileEntryList');
-
-            // Initialize both lists
-            mobileBookList.innerHTML = '';
-            mobileEntryList.innerHTML = '<div class="empty">Enter a search term to find entries</div>';
-
-            // Sync mobile sort dropdown with desktop sort
-            const mobileBookSort = el('mobileBookSort');
-            const desktopBookSort = el('bookSort');
-            if (mobileBookSort && desktopBookSort) {
-                mobileBookSort.value = desktopBookSort.value;
-            }
-
-            if (state.books.length === 0) {
-                const div = document.createElement('div');
-                div.className = 'empty';
-                div.textContent = 'No books yet';
-                mobileBookList.append(div);
-                return;
-            }
-
-            state.books.forEach(b => {
-                const item = document.createElement('div');
-                item.className = 'book' + (b.id === state.activeBookId ? ' active' : '');
-                item.dataset.id = b.id;
-
-                const meta = document.createElement('div');
-                meta.className = 'meta';
-
-                const name = document.createElement('div');
-                name.className = 'name';
-                name.textContent = b.title;
-                meta.append(name);
-
-                if (b.author) {
-                    const author = document.createElement('div');
-                    author.className = 'author';
-                    author.textContent = b.author;
-                    meta.append(author);
-                }
-
-                const count = document.createElement('div');
-                count.className = 'count';
-                    count.textContent = `${b.entries.length} entries`;
-                meta.append(count);
-
-                item.append(meta);
-                item.addEventListener('click', () => {
-                    state.activeBookId = b.id;
-                    renderAll();
-                    toggleMobileMenu(); // Close menu after selection
-                });
-
-                mobileBookList.append(item);
-            });
         }
 
         // Event bindings
@@ -1965,16 +1964,13 @@
         el('newBookBtn').addEventListener('click', () => modal.open());
 
         // Book sorting
-        el('bookSort')?.addEventListener('change', () => renderAll());
-        
-        // Mobile book sorting - sync with desktop sort
-        el('mobileBookSort')?.addEventListener('change', (e) => {
-            // Sync the desktop sort dropdown
-            const desktopSort = el('bookSort');
-            if (desktopSort) {
-                desktopSort.value = e.target.value;
-            }
+        el('bookSort')?.addEventListener('change', () => {
             renderAll();
+            // If mobile menu is open, also update mobile books
+            const mobileMenu = el('mobileMenu');
+            if (mobileMenu && mobileMenu.classList.contains('active')) {
+                renderMobileBooks();
+            }
         });
 
         // Entry form collapse/expand
@@ -2097,19 +2093,8 @@
             updateMobileResultCounts(bookResults, entryResults);
 
             if (currentMobileTab === 'mobile-books') {
-                // Filter mobile book list
-                const filter = query.trim().toLowerCase();
-                const mobileBookList = el('mobileBookList');
-                const books = mobileBookList.querySelectorAll('.book');
-
-                let visibleCount = 0;
-                books.forEach(book => {
-                    const title = book.querySelector('.name').textContent.toLowerCase();
-                    const author = book.querySelector('.author')?.textContent.toLowerCase() || '';
-                    const matches = title.includes(filter) || author.includes(filter);
-                    book.style.display = matches ? 'flex' : 'none';
-                    if (matches) visibleCount++;
-                });
+                // Just call renderMobileBooks which now uses the same logic as desktop
+                renderMobileBooks();
             } else {
                 // Render mobile entry search
                 renderMobileEntrySearch(query);
