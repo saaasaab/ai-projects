@@ -883,6 +883,17 @@
                 padding: 0.6rem;
             }
 
+            .mobile-sort-container {
+                margin: 0.5rem 0;
+                padding: 0 0.25rem;
+            }
+
+            .mobile-sort-container .sort-select {
+                width: 100%;
+                font-size: 0.85rem;
+                padding: 0.4rem 0.5rem;
+            }
+
 
         }
 
@@ -1067,6 +1078,20 @@
                         <button class="search-tab" data-tab="mobile-entries">Entries <span class="result-count"
                                 id="mobileEntriesResultCount"></span></button>
                     </div>
+                    
+                    <!-- Mobile sort options -->
+                    <div class="mobile-sort-container">
+                        <label for="mobileBookSort" style="display: block; margin: 0.5rem 0 0.3rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">Sort Books</label>
+                        <select id="mobileBookSort" class="sort-select" aria-label="Sort books by">
+                            <option value="title-asc">Title A-Z</option>
+                            <option value="title-desc">Title Z-A</option>
+                            <option value="recent">Most Recent</option>
+                            <option value="oldest">First Added</option>
+                            <option value="entries-desc">Most Entries</option>
+                            <option value="entries-asc">Least Entries</option>
+                        </select>
+                    </div>
+                    
                     <div id="mobileBookList" class="mobile-book-list"></div>
                     <div id="mobileEntryList" class="mobile-entry-list" style="display: none;"></div>
                 </div>
@@ -1882,6 +1907,13 @@
             mobileBookList.innerHTML = '';
             mobileEntryList.innerHTML = '<div class="empty">Enter a search term to find entries</div>';
 
+            // Sync mobile sort dropdown with desktop sort
+            const mobileBookSort = el('mobileBookSort');
+            const desktopBookSort = el('bookSort');
+            if (mobileBookSort && desktopBookSort) {
+                mobileBookSort.value = desktopBookSort.value;
+            }
+
             if (state.books.length === 0) {
                 const div = document.createElement('div');
                 div.className = 'empty';
@@ -1912,7 +1944,7 @@
 
                 const count = document.createElement('div');
                 count.className = 'count';
-                count.textContent = `${b.entries.length} entries`;
+                    count.textContent = `${b.entries.length} entries`;
                 meta.append(count);
 
                 item.append(meta);
@@ -1934,6 +1966,16 @@
 
         // Book sorting
         el('bookSort')?.addEventListener('change', () => renderAll());
+        
+        // Mobile book sorting - sync with desktop sort
+        el('mobileBookSort')?.addEventListener('change', (e) => {
+            // Sync the desktop sort dropdown
+            const desktopSort = el('bookSort');
+            if (desktopSort) {
+                desktopSort.value = e.target.value;
+            }
+            renderAll();
+        });
 
         // Entry form collapse/expand
         el('entryFormToggle')?.addEventListener('click', toggleEntryForm);
