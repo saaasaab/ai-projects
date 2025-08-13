@@ -70,7 +70,8 @@
         html,
         body {
             height: 100%;
-            overflow-x: hidden; /* Prevent horizontal scroll on mobile */
+            overflow-x: hidden;
+            /* Prevent horizontal scroll on mobile */
         }
 
         body {
@@ -199,8 +200,13 @@
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         .layout {
@@ -301,7 +307,7 @@
             display: flex;
             flex-direction: column;
             gap: .35rem;
-            max-height: calc(100vh - 230px);
+            max-height: calc(100vh - 250px);
             overflow: auto;
             padding-right: .25rem;
             position: relative;
@@ -396,15 +402,65 @@
         }
 
         .card {
-            background: var(--panel-2);
+            background: var(--panel);
             border: 1px solid var(--panel-2);
-            border-radius: 1rem;
-            padding: 1rem;
+            border-radius: .8rem;
+            padding: 0;
+            margin-bottom: 1rem;
         }
 
-        .card h3 {
-            margin: .2rem 0 .8rem;
-            font-size: 1rem
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1rem 0 1rem;
+            cursor: pointer;
+        }
+
+        .card-header h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .collapse-toggle {
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            padding: .25rem;
+            border-radius: .25rem;
+            transition: all 0.2s ease;
+        }
+
+        .collapse-toggle:hover {
+            background: var(--panel-2);
+            color: var(--text);
+        }
+
+        .collapse-icon {
+            display: inline-block;
+            transition: transform 0.2s ease;
+        }
+
+        .card-content {
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .card-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin: 0;
+            padding: 0;
+            border: none;
+        }
+
+        .card-content.expanded {
+            max-height: 500px;
+            opacity: 1;
+            padding: 1rem;
+            border-top: 1px solid var(--panel-2);
         }
 
         form#entry-form {
@@ -439,6 +495,10 @@
             letter-spacing: 0.5px;
         }
 
+        .input-group button {
+            height: 100%;
+        }
+
         .form-header {
             color: var(--muted);
             font-size: 0.8rem;
@@ -456,7 +516,8 @@
             color: var(--text);
             border-radius: .6rem;
             padding: .55rem .6rem;
-            font-size: .95rem
+            font-size: .95rem;
+            height: 100%;
         }
 
         form#entry-form input:focus,
@@ -715,7 +776,8 @@
         @media (max-width: 900px) {
             .layout {
                 grid-template-columns: 1fr;
-                margin-top: 80px; /* Add margin for fixed header */
+                margin-top: 80px;
+                /* Add margin for fixed header */
             }
 
             aside {
@@ -752,7 +814,8 @@
 
             .mobile-menu {
                 position: fixed;
-                top: 60px; /* Adjust based on header height */
+                top: 60px;
+                /* Adjust based on header height */
                 left: 0;
                 right: 0;
                 width: 100%;
@@ -889,12 +952,14 @@
                 /* width: 100px !important; */
                 width: 15%;
             }
-            .note-column{
+
+            .note-column {
                 width: 42.5%;
             }
-             .quote-column{
+
+            .quote-column {
                 width: 42.5%;
-             }
+            }
 
             #entriesTable th,
             #entriesTable td {
@@ -916,7 +981,8 @@
                 padding: 0.5rem 0.4rem;
                 word-wrap: break-word;
                 overflow-wrap: break-word;
-                max-width: 0; /* Force text wrapping */
+                max-width: 0;
+                /* Force text wrapping */
             }
 
             /* Ensure table container respects padding */
@@ -927,7 +993,7 @@
             }
 
             /* Fix table wrapper overflow */
-            .card > div[style*="overflow:auto"] {
+            .card>div[style*="overflow:auto"] {
                 max-width: 100%;
                 box-sizing: border-box;
                 overflow-x: auto;
@@ -1058,41 +1124,57 @@
 
                     <div class="grid">
                         <section class="card">
-                            <form id="entry-form" autocomplete="off">
-                                <div class="form-headers">
-                                    <!-- <div class="form-header">Page #</div>
-                                    <div class="form-header">Note</div>
-                                    <div class="form-header">Quote</div> -->
-                                    <div class="form-header"></div>
-                                </div>
-                                <div class="form-inputs">
-                                    <div class="input-group">
-                                        <label for="page">Page</label>
-                                        <input id="page" type="number" min="0" inputmode="numeric" aria-label="Page" />
+                            <div class="card-header" id="entryFormHeader">
+                                <h3>Add Entry</h3>
+                                <button class="collapse-toggle" id="entryFormToggle" aria-label="Toggle entry form">
+                                    <span class="collapse-icon">▼</span>
+                                </button>
+                            </div>
+                            <div class="card-content collapsed" id="entryFormContent">
+                                <form id="entry-form" autocomplete="off">
+                                    <div class="form-headers">
+                                        <!-- <div class="form-header">Page #</div>
+                                        <div class="form-header">Note</div>
+                                        <div class="form-header">Quote</div> -->
+                                        <div class="form-header"></div>
                                     </div>
-                                    <div class="input-group">
-                                        <label for="note">Note</label>
-                                        <textarea id="note" aria-label="Note"></textarea>
+                                    <div class="form-inputs">
+                                        <div class="input-group">
+                                            <label for="page">Page</label>
+                                            <input id="page" type="number" min="0" inputmode="numeric"
+                                                aria-label="Page" />
+                                        </div>
+                                        <div class="input-group">
+                                            <label for="note">Note</label>
+                                            <textarea id="note" aria-label="Note"></textarea>
+                                        </div>
+                                        <div class="input-group">
+                                            <label for="quote">Quote</label>
+                                            <textarea id="quote" aria-label="Quote"></textarea>
+                                        </div>
+                                        <div class="input-group">
+                                            <label for="addEntryBtn"> &nbsp; </label>
+                                            <button class="btn primary" id="addEntryBtn" type="submit">Add</button>
+                                        </div>
                                     </div>
-                                    <div class="input-group">
-                                        <label for="quote">Quote</label>
-                                        <textarea id="quote" aria-label="Quote"></textarea>
-                                    </div>
-                                    <button class="btn primary" id="addEntryBtn" type="submit">Add</button>
-                                </div>
-                            </form>
+                                </form>
+                            </div>
                         </section>
 
                         <section class="card">
-                            <h3>Entries</h3>
 
-                            <div
-                                style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:.6rem">
-                                <input id="entrySearch" class="search" type="search" placeholder="Filter entries"
-                                    style="max-width:360px">
+                            <div class="card-header" id="entriesDisplayHeaderr">
+                                <h3>Entries</h3>
+
+                                <div
+                                    style="width: 80%; display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:.6rem">
+                                    <input id="entrySearch" class="search" type="search" placeholder="Filter entries">
+                                </div>
                             </div>
 
-                            <div style="overflow:auto; max-height:60vh; border-radius:.6rem; max-width:100%; box-sizing:border-box;">
+
+                            <div
+                                style="overflow:auto; max-height:60vh; border-radius:.6rem; max-width:100%; box-sizing:border-box;">
                                 <table id="entriesTable" aria-label="Entries table">
                                     <thead>
                                         <tr>
@@ -1112,10 +1194,10 @@
                     </div>
                 </div>
 
-                <!-- Empty state when no books exist -->
+                <!-- Empty state when no books exist or no book selected -->
                 <div id="emptyState" class="empty-state" onclick="openNewBookModal()">
                     <div class="plus-icon">+</div>
-                    <div class="add-text">Add a book</div>
+                    <div class="add-text" id="emptyStateText">Add a book</div>
                 </div>
             </div>
         </main>
@@ -1159,20 +1241,20 @@
         // Data layer
         const STORAGE_KEY = 'bookNotes.v1';
         const PROJECT_NAME = 'book-notes-v1';
-        
+
         // API Configuration
         const API_CONFIG = {
             local: 'http://localhost:8080',
             production: 'https://landpricecalculatorapi.onrender.com'
         };
-        
+
         // Detect environment and set API base URL
         const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         const API_BASE_URL = isLocalhost ? API_CONFIG.local : API_CONFIG.production;
-        
+
         console.log(`Environment: ${isLocalhost ? 'Local' : 'Production'}`);
         console.log(`API Base URL: ${API_BASE_URL}`);
-        
+
         /** @type {{books: Array<{id:string, title:string, author?:string, entries: Array<{id:string, page?:number, note?:string, quote?:string, createdAt:number}>}>, activeBookId?:string}} */
         let state = { books: [], activeBookId: undefined };
 
@@ -1258,7 +1340,7 @@
                     method: 'POST',
                     body: JSON.stringify(currentBook)
                 });
-                
+
                 if (response.success) {
                     console.log('Current book saved to API successfully');
                     return true;
@@ -1306,7 +1388,7 @@
         async function syncWithAPI() {
             const syncBtn = el('syncBtn');
             const mobileSyncBtn = el('mobileSyncBtn');
-            
+
             // Show loading state
             const originalText = syncBtn.textContent;
             syncBtn.classList.add('loading');
@@ -1315,12 +1397,12 @@
                 mobileSyncBtn.classList.add('loading');
                 mobileSyncBtn.disabled = true;
             }
-            
+
             try {
                 // First try to load from API
                 const loadSuccess = await loadBooksFromAPI();
-            
-                
+
+
                 renderAll();
             } catch (error) {
                 console.error('Sync failed:', error);
@@ -1341,11 +1423,11 @@
         async function checkAPIStatus() {
             const apiStatus = el('apiStatus');
             if (!apiStatus) return;
-            
+
             // Set connecting state
             apiStatus.className = 'api-status connecting';
             apiStatus.textContent = '🔗 Connecting...';
-            
+
             try {
                 // Try a simple API call to check connectivity
                 const response = await apiRequest('/books');
@@ -1359,18 +1441,24 @@
         }
 
         function load() {
-            // try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) { state = JSON.parse(raw) } }
+            // try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) { state = JSON.parse(raw) }
             // catch (e) { console.warn('Failed to load state', e) }
             // if (!state.books) state.books = [];
-            
+
             // Try to load from API first, fall back to localStorage
             loadBooksFromAPI().then(success => {
                 if (success) {
+                    // Select the first book after loading from API
+                    if (state.books && state.books.length > 0) {
+                        const sortValue = el('bookSort')?.value || 'title-asc';
+                        const sortedBooks = sortBooks(state.books, sortValue);
+                        state.activeBookId = sortedBooks[0].id;
+                    }
                     renderAll();
                 }
             });
         }
-        function save() {            
+        function save() {
             // Save to API in the background
             console.log('Saving Book to API');
             saveCurrentBookToAPI().catch(error => {
@@ -1390,11 +1478,11 @@
             bookList.innerHTML = '';
             const f = filter.trim().toLowerCase();
             let books = state.books.filter(b => !f || b.title.toLowerCase().includes(f) || (b.author || '').toLowerCase().includes(f));
-            
+
             // Apply sorting
             const sortValue = el('bookSort')?.value || 'title-asc';
             books = sortBooks(books, sortValue);
-            
+
             if (books.length === 0) {
                 const div = document.createElement('div');
                 div.className = 'empty';
@@ -1414,7 +1502,7 @@
                 const count = document.createElement('div'); count.className = 'count'; count.textContent = `${b.entries.length} entries`;
                 meta.append(count);
                 item.append(meta);
-                item.addEventListener('click', () => { state.activeBookId = b.id;  renderAll() });
+                item.addEventListener('click', () => { state.activeBookId = b.id; renderAll() });
                 bookList.append(item);
             })
 
@@ -1488,6 +1576,15 @@
 
             const total = book.entries.length;
             stats.textContent = `${total} total` + (q ? `, ${rows.length} shown` : '');
+
+            // Auto-set entry form state based on number of entries
+            // if (total === 0) {
+            //     // No entries - open the form to encourage adding entries
+            //     setEntryFormState(true);
+            // } else {
+            //     // Has entries - close the form to save space
+            //     setEntryFormState(false);
+            // }
         }
 
         function clearAllResultCounts() {
@@ -1496,7 +1593,7 @@
             const entriesResultCount = el('entriesResultCount');
             const mobileBooksResultCount = el('mobileBooksResultCount');
             const mobileEntriesResultCount = el('mobileEntriesResultCount');
-            
+
             if (booksResultCount) booksResultCount.textContent = '';
             if (entriesResultCount) entriesResultCount.textContent = '';
             if (mobileBooksResultCount) mobileBooksResultCount.textContent = '';
@@ -1507,16 +1604,33 @@
             renderBooks(el('bookSearch').value);
             renderEntries();
             updateMainContent();
+
+            // Ensure entry form state is set correctly for the current book
+            const book = activeBook();
+            if (book) {
+                if (book.entries.length === 0) {
+                    setEntryFormState(true);
+                } 
+            }
         }
 
         function updateMainContent() {
             const bookContent = el('bookContent');
             const emptyState = el('emptyState');
+            const emptyStateText = el('emptyStateText');
 
             if (state.books.length === 0) {
+                // No books exist - show empty state
                 bookContent.style.display = 'none';
                 emptyState.style.display = 'flex';
+                emptyStateText.textContent = 'Add a book';
+            } else if (!state.activeBookId) {
+                // Books exist but none selected - show empty state (collapsed)
+                bookContent.style.display = 'none';
+                emptyState.style.display = 'flex';
+                emptyStateText.textContent = 'Select a book to begin';
             } else {
+                // Book is selected - show book content
                 bookContent.style.display = 'block';
                 emptyState.style.display = 'none';
             }
@@ -1570,10 +1684,10 @@
                 if (key === 'note') entry.note = v || undefined;
                 if (key === 'quote') entry.quote = v || undefined;
                 // Try to save to API when entry is edited
-                save(); 
+                save();
                 renderEntries();
-                
-               
+
+
             });
             input.addEventListener('keydown', e => {
                 if (e.key === 'Enter' && key !== 'note' && key !== 'quote') { input.blur() }
@@ -1591,13 +1705,13 @@
         // CRUD
         async function addBook(title, author) {
             const book = { id: uid(), title: title.trim(), author: author?.trim() || undefined, entries: [] };
-            state.books.push(book); 
-            state.activeBookId = book.id; 
-            
+            state.books.push(book);
+            state.activeBookId = book.id;
+
             // Save to localStorage immediately for UI responsiveness
-            save(); 
+            save();
             renderAll();
-            
+
         }
 
         async function addEntry(data) {
@@ -1610,23 +1724,25 @@
                 createdAt: Date.now()
             };
             if (clean.page === undefined && !clean.note && !clean.quote) { return }
-            book.entries.push(clean); 
-            
+            book.entries.push(clean);
+
             // Save to localStorage immediately for UI responsiveness
-            save(); 
+            save();
             renderEntries();
-            
         }
 
         async function deleteEntry(bookId, entryId) {
             const book = state.books.find(b => b.id === bookId); if (!book) return;
-            book.entries = book.entries.filter(e => e.id !== entryId); 
-            
+            book.entries = book.entries.filter(e => e.id !== entryId);
+
             // Save to localStorage immediately for UI responsiveness
-            save(); 
+            save();
             renderEntries();
-            
-           
+
+            // Open the form if no entries remain
+            if (book.entries.length === 0) {
+                setEntryFormState(true);
+            }
         }
 
         function copyEntry(r) {
@@ -1781,16 +1897,27 @@
         el('themeBtn').addEventListener('click', switchTheme);
         el('syncBtn').addEventListener('click', syncWithAPI);
         el('newBookBtn').addEventListener('click', () => modal.open());
-        
+
         // Book sorting
         el('bookSort')?.addEventListener('change', () => renderAll());
+
+        // Entry form collapse/expand
+        el('entryFormToggle')?.addEventListener('click', toggleEntryForm);
+
+        // Make the entire card header clickable
+        document.addEventListener('click', (e) => {
+            const cardHeader = e.target.closest('.card-header');
+            if (cardHeader && cardHeader.id === 'entryFormHeader') {
+                toggleEntryForm();
+            }
+        });
 
         // Mobile action button event listeners
         el('mobileThemeBtn').addEventListener('click', () => {
             switchTheme();
             toggleMobileMenu(); // Close menu after action
         });
-        
+
         el('mobileSyncBtn').addEventListener('click', async () => {
             await syncWithAPI();
             toggleMobileMenu(); // Close menu after action
@@ -1845,16 +1972,16 @@
 
         function switchMobileTab(tab) {
             currentMobileTab = tab;
-            
+
             // Update mobile tab buttons
             document.querySelectorAll('[data-tab^="mobile-"]').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.tab === tab);
             });
-            
+
             // Show/hide appropriate mobile lists
             const mobileBookList = el('mobileBookList');
             const mobileEntryList = el('mobileEntryList');
-            
+
             if (tab === 'mobile-books') {
                 mobileBookList.style.display = 'block';
                 mobileEntryList.style.display = 'none';
@@ -1862,7 +1989,7 @@
                 mobileBookList.style.display = 'none';
                 mobileEntryList.style.display = 'block';
             }
-            
+
             // Re-run mobile search with current query
             const searchQuery = el('mobileBookSearch').value;
             if (searchQuery.trim()) {
@@ -1885,14 +2012,14 @@
         function performMobileSearch(query) {
             // Clear counts first to ensure clean state
             clearAllResultCounts();
-            
+
             // Always calculate both book and entry results to show counts
             const bookResults = calculateBookResults(query);
             const entryResults = calculateEntryResults(query);
-            
+
             // Update mobile result counts for both tabs
             updateMobileResultCounts(bookResults, entryResults);
-            
+
             if (currentMobileTab === 'mobile-books') {
                 // Filter mobile book list
                 const filter = query.trim().toLowerCase();
@@ -2021,16 +2148,16 @@
 
         function switchSearchTab(tab) {
             currentSearchTab = tab;
-            
+
             // Update tab buttons
             document.querySelectorAll('.search-tab').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.tab === tab);
             });
-            
+
             // Show/hide appropriate lists
             const bookList = el('bookList');
             const entryList = el('entryList');
-            
+
             if (tab === 'books') {
                 bookList.style.display = 'block';
                 entryList.style.display = 'none';
@@ -2038,7 +2165,7 @@
                 bookList.style.display = 'none';
                 entryList.style.display = 'block';
             }
-            
+
             // Re-run search with current query
             const searchQuery = el('bookSearch').value;
             if (searchQuery.trim()) {
@@ -2061,14 +2188,14 @@
         function performSearch(query) {
             // Clear counts first to ensure clean state
             clearAllResultCounts();
-            
+
             // Always calculate both book and entry results to show counts
             const bookResults = calculateBookResults(query);
             const entryResults = calculateEntryResults(query);
-            
+
             // Update result counts for both tabs
             updateResultCounts(bookResults, entryResults);
-            
+
             // Render the currently selected tab
             if (currentSearchTab === 'books') {
                 renderBooks(query);
@@ -2079,9 +2206,9 @@
 
         function calculateBookResults(query) {
             if (!query.trim()) return { count: 0, books: [] };
-            
+
             const f = query.trim().toLowerCase();
-            const books = state.books.filter(b => 
+            const books = state.books.filter(b =>
                 !f || b.title.toLowerCase().includes(f) || (b.author || '').toLowerCase().includes(f)
             );
             return { count: books.length, books };
@@ -2089,7 +2216,7 @@
 
         function calculateEntryResults(query) {
             if (!query.trim()) return { count: 0, results: [] };
-            
+
             const results = [];
             const q = query.toLowerCase();
 
@@ -2103,7 +2230,7 @@
                     }
                 });
             });
-            
+
             return { count: results.length, results };
         }
 
@@ -2115,7 +2242,7 @@
             } else {
                 booksResultCount.textContent = '';
             }
-            
+
             // Update entries result count
             const entriesResultCount = el('entriesResultCount');
             if (entryResults.count > 0) {
@@ -2133,7 +2260,7 @@
             } else {
                 mobileBooksResultCount.textContent = '';
             }
-            
+
             // Update mobile entries result count
             const mobileEntriesResultCount = el('mobileEntriesResultCount');
             if (entryResults.count > 0) {
@@ -2309,7 +2436,7 @@
                     const pageIndex = headers.findIndex(h => h === 'page');
                     const noteIndex = headers.findIndex(h => h === 'note' || h === 'my note' || h.includes('note'));
                     const quoteIndex = headers.findIndex(h => h === 'quote');
-                    
+
                     console.log('Column Indices:', { pageIndex, noteIndex, quoteIndex });
                     console.log('Headers Search Details:', {
                         page: {
@@ -2329,13 +2456,13 @@
                         }
                     });
                     console.log('All Headers (lowercase):', headers);
-                    
+
                     if (pageIndex === -1 || noteIndex === -1 || quoteIndex === -1) {
                         const missingColumns = [];
                         if (pageIndex === -1) missingColumns.push('Page');
                         if (noteIndex === -1) missingColumns.push('Note (or "My note")');
                         if (quoteIndex === -1) missingColumns.push('Quote');
-                        
+
                         alert(`CSV must have columns: Page, Note (or "My note"), Quote (case insensitive)\n\nMissing: ${missingColumns.join(', ')}\n\nFound columns: ${originalHeaders.join(', ')}`);
                         return;
                     }
@@ -2435,7 +2562,7 @@
         renderAll();
         // Force update main content after everything is loaded
         setTimeout(() => updateMainContent(), 0);
-        
+
         // Check API status on startup
         checkAPIStatus();
 
@@ -2459,7 +2586,7 @@
 
         function sortBooks(books, sortType) {
             const sortedBooks = [...books];
-            
+
             switch (sortType) {
                 case 'title-asc':
                     return sortedBooks.sort((a, b) => a.title.localeCompare(b.title));
@@ -2483,6 +2610,46 @@
                     return sortedBooks.sort((a, b) => a.entries.length - b.entries.length);
                 default:
                     return sortedBooks;
+            }
+        }
+
+        function toggleEntryForm() {
+            const content = el('entryFormContent');
+            const toggle = el('entryFormToggle');
+            const icon = toggle.querySelector('.collapse-icon');
+
+            if (content.classList.contains('collapsed')) {
+                // Expand
+                content.classList.remove('collapsed');
+                content.classList.add('expanded');
+                icon.textContent = '▲';
+                icon.style.transform = 'rotate(0deg)';
+            } else {
+                // Collapse
+                content.classList.remove('expanded');
+                content.classList.add('collapsed');
+                icon.textContent = '▼';
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function setEntryFormState(shouldBeOpen) {
+            const content = el('entryFormContent');
+            const toggle = el('entryFormToggle');
+            const icon = toggle.querySelector('.collapse-icon');
+
+            if (shouldBeOpen) {
+                // Open the form
+                content.classList.remove('collapsed');
+                content.classList.add('expanded');
+                icon.textContent = '▲';
+                icon.style.transform = 'rotate(0deg)';
+            } else {
+                // Close the form
+                content.classList.remove('expanded');
+                content.classList.add('collapsed');
+                icon.textContent = '▼';
+                icon.style.transform = 'rotate(0deg)';
             }
         }
     </script>
