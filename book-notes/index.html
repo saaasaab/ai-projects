@@ -143,6 +143,66 @@
             color: white
         }
 
+        .api-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 0.5rem;
+            background: var(--panel-2);
+            border: 1px solid var(--muted);
+            color: var(--muted);
+            transition: all 0.3s ease;
+        }
+
+        .api-status.connected {
+            border-color: var(--ok);
+            color: var(--ok);
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .api-status.disconnected {
+            border-color: var(--danger);
+            color: var(--danger);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .api-status.connecting {
+            border-color: var(--brand);
+            color: var(--brand);
+            background: rgba(110, 168, 254, 0.1);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn.loading {
+            position: relative;
+            color: transparent;
+        }
+
+        .btn.loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 16px;
+            height: 16px;
+            margin: -8px 0 0 -8px;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         .layout {
             max-width: 1200px;
             min-height: calc(100% - 100px);
@@ -882,10 +942,12 @@
         <div class="bar">
             <div class="title">📚 Book Notes</div>
             <div class="grow"></div>
+            <div id="apiStatus" class="api-status" title="API Connection Status"></div>
 
             <!-- Desktop buttons -->
             <div class="desktop-actions">
                 <button class="btn" id="themeBtn" title="Change color theme">🎨</button>
+                <button class="btn" id="syncBtn" title="Sync with API">🔄</button>
                 <button class="btn" id="exportBtn" title="Export all books as JSON">Export</button>
                 <label class="btn" for="importFile" title="Import books JSON or CSV entries">
                     <input id="importFile" type="file" accept=".json,.csv,application/json,text/csv" hidden>
@@ -919,6 +981,7 @@
                 <div class="mobile-section">
                     <h4>Actions</h4>
                     <button class="btn" id="mobileThemeBtn">🎨 Change Theme</button>
+                    <button class="btn" id="mobileSyncBtn">🔄 Sync with API</button>
                     <button class="btn" id="mobileExportBtn">Export</button>
                     <label class="btn" for="mobileImportFile" title="Import books JSON or CSV entries">
                         <input id="mobileImportFile" type="file" accept=".json,.csv,application/json,text/csv" hidden>
@@ -1058,17 +1121,224 @@
     <script>
         // Data layer
         const STORAGE_KEY = 'bookNotes.v1';
+        const PROJECT_NAME = 'book-notes-v1';
+        
+        // API Configuration
+        const API_CONFIG = {
+            local: 'http://localhost:8080',
+            production: 'https://landpricecalculatorapi.onrender.com'
+        };
+        
+        // Detect environment and set API base URL
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const API_BASE_URL = isLocalhost ? API_CONFIG.local : API_CONFIG.production;
+        
+        console.log(`Environment: ${isLocalhost ? 'Local' : 'Production'}`);
+        console.log(`API Base URL: ${API_BASE_URL}`);
+        
         /** @type {{books: Array<{id:string, title:string, author?:string, entries: Array<{id:string, page?:number, note?:string, quote?:string, createdAt:number}>}>, activeBookId?:string}} */
         let state = { books: [], activeBookId: undefined };
 
-        function load() {
-            try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) { state = JSON.parse(raw) } }
-            catch (e) { console.warn('Failed to load state', e) }
-            if (!state.books) state.books = [];
-            save();
+        // API Functions
+        async function apiRequest(endpoint, options = {}) {
+            const url = `${API_BASE_URL}${endpoint}`;
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                },
+                ...options
+            };
+
+            try {
+                const response = await fetch(url, defaultOptions);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error(`API request failed for ${endpoint}:`, error);
+                throw error;
+            }
         }
-        function save() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+        // Retry mechanism for API calls
+        async function apiRequestWithRetry(endpoint, options = {}, maxRetries = 2) {
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    return await apiRequest(endpoint, options);
+                } catch (error) {
+                    if (attempt === maxRetries) {
+                        throw error;
+                    }
+                    // Wait before retrying (exponential backoff)
+                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+                    console.log(`API request failed, retrying... (attempt ${attempt + 1}/${maxRetries})`);
+                }
+            }
+        }
+
+        async function loadBooksFromAPI() {
+            try {
+                const response = await apiRequestWithRetry('/books');
+                if (response.success && response.data) {
+                    state.books = response.data;
+                    return true;
+                }
+            } catch (error) {
+                console.warn('Failed to load books from API, falling back to localStorage:', error);
+                return false;
+            }
+            return false;
+        }
+
+        async function saveBooksToAPI() {
+            try {
+                const response = await apiRequest('/books/save', {
+                    method: 'POST',
+                    body: JSON.stringify({ books: state.books })
+                });
+                if (response.success) {
+                    console.log('Books saved to API successfully');
+                    return true;
+                }
+            } catch (error) {
+                console.error('Failed to save books to API:', error);
+                return false;
+            }
+            return false;
+        }
+
+        async function saveCurrentBookToAPI() {
+            try {
+                const currentBook = activeBook();
+                if (!currentBook) {
+                    console.log('No active book to save');
+                    return false;
+                }
+
+                const response = await apiRequest('/books/save-single', {
+                    method: 'POST',
+                    body: JSON.stringify(currentBook)
+                });
+                
+                if (response.success) {
+                    console.log('Current book saved to API successfully');
+                    return true;
+                }
+            } catch (error) {
+                console.error('Failed to save current book to API:', error);
+                return false;
+            }
+            return false;
+        }
+
+        async function updateBookInAPI(bookId, updateData) {
+            try {
+                const response = await apiRequest(`/books/${bookId}/update`, {
+                    method: 'POST',
+                    body: JSON.stringify(updateData)
+                });
+                if (response.success) {
+                    console.log('Book updated in API successfully');
+                    return true;
+                }
+            } catch (error) {
+                console.error('Failed to update book in API:', error);
+                return false;
+            }
+            return false;
+        }
+
+        async function deleteBookFromAPI(bookId) {
+            try {
+                const response = await apiRequest(`/books/${bookId}/delete`, {
+                    method: 'POST'
+                });
+                if (response.success) {
+                    console.log('Book deleted from API successfully');
+                    return true;
+                }
+            } catch (error) {
+                console.error('Failed to delete book from API:', error);
+                return false;
+            }
+            return false;
+        }
+
+        async function syncWithAPI() {
+            const syncBtn = el('syncBtn');
+            const mobileSyncBtn = el('mobileSyncBtn');
+            
+            // Show loading state
+            const originalText = syncBtn.textContent;
+            syncBtn.classList.add('loading');
+            syncBtn.disabled = true;
+            if (mobileSyncBtn) {
+                mobileSyncBtn.classList.add('loading');
+                mobileSyncBtn.disabled = true;
+            }
+            
+            try {
+                // First try to load from API
+                const loadSuccess = await loadBooksFromAPI();
+            
+                
+                renderAll();
+            } catch (error) {
+                console.error('Sync failed:', error);
+                toast('Failed to sync with API');
+            } finally {
+                // Restore button state
+                syncBtn.classList.remove('loading');
+                syncBtn.textContent = originalText;
+                syncBtn.disabled = false;
+                if (mobileSyncBtn) {
+                    mobileSyncBtn.classList.remove('loading');
+                    mobileSyncBtn.textContent = '🔄 Sync with API';
+                    mobileSyncBtn.disabled = false;
+                }
+            }
+        }
+
+        async function checkAPIStatus() {
+            const apiStatus = el('apiStatus');
+            if (!apiStatus) return;
+            
+            // Set connecting state
+            apiStatus.className = 'api-status connecting';
+            apiStatus.textContent = '🔗 Connecting...';
+            
+            try {
+                // Try a simple API call to check connectivity
+                const response = await apiRequest('/books');
+                apiStatus.className = 'api-status connected';
+                apiStatus.textContent = `🔗 ${isLocalhost ? 'Local' : 'API'} Connected`;
+            } catch (error) {
+                apiStatus.className = 'api-status disconnected';
+                apiStatus.textContent = `❌ ${isLocalhost ? 'Local' : 'API'} Disconnected`;
+                console.warn('API connection check failed:', error);
+            }
+        }
+
+        function load() {
+            // try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) { state = JSON.parse(raw) } }
+            // catch (e) { console.warn('Failed to load state', e) }
+            // if (!state.books) state.books = [];
+            
+            // Try to load from API first, fall back to localStorage
+            loadBooksFromAPI().then(success => {
+                if (success) {
+                    renderAll();
+                }
+            });
+        }
+        function save() {            
+            // Save to API in the background
+            console.log('Saving Book to API');
+            saveCurrentBookToAPI().catch(error => {
+                console.warn('Background API save failed:', error);
+            });
         }
         function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4) }
 
@@ -1086,7 +1356,7 @@
             if (books.length === 0) {
                 const div = document.createElement('div');
                 div.className = 'empty';
-                div.textContent = 'No books. Click “New Book” to add one.';
+                div.textContent = 'No books. Click "New Book" to add one.';
                 bookList.append(div);
                 return;
             }
@@ -1102,7 +1372,7 @@
                 const count = document.createElement('div'); count.className = 'count'; count.textContent = `${b.entries.length} entries`;
                 meta.append(count);
                 item.append(meta);
-                item.addEventListener('click', () => { state.activeBookId = b.id; save(); renderAll() });
+                item.addEventListener('click', () => { state.activeBookId = b.id;  renderAll() });
                 bookList.append(item);
             })
 
@@ -1217,10 +1487,19 @@
         function confirmDeleteBook(id) {
             const book = state.books.find(b => b.id === id);
             if (!book) return;
-            if (confirm(`Delete “${book.title}” and its ${book.entries.length} entr${book.entries.length === 1 ? 'y' : 'ies'}?`)) {
-                state.books = state.books.filter(b => b.id !== id);
-                if (state.activeBookId === id) state.activeBookId = state.books[0]?.id;
-                save(); renderAll();
+            if (confirm(`Delete "${book.title}" and its ${book.entries.length} entr${book.entries.length === 1 ? 'y' : 'ies'}?`)) {
+                // Delete from API first
+                deleteBookFromAPI(id).then(success => {
+                    if (success) {
+                        // Remove from local state only after successful API deletion
+                        state.books = state.books.filter(b => b.id !== id);
+                        if (state.activeBookId === id) state.activeBookId = state.books[0]?.id;
+                        renderAll();
+                    } else {
+                        // If API deletion failed, show error and don't remove from local state
+                        toast('Failed to delete book from API');
+                    }
+                });
             }
         }
 
@@ -1248,7 +1527,11 @@
                 if (key === 'page') entry.page = v === '' ? undefined : Number(v);
                 if (key === 'note') entry.note = v || undefined;
                 if (key === 'quote') entry.quote = v || undefined;
-                save(); renderEntries();
+                // Try to save to API when entry is edited
+                save(); 
+                renderEntries();
+                
+               
             });
             input.addEventListener('keydown', e => {
                 if (e.key === 'Enter' && key !== 'note' && key !== 'quote') { input.blur() }
@@ -1264,12 +1547,18 @@
         }
 
         // CRUD
-        function addBook(title, author) {
+        async function addBook(title, author) {
             const book = { id: uid(), title: title.trim(), author: author?.trim() || undefined, entries: [] };
-            state.books.push(book); state.activeBookId = book.id; save(); renderAll();
+            state.books.push(book); 
+            state.activeBookId = book.id; 
+            
+            // Save to localStorage immediately for UI responsiveness
+            save(); 
+            renderAll();
+            
         }
 
-        function addEntry(data) {
+        async function addEntry(data) {
             const book = activeBook(); if (!book) { alert('Create or select a book first'); return }
             const clean = {
                 id: uid(),
@@ -1279,16 +1568,27 @@
                 createdAt: Date.now()
             };
             if (clean.page === undefined && !clean.note && !clean.quote) { return }
-            book.entries.push(clean); save(); renderEntries();
+            book.entries.push(clean); 
+            
+            // Save to localStorage immediately for UI responsiveness
+            save(); 
+            renderEntries();
+            
         }
 
-        function deleteEntry(bookId, entryId) {
+        async function deleteEntry(bookId, entryId) {
             const book = state.books.find(b => b.id === bookId); if (!book) return;
-            book.entries = book.entries.filter(e => e.id !== entryId); save(); renderEntries();
+            book.entries = book.entries.filter(e => e.id !== entryId); 
+            
+            // Save to localStorage immediately for UI responsiveness
+            save(); 
+            renderEntries();
+            
+           
         }
 
         function copyEntry(r) {
-            const text = [r.page ? `p.${r.page}` : '', r.note || '', r.quote ? `“${r.quote}”` : ''].filter(Boolean).join(' — ');
+            const text = [r.page ? `p.${r.page}` : '', r.note || '', r.quote ? `"${r.quote}"` : ''].filter(Boolean).join(' — ');
             navigator.clipboard.writeText(text).then(() => {
                 toast('Copied to clipboard')
             }).catch(() => { })
@@ -1426,7 +1726,6 @@
                 item.append(meta);
                 item.addEventListener('click', () => {
                     state.activeBookId = b.id;
-                    save();
                     renderAll();
                     toggleMobileMenu(); // Close menu after selection
                 });
@@ -1438,11 +1737,17 @@
         // Event bindings
         el('mobileMenuBtn').addEventListener('click', toggleMobileMenu);
         el('themeBtn').addEventListener('click', switchTheme);
+        el('syncBtn').addEventListener('click', syncWithAPI);
         el('newBookBtn').addEventListener('click', () => modal.open());
 
         // Mobile action button event listeners
         el('mobileThemeBtn').addEventListener('click', () => {
             switchTheme();
+            toggleMobileMenu(); // Close menu after action
+        });
+        
+        el('mobileSyncBtn').addEventListener('click', async () => {
+            await syncWithAPI();
             toggleMobileMenu(); // Close menu after action
         });
         el('mobileExportBtn').addEventListener('click', () => {
@@ -2090,6 +2395,9 @@
         renderAll();
         // Force update main content after everything is loaded
         setTimeout(() => updateMainContent(), 0);
+        
+        // Check API status on startup
+        checkAPIStatus();
 
         // Add scroll event listener to book list for overflow indicator
         bookList.addEventListener('scroll', checkBookListOverflow);
