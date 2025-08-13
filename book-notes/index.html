@@ -301,7 +301,7 @@
             display: flex;
             flex-direction: column;
             gap: .35rem;
-            max-height: 75vh;
+            max-height: calc(100vh - 230px);
             overflow: auto;
             padding-right: .25rem;
             position: relative;
@@ -934,6 +934,33 @@
                 overflow-y: auto;
             }
         }
+
+        .sort-container {
+            margin: .5rem 0;
+            padding: 0 .25rem;
+        }
+
+        .sort-select {
+            width: 100%;
+            padding: .4rem .5rem;
+            border: 1px solid var(--panel-2);
+            border-radius: .4rem;
+            background: var(--panel);
+            color: var(--text);
+            font-size: .85rem;
+            cursor: pointer;
+        }
+
+        .sort-select:focus {
+            border-color: var(--brand);
+            outline: none;
+            box-shadow: var(--ring);
+        }
+
+        .sort-select option {
+            background: var(--panel);
+            color: var(--text);
+        }
     </style>
 </head>
 
@@ -1003,6 +1030,16 @@
                     <button class="search-tab" data-tab="entries">Entries <span class="result-count"
                             id="entriesResultCount"></span></button>
                 </div>
+            </div>
+            <div class="sort-container">
+                <select id="bookSort" class="sort-select" aria-label="Sort books by">
+                    <option value="title-asc">Title A-Z</option>
+                    <option value="title-desc">Title Z-A</option>
+                    <option value="recent">Most Recent</option>
+                    <option value="oldest">First Added</option>
+                    <option value="entries-desc">Most Entries</option>
+                    <option value="entries-asc">Least Entries</option>
+                </select>
             </div>
             <div id="bookList" class="book-list" aria-live="polite"></div>
             <div id="entryList" class="entry-list" aria-live="polite" style="display: none;"></div>
@@ -1352,7 +1389,12 @@
         function renderBooks(filter = '') {
             bookList.innerHTML = '';
             const f = filter.trim().toLowerCase();
-            const books = state.books.filter(b => !f || b.title.toLowerCase().includes(f) || (b.author || '').toLowerCase().includes(f));
+            let books = state.books.filter(b => !f || b.title.toLowerCase().includes(f) || (b.author || '').toLowerCase().includes(f));
+            
+            // Apply sorting
+            const sortValue = el('bookSort')?.value || 'title-asc';
+            books = sortBooks(books, sortValue);
+            
             if (books.length === 0) {
                 const div = document.createElement('div');
                 div.className = 'empty';
@@ -1739,6 +1781,9 @@
         el('themeBtn').addEventListener('click', switchTheme);
         el('syncBtn').addEventListener('click', syncWithAPI);
         el('newBookBtn').addEventListener('click', () => modal.open());
+        
+        // Book sorting
+        el('bookSort')?.addEventListener('change', () => renderAll());
 
         // Mobile action button event listeners
         el('mobileThemeBtn').addEventListener('click', () => {
@@ -2304,9 +2349,6 @@
                         const note = row[originalHeaders[noteIndex]]?.toString().trim();
                         const quote = row[originalHeaders[quoteIndex]]?.toString().trim();
 
-                        // Debug logging
-                        console.log(`Row ${index + 1}:`, { page, note, quote, raw: row });
-
                         // Check if there's actual content (note or quote)
                         const hasContent = (note && note.length > 0) || (quote && quote.length > 0);
 
@@ -2321,10 +2363,8 @@
 
                             book.entries.push(entry);
                             importedCount++;
-                            console.log(`Imported entry:`, entry);
                         } else {
                             skippedCount++;
-                            console.log(`Skipped row ${index + 1} - no content`);
                         }
                     });
 
@@ -2416,6 +2456,35 @@
                 mobileMenu.classList.remove('active');
             }
         });
+
+        function sortBooks(books, sortType) {
+            const sortedBooks = [...books];
+            
+            switch (sortType) {
+                case 'title-asc':
+                    return sortedBooks.sort((a, b) => a.title.localeCompare(b.title));
+                case 'title-desc':
+                    return sortedBooks.sort((a, b) => b.title.localeCompare(a.title));
+                case 'recent':
+                    return sortedBooks.sort((a, b) => {
+                        const aTime = a.metadata?.createdAt ? new Date(a.metadata.createdAt).getTime() : 0;
+                        const bTime = b.metadata?.createdAt ? new Date(b.metadata.createdAt).getTime() : 0;
+                        return bTime - aTime;
+                    });
+                case 'oldest':
+                    return sortedBooks.sort((a, b) => {
+                        const aTime = a.metadata?.createdAt ? new Date(a.metadata.createdAt).getTime() : 0;
+                        const bTime = b.metadata?.createdAt ? new Date(b.metadata.createdAt).getTime() : 0;
+                        return aTime - bTime;
+                    });
+                case 'entries-desc':
+                    return sortedBooks.sort((a, b) => b.entries.length - a.entries.length);
+                case 'entries-asc':
+                    return sortedBooks.sort((a, b) => a.entries.length - b.entries.length);
+                default:
+                    return sortedBooks;
+            }
+        }
     </script>
 </body>
 
