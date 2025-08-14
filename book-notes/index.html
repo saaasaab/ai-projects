@@ -9,17 +9,17 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         :root {
-            /* Default Dark Theme */
-            --bg: #0b0d12;
-            --panel: #111521;
-            --panel-2: #141a2a;
-            --muted: #7f8aa5;
-            --text: #e8ecf3;
-            --brand: #6ea8fe;
-            --accent: #a78bfa;
-            --danger: #ef4444;
-            --ok: #22c55e;
-            --ring: 0 0 0 3px rgba(110, 168, 254, .35);
+            /* Default Light Theme - Based on image */
+            --bg: #ffffff;
+            --panel: #ffffff;
+            --panel-2: #f8f9fa;
+            --muted: #6c757d;
+            --text: #212529;
+            --brand: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            --accent: #28a745;
+            --danger: #dc3545;
+            --ok: #28a745;
+            --ring: 0 0 0 3px rgba(111, 66, 193, 0.35);
         }
 
         /* Light Blue-Green Theme */
@@ -85,10 +85,10 @@
         header {
             position: sticky;
             top: 0;
-            z-index: 10;
-            backdrop-filter: saturate(1.2) blur(8px);
-            background: linear-gradient(to bottom, rgba(17, 21, 33, .7), rgba(17, 21, 33, .2));
-            border-bottom: 1px solid var(--panel-2)
+            z-index: 1002;
+            background: var(--panel);
+            border-bottom: 1px solid var(--panel-2);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .bar {
@@ -237,11 +237,12 @@
             margin-bottom: .5rem
         }
 
-        .mobile-search-container{
+        .mobile-search-container {
             display: flex;
             gap: .5rem;
             margin-bottom: .5rem
         }
+
         .search-tabs {
             display: flex;
             gap: 0.2rem;
@@ -301,7 +302,8 @@
             border: 1px solid var(--muted);
             color: var(--text);
             border-radius: .6rem;
-            padding: .6rem .7rem
+            padding: .6rem .7rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
         .search:focus {
@@ -355,9 +357,9 @@
         }
 
         .book.active {
-            background: var(--brand);
+            background: white;
             border-color: var(--brand);
-            color: white
+            color: var(--brand);
         }
 
         .book .meta {
@@ -404,6 +406,47 @@
             font-size: .85rem
         }
 
+        .book-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 1.5rem 1rem 1rem 1rem;
+            border-bottom: 1px solid var(--panel-2);
+        }
+
+        .book-title-section {
+            flex: 1;
+        }
+
+        .book-title {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text);
+            line-height: 1.2;
+        }
+
+        .book-subtitle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .book-author {
+            font-weight: 500;
+        }
+
+        .book-author:not(:empty)::after {
+            content: " — ";
+            margin: 0 0.25rem;
+        }
+
+        .book-stats {
+            font-weight: 400;
+        }
+
         .grid {
             display: grid;
             gap: 1rem;
@@ -416,6 +459,7 @@
             border-radius: .8rem;
             padding: 0;
             margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }
 
         .card-header {
@@ -425,6 +469,7 @@
             gap: 15px;
             padding: .6rem .7rem;
             cursor: pointer;
+            background-color: var(--panel-2);
         }
 
         .card-header h3 {
@@ -451,11 +496,13 @@
         .collapse-icon {
             display: inline-block;
             transition: transform 0.2s ease;
+
         }
 
         .card-content {
             transition: all 0.3s ease;
             overflow: hidden;
+            background-color: var(--panel-2);
         }
 
         .card-content.collapsed {
@@ -473,11 +520,7 @@
             border-top: 1px solid var(--panel-2);
         }
 
-        form#entry-form {
-            display: grid;
-            grid-template-rows: auto auto;
-            gap: 0.3rem;
-        }
+        form#entry-form {}
 
         .form-headers {
             display: grid;
@@ -485,10 +528,18 @@
             grid-template-columns: 75px 1fr 1fr auto;
         }
 
-        .form-inputs {
+        .input-group-row {
             display: grid;
             gap: .6rem;
-            grid-template-columns: 75px 1fr 1fr auto;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .form-inputs {
+            /* display: grid; */
+            display: flex;
+            flex-direction: column;
+            gap: .6rem;
+            /* grid-template-columns: 75px 1fr 1fr auto; */
         }
 
         .input-group {
@@ -521,13 +572,14 @@
         form#entry-form textarea,
         select {
             width: 100%;
-            background: var(--panel-2);
+            background: var(--panel);
             border: 1px solid var(--muted);
             color: var(--text);
             border-radius: .6rem;
             padding: .55rem .6rem;
             font-size: .95rem;
             height: 100%;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
         form#entry-form input:focus,
@@ -539,7 +591,7 @@
         }
 
         textarea {
-            min-height: 42px;
+            min-height: 142px;
             resize: vertical
         }
 
@@ -564,6 +616,10 @@
             text-align: left;
             vertical-align: top;
             border-bottom: 1px solid var(--panel-2)
+        }
+
+        td:first-child {
+            color: #8b5cf6;
         }
 
         tbody tr {
@@ -782,10 +838,16 @@
             font-weight: 600;
         }
 
+
         .mobile-actions {
             display: flex;
             justify-content: space-around;
+            position: absolute;
+            bottom: 70px;
+            width: 100%;
+            left: 0;
         }
+
 
         .mobile-actions button.btn,
         .mobile-actions label.btn {
@@ -821,6 +883,10 @@
                 display: block
             }
 
+            .mobile-new-book-btn {
+                display: block
+            }
+
             header {
                 position: fixed;
                 top: 0;
@@ -840,24 +906,44 @@
             .mobile-menu {
                 position: fixed;
                 top: 60px;
-                /* Adjust based on header height */
-                left: 0;
-                right: 0;
-                width: 100%;
+                left: -100%;
+                width: 85%;
+                max-width: 320px;
+                height: 100vh;
                 background: var(--panel);
-                border: 1px solid var(--panel-2);
-                border-top: none;
-                border-radius: 0 0 1rem 1rem;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-                z-index: 999;
-                display: none;
-                max-height: calc(100vh - 60px);
+                border-right: 1px solid var(--panel-2);
+                box-shadow: 4px 0 12px rgba(0, 0, 0, 0.15);
+                z-index: 1001;
+                display: block;
                 overflow-y: auto;
                 box-sizing: border-box;
+                transition: left 0.3s ease;
             }
 
             .mobile-menu.active {
-                display: block
+                left: 0;
+            }
+
+
+
+            .mobile-menu-backdrop {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background: rgba(0, 0, 0, 0.3);
+                z-index: 1000;
+                display: none;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                pointer-events: none;
+            }
+
+            .mobile-menu-backdrop.active {
+                display: block;
+                opacity: 1;
+                pointer-events: auto;
             }
 
             .mobile-menu-content {
@@ -865,11 +951,13 @@
                 display: flex;
                 flex-direction: column;
                 gap: 1rem;
+                height: calc(100vh - 60px);
             }
 
-            /* .mobile-section {
-                margin-bottom: 1.5rem;
-            } */
+            .mobile-section {
+                height: 100%;
+                overflow: hidden;
+            }
 
             .mobile-section:last-child {
                 margin-bottom: 0;
@@ -885,9 +973,10 @@
             }
 
             .mobile-book-list {
-                max-height: 40vh;
+                height: 100%;
                 overflow-y: auto;
                 margin-top: 0.5rem;
+                max-height: calc(100vh - 180px);
             }
 
             .mobile-book-list .book {
@@ -931,6 +1020,10 @@
                 display: none
             }
 
+            .mobile-new-book-btn {
+                display: none
+            }
+
             .mobile-menu {
                 display: none !important
             }
@@ -953,10 +1046,15 @@
             }
 
             .mobile-menu {
+                display: none;
                 width: 100vw;
                 left: 0;
                 right: 0;
                 max-width: none;
+            }
+
+            .mobile-menu.active {
+                display: block;
             }
 
             form#entry-form {
@@ -1050,7 +1148,7 @@
         .sort-select {
             width: 100%;
             padding: .4rem .5rem;
-            border: 1px solid var(--panel-2);
+            border: 1px solid var(--muted);
             border-radius: .4rem;
             background: var(--panel);
             color: var(--text);
@@ -1074,6 +1172,9 @@
 <body>
     <header>
         <div class="bar">
+            <!-- Mobile hamburger menu - moved to left -->
+            <button class="btn mobile-menu-btn" id="mobileMenuBtn" title="Menu">☰</button>
+
             <div class="title">📚 Book Notes</div>
             <div class="grow"></div>
             <div id="apiStatus" class="api-status" title="API Connection Status"></div>
@@ -1090,9 +1191,12 @@
                 <button class="btn primary" id="newBookBtn">New Book</button>
             </div>
 
-            <!-- Mobile hamburger menu -->
-            <button class="btn mobile-menu-btn" id="mobileMenuBtn" title="Menu">☰</button>
+            <!-- Mobile New Book button - always visible in header -->
+            <button class="btn primary mobile-new-book-btn" id="mobileNewBookBtn" title="New Book">+ New Book</button>
         </div>
+
+        <!-- Mobile menu backdrop -->
+        <div class="mobile-menu-backdrop" id="mobileMenuBackdrop"></div>
 
         <!-- Mobile dropdown menu -->
         <div class="mobile-menu" id="mobileMenu">
@@ -1100,7 +1204,7 @@
                 <!-- Book search and list -->
                 <div class="mobile-section">
                     <label for="mobileBookSearch"
-                        style="display: block; margin: 0.5rem 0 0.3rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">Search</label>
+                        style="display: block; margin: 0.5rem 0 0.3rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;"></label>
 
                     <div class="mobile-search-container">
                         <input id="mobileBookSearch" class="search" type="search"
@@ -1116,8 +1220,7 @@
                     <!-- Mobile sort options - reuse desktop sort dropdown -->
                     <div class="mobile-sort-container">
                         <label for="bookSort"
-                            style="display: block; margin: 0.5rem 0 0.3rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">Sort
-                            Books</label>
+                            style="display: block; margin: 0.5rem 0 0.3rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;"></label>
                         <div id="mobileSortWrapper"></div>
                     </div>
 
@@ -1128,8 +1231,8 @@
                     <!-- Actions -->
                     <h4
                         style="display: block; margin: 0.5rem 0 0.3rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">
-                        Actions</h4>
-                    <div id="mobile-actions-row" class="mobile-actions">
+                    </h4>
+                    <!-- <div id="mobile-actions-row" class="mobile-actions">
                         <button class="btn" id="mobileThemeBtn" title="Change Theme">🎨</button>
                         <button class="btn" id="mobileSyncBtn" title="Sync with API">🔄</button>
                         <button class="btn" id="mobileExportBtn" title="Export">📤</button>
@@ -1138,8 +1241,7 @@
                                 hidden>
                             📥
                         </label>
-                    </div>
-                    <button class="btn primary" id="mobileNewBookBtn">New Book</button>
+                    </div> -->
 
                 </div>
 
@@ -1177,11 +1279,16 @@
             <div id="mainContent">
                 <!-- Content when books exist -->
                 <div id="bookContent" style="display:none">
-                    <div class="toolbar">
-                        <div id="currentBookLabel" class="chip">No book selected</div>
-                        <div class="info" id="stats"></div>
-                        <div id="deleteBookBtn" style="cursor:pointer; opacity:0.7; margin-left:8px;"
-                            title="Delete current book" onclick="deleteCurrentBook()">🗑️</div>
+                    <div class="book-header">
+                        <div class="book-title-section">
+                            <h1 id="currentBookLabel" class="book-title">No book selected</h1>
+                            <div class="book-subtitle">
+                                <span id="bookAuthor" class="book-author"></span>
+                                <span id="stats" class="book-stats"></span>
+                            </div>
+                        </div>
+                        <!-- <div id="deleteBookBtn" style="cursor:pointer; opacity:0.7;"
+                            title="Delete current book" onclick="deleteCurrentBook()">🗑️</div> -->
                     </div>
 
                     <div class="grid">
@@ -1202,22 +1309,26 @@
                                     </div>
                                     <div class="form-inputs">
                                         <div class="input-group">
+                                            <label for="addEntryBtn"></label>
+                                            <button class="btn primary" id="addEntryBtn" type="submit">Add</button>
+                                        </div>
+                                        <div class="input-group">
                                             <label for="page">Page</label>
                                             <input id="page" type="number" min="0" inputmode="numeric"
                                                 aria-label="Page" />
                                         </div>
-                                        <div class="input-group">
-                                            <label for="note">Note</label>
-                                            <textarea id="note" aria-label="Note"></textarea>
+                                        <div class="input-group-row">
+                                            <div class="input-group">
+                                                <label for="note">Note</label>
+                                                <textarea id="note" aria-label="Note"></textarea>
+                                            </div>
+                                            <div class="input-group">
+                                                <label for="quote">Quote</label>
+                                                <textarea id="quote" aria-label="Quote"></textarea>
+                                            </div>
                                         </div>
-                                        <div class="input-group">
-                                            <label for="quote">Quote</label>
-                                            <textarea id="quote" aria-label="Quote"></textarea>
-                                        </div>
-                                        <div class="input-group">
-                                            <label for="addEntryBtn"> &nbsp; </label>
-                                            <button class="btn primary" id="addEntryBtn" type="submit">Add</button>
-                                        </div>
+
+
                                     </div>
                                 </form>
                             </div>
@@ -1228,8 +1339,7 @@
                             <div class="card-header" id="entriesDisplayHeaderr">
                                 <h3>Entries</h3>
 
-                                <div
-                                    style="width: 80%; display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:.6rem">
+                                <div style="width: 80%; display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
                                     <input id="entrySearch" class="search" type="search" placeholder="Filter entries">
                                 </div>
                             </div>
@@ -1271,7 +1381,7 @@
             <h3 id="modalTitle">Add a new book</h3>
             <div class="modal-row">
                 <input id="bookTitle" placeholder="Title" />
-                <input id="bookAuthor" placeholder="Author (optional)" />
+                <input id="bookAuthorInput" placeholder="Author (optional)" />
             </div>
             <div class="modal-actions">
                 <button class="btn" id="cancelModal">Cancel</button>
@@ -1649,8 +1759,16 @@
         function renderEntries() {
             const book = activeBook();
             entriesBody.innerHTML = '';
-            if (!book) { entriesBody.innerHTML = '<tr><td colspan="3" class="empty">Select or create a book to begin.</td></tr>'; currentBookLabel.textContent = 'No book selected'; stats.textContent = ''; return }
-            currentBookLabel.textContent = `${book.title}` + (book.author ? ` — ${book.author}` : '');
+            if (!book) {
+                entriesBody.innerHTML = '<tr><td colspan="3" class="empty">Select or create a book to begin.</td></tr>';
+                currentBookLabel.textContent = 'No book selected';
+                el('bookAuthor').textContent = '';
+                stats.textContent = '';
+                return
+            }
+
+            currentBookLabel.textContent = book.title;
+            el('bookAuthor').textContent = book.author || '';
 
             let rows = [...book.entries];
 
@@ -1660,7 +1778,12 @@
             const q = el('entrySearch').value.trim().toLowerCase();
             if (q) { rows = rows.filter(r => ('' + (r.page ?? '')).includes(q) || (r.note || '').toLowerCase().includes(q) || (r.quote || '').toLowerCase().includes(q)) }
 
-            if (rows.length === 0) { entriesBody.innerHTML = '<tr><td colspan="3" class="empty">No entries yet.</td></tr>'; stats.textContent = ''; return }
+            if (rows.length === 0) {
+                entriesBody.innerHTML = '<tr><td colspan="3" class="empty">No entries yet.</td></tr>';
+                // el('bookAuthor').textContent = '';
+                stats.textContent = '0 entries';
+                return
+            }
 
             const frag = document.createDocumentFragment();
             rows.forEach(r => {
@@ -1688,7 +1811,7 @@
             entriesBody.append(frag);
 
             const total = book.entries.length;
-            stats.textContent = `${total} total` + (q ? `, ${rows.length} shown` : '');
+            stats.textContent = `${total} total entries` + (q ? `, ${rows.length} shown` : '');
 
             // Auto-set entry form state based on number of entries
             // if (total === 0) {
@@ -1903,7 +2026,7 @@
         // Modal
         const modal = {
             open() { el('modalBackdrop').style.display = 'flex'; setTimeout(() => el('bookTitle').focus(), 0) },
-            close() { el('modalBackdrop').style.display = 'none'; el('bookTitle').value = ''; el('bookAuthor').value = '' }
+            close() { el('modalBackdrop').style.display = 'none'; el('bookTitle').value = ''; el('bookAuthorInput').value = '' }
         };
 
         // Entry Modal
@@ -1953,7 +2076,7 @@
 
             // Update theme button text to show current theme
             const themeBtn = el('themeBtn');
-            const themeIcons = ['🎨', '🔵', '🟢', '💙'];
+            const themeIcons = ['💜', '🔵', '🟢', '💙'];
             themeBtn.textContent = themeIcons[currentThemeIndex];
 
             // Save theme preference
@@ -1969,7 +2092,7 @@
                     currentThemeIndex = themeIndex;
                     document.documentElement.setAttribute('data-theme', savedTheme);
                     const themeBtn = el('themeBtn');
-                    const themeIcons = ['🎨', '🔵', '🟢', '💙'];
+                    const themeIcons = ['💜', '🔵', '🟢', '💙'];
                     themeBtn.textContent = themeIcons[currentThemeIndex];
                 }
             }
@@ -1978,9 +2101,17 @@
         // Mobile menu functionality
         function toggleMobileMenu() {
             const mobileMenu = el('mobileMenu');
-            mobileMenu.classList.toggle('active');
+            const mobileMenuBackdrop = el('mobileMenuBackdrop');
 
             if (mobileMenu.classList.contains('active')) {
+                // Close menu
+                mobileMenu.classList.remove('active');
+                mobileMenuBackdrop.classList.remove('active');
+            } else {
+                // Open menu
+                mobileMenu.classList.add('active');
+                mobileMenuBackdrop.classList.add('active');
+
                 // Clone the desktop sort dropdown into mobile
                 const desktopSort = el('bookSort');
                 const mobileSortWrapper = el('mobileSortWrapper');
@@ -2034,57 +2165,57 @@
         });
 
         // Mobile action button event listeners
-        el('mobileThemeBtn').addEventListener('click', () => {
-            switchTheme();
-            toggleMobileMenu(); // Close menu after action
-        });
+        // el('mobileThemeBtn').addEventListener('click', () => {
+        //     switchTheme();
+        //     toggleMobileMenu(); // Close menu after action
+        // });
 
-        el('mobileSyncBtn').addEventListener('click', async () => {
-            await syncWithAPI();
-            toggleMobileMenu(); // Close menu after action
-        });
-        el('mobileExportBtn').addEventListener('click', () => {
-            // Trigger export
-            const data = JSON.stringify(state, null, 2);
-            const blob = new Blob([data], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = 'book-notes.json'; a.click(); URL.revokeObjectURL(url);
-            toggleMobileMenu(); // Close menu after action
-        });
+        // el('mobileSyncBtn').addEventListener('click', async () => {
+        //     await syncWithAPI();
+        //     toggleMobileMenu(); // Close menu after action
+        // });
+        // el('mobileExportBtn').addEventListener('click', () => {
+        //     // Trigger export
+        //     const data = JSON.stringify(state, null, 2);
+        //     const blob = new Blob([data], { type: 'application/json' });
+        //     const url = URL.createObjectURL(blob);
+        //     const a = document.createElement('a');
+        //     a.href = url; a.download = 'book-notes.json'; a.click(); URL.revokeObjectURL(url);
+        //     toggleMobileMenu(); // Close menu after action
+        // });
         el('mobileNewBookBtn').addEventListener('click', () => {
             modal.open();
             toggleMobileMenu(); // Close menu after action
         });
 
-        // Mobile import functionality
-        el('mobileImportFile').addEventListener('change', (e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = () => {
-                try {
-                    // Check if it's a CSV file
-                    if (file.name.toLowerCase().endsWith('.csv')) {
-                        importCSV(String(reader.result));
-                        toggleMobileMenu(); // Close menu after action
-                    } else {
-                        // Try JSON import
-                        const data = JSON.parse(String(reader.result));
-                        if (!data || !Array.isArray(data.books)) throw new Error('Invalid file');
-                        state = data;
-                        save();
-                        renderAll();
-                        toast('Imported');
-                        toggleMobileMenu(); // Close menu after action
-                    }
-                } catch (err) {
-                    alert('Could not import. Make sure this is a valid export file.');
-                }
-            };
-            reader.readAsText(file);
-            e.target.value = '';
-        });
+        // // Mobile import functionality
+        // el('mobileImportFile').addEventListener('change', (e) => {
+        //     const file = e.target.files?.[0];
+        //     if (!file) return;
+        //     const reader = new FileReader();
+        //     reader.onload = () => {
+        //         try {
+        //             // Check if it's a CSV file
+        //             if (file.name.toLowerCase().endsWith('.csv')) {
+        //                 importCSV(String(reader.result));
+        //                 toggleMobileMenu(); // Close menu after action
+        //             } else {
+        //                 // Try JSON import
+        //                 const data = JSON.parse(String(reader.result));
+        //                 if (!data || !Array.isArray(data.books)) throw new Error('Invalid file');
+        //                 state = data;
+        //                 save();
+        //                 renderAll();
+        //                 toast('Imported');
+        //                 toggleMobileMenu(); // Close menu after action
+        //             }
+        //         } catch (err) {
+        //             alert('Could not import. Make sure this is a valid export file.');
+        //         }
+        //     };
+        //     reader.readAsText(file);
+        //     e.target.value = '';
+        // });
 
         // Mobile search now handled by performMobileSearch function
 
@@ -2237,7 +2368,7 @@
 
         el('cancelModal').addEventListener('click', () => modal.close());
         el('saveBook').addEventListener('click', () => {
-            const title = el('bookTitle').value; const author = el('bookAuthor').value;
+            const title = el('bookTitle').value; const author = el('bookAuthorInput').value;
             if (!title.trim()) { el('bookTitle').focus(); return }
             addBook(title, author); modal.close(); toast('Book added');
         });
@@ -2686,12 +2817,22 @@
         document.addEventListener('click', (e) => {
             const mobileMenu = el('mobileMenu');
             const mobileMenuBtn = el('mobileMenuBtn');
+            const mobileMenuBackdrop = el('mobileMenuBackdrop');
 
             if (mobileMenu.classList.contains('active') &&
                 !mobileMenu.contains(e.target) &&
                 !mobileMenuBtn.contains(e.target)) {
                 mobileMenu.classList.remove('active');
+                mobileMenuBackdrop.classList.remove('active');
             }
+        });
+
+        // Close mobile menu when clicking backdrop
+        el('mobileMenuBackdrop')?.addEventListener('click', () => {
+            const mobileMenu = el('mobileMenu');
+            const mobileMenuBackdrop = el('mobileMenuBackdrop');
+            mobileMenu.classList.remove('active');
+            mobileMenuBackdrop.classList.remove('active');
         });
 
         function sortBooks(books, sortType) {

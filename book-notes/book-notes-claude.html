@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Notes</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            color: #334155;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+            gap: 1px;
+            background: #e2e8f0;
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #dcfce7;
+            color: #166534;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .btn-secondary:hover {
+            background: #e2e8f0;
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 320px;
+            background: white;
+            padding: 32px 0 32px 32px;
+            margin-top: 70px;
+            height: calc(100vh - 70px);
+            overflow-y: auto;
+            border-right: 1px solid #e2e8f0;
+        }
+
+        .search-container {
+            margin-bottom: 32px;
+            padding-right: 32px;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 14px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 14px;
+            background: #f8fafc;
+            transition: all 0.2s ease;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #6366f1;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 24px;
+            padding-right: 32px;
+            gap: 4px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            background: transparent;
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .tab.active {
+            background: #6366f1;
+            color: white;
+        }
+
+        .sort-dropdown {
+            margin-bottom: 24px;
+            padding-right: 32px;
+        }
+
+        .sort-select {
+            width: 100%;
+            padding: 10px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+        }
+
+        /* Book List */
+        .book-list {
+            padding-right: 32px;
+        }
+
+        .book-item {
+            padding: 20px;
+            margin-bottom: 12px;
+            background: white;
+            border: 2px solid transparent;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .book-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: #e2e8f0;
+        }
+
+        .book-item.active {
+            border-color: #6366f1;
+            background: #f8fafc;
+        }
+
+        .book-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+
+        .book-author {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .book-stats {
+            font-size: 12px;
+            color: #8b5cf6;
+            font-weight: 500;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            background: white;
+            margin-top: 70px;
+            height: calc(100vh - 70px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .content-header {
+            padding: 32px 40px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            background: white;
+        }
+
+        .book-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .current-book-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+
+        .entry-count {
+            font-size: 16px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        /* Add Entry Form */
+        .add-entry-section {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 24px;
+            margin: 32px 40px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .add-entry-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 20px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            flex: 1;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .form-textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            resize: vertical;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .form-textarea:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .add-btn {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 8px;
+        }
+
+        .add-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        /* Entries List */
+        .entries-section {
+            flex: 1;
+            padding: 0 40px 32px;
+            overflow-y: auto;
+        }
+
+        .entries-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .entries-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .filter-input {
+            width: 300px;
+            padding: 10px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #f8fafc;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            background: white;
+        }
+
+        .entries-table {
+            width: 100%;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        .table-header {
+            background: #f8fafc;
+            padding: 16px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: grid;
+            grid-template-columns: 80px 1fr 1.5fr;
+            gap: 24px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .entry-row {
+            padding: 20px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            display: grid;
+            grid-template-columns: 80px 1fr 1.5fr;
+            gap: 24px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .entry-row:hover {
+            background: #f8fafc;
+        }
+
+        .entry-row:last-child {
+            border-bottom: none;
+        }
+
+        .page-number {
+            font-weight: 600;
+            color: #6366f1;
+            background: #ede9fe;
+            padding: 4px 12px;
+            border-radius: 20px;
+            text-align: center;
+            width: fit-content;
+        }
+
+        .note-text {
+            color: #374151;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .quote-text {
+            color: #6b7280;
+            font-size: 14px;
+            line-height: 1.5;
+            font-style: italic;
+            position: relative;
+            padding-left: 16px;
+        }
+
+        .quote-text:before {
+            content: '"';
+            position: absolute;
+            left: 0;
+            top: -2px;
+            font-size: 20px;
+            color: #d1d5db;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #64748b;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .empty-state-desc {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Mobile Navigation */
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #1e293b;
+        }
+
+        .mobile-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 150;
+        }
+
+        .mobile-sidebar-backdrop {
+            display: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 280px;
+            }
+            
+            .entries-section {
+                padding: 0 24px 32px;
+            }
+            
+            .add-entry-section {
+                margin: 24px;
+            }
+
+            .filter-input {
+                width: 250px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 0 20px;
+            }
+
+            .header-actions {
+                gap: 8px;
+            }
+
+            .btn {
+                padding: 8px 12px;
+                font-size: 13px;
+            }
+
+            .status-badge {
+                display: none;
+            }
+
+            .mobile-menu-btn {
+                display: block;
+            }
+
+            .sidebar {
+                position: fixed;
+                top: 70px;
+                left: -320px;
+                width: 320px;
+                height: calc(100vh - 70px);
+                z-index: 200;
+                transition: left 0.3s ease;
+                margin-top: 0;
+                box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            }
+
+            .sidebar.mobile-open {
+                left: 0;
+            }
+
+            .mobile-overlay.active {
+                display: block;
+            }
+
+            .main-content {
+                width: 100%;
+            }
+
+            .content-header {
+                padding: 20px 20px 16px;
+            }
+
+            .current-book-title {
+                font-size: 24px;
+            }
+
+            .add-entry-section {
+                margin: 20px;
+                padding: 20px;
+            }
+
+            .form-row {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .entries-section {
+                padding: 0 20px 32px;
+            }
+
+            .entries-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 16px;
+            }
+
+            .filter-input {
+                width: 100%;
+            }
+
+            .entries-table {
+                font-size: 14px;
+            }
+
+            .table-header {
+                display: none;
+            }
+
+            .entry-row {
+                display: block;
+                padding: 16px;
+                border-bottom: 1px solid #f1f5f9;
+            }
+
+            .entry-row:hover {
+                transform: none;
+            }
+
+            .page-number {
+                margin-bottom: 12px;
+            }
+
+            .note-text, .quote-text {
+                margin-bottom: 12px;
+                display: block;
+            }
+
+            .note-text:before {
+                content: "Note: ";
+                font-weight: 600;
+                color: #6366f1;
+            }
+
+            .quote-text:before {
+                content: "Quote: ";
+                font-weight: 600;
+                color: #8b5cf6;
+                position: static;
+                font-size: 14px;
+            }
+
+            .quote-text {
+                padding-left: 0;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header {
+                padding: 0 16px;
+            }
+
+            .logo {
+                font-size: 18px;
+            }
+
+            .logo-icon {
+                width: 28px;
+                height: 28px;
+                font-size: 16px;
+            }
+
+            .header-actions .btn:not(.btn-primary) {
+                display: none;
+            }
+
+            .btn-primary {
+                padding: 8px 16px;
+            }
+
+            .sidebar {
+                width: 100vw;
+                left: -100vw;
+            }
+
+            .sidebar.mobile-open {
+                left: 0;
+            }
+
+            .content-header {
+                padding: 16px 16px 12px;
+            }
+
+            .current-book-title {
+                font-size: 22px;
+            }
+
+            .add-entry-section {
+                margin: 16px;
+                padding: 16px;
+                border-radius: 12px;
+            }
+
+            .add-entry-title {
+                font-size: 16px;
+            }
+
+            .entries-section {
+                padding: 0 16px 32px;
+            }
+
+            .entries-title {
+                font-size: 18px;
+            }
+
+            .entry-row {
+                padding: 12px;
+            }
+
+            .book-item {
+                padding: 16px;
+            }
+
+            .search-container {
+                padding-right: 16px;
+            }
+
+            .sort-dropdown {
+                padding-right: 16px;
+            }
+
+            .tabs {
+                padding-right: 16px;
+            }
+
+            .book-list {
+                padding-right: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <div class="header">
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
+                <div class="logo">
+                    <div class="logo-icon">📚</div>
+                    <span>Book Notes</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <div class="status-badge">
+                    <div class="status-dot"></div>
+                    API Connected
+                </div>
+                <button class="btn btn-secondary">Export</button>
+                <button class="btn btn-secondary">Import</button>
+                <button class="btn btn-primary">+ New Book</button>
+            </div>
+        </div>
+
+        <!-- Mobile Overlay -->
+        <div class="mobile-overlay" onclick="closeMobileMenu()"></div>
+
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="search-container">
+                <input type="text" class="search-box" placeholder="Search books and entries...">
+            </div>
+
+            <div class="tabs">
+                <button class="tab active">Books</button>
+                <button class="tab">Entries</button>
+            </div>
+
+            <div class="sort-dropdown">
+                <select class="sort-select">
+                    <option>Title A-Z</option>
+                    <option>Title Z-A</option>
+                    <option>Most Entries</option>
+                    <option>Recently Added</option>
+                </select>
+            </div>
+
+            <div class="book-list">
+                <div class="book-item active">
+                    <div class="book-title">$100 Startup</div>
+                    <div class="book-stats">52 entries</div>
+                </div>
+                
+                <div class="book-item">
+                    <div class="book-title">A Billion Wicked Thoughts</div>
+                    <div class="book-stats">0 entries</div>
+                </div>
+                
+                <div class="book-item">
+                    <div class="book-title">Am I Being Too Subtle</div>
+                    <div class="book-author">Sam Zell</div>
+                    <div class="book-stats">137 entries</div>
+                </div>
+                
+                <div class="book-item">
+                    <div class="book-title">Collapse of Complex Societies</div>
+                    <div class="book-stats">591 entries</div>
+                </div>
+                
+                <div class="book-item">
+                    <div class="book-title">Confessions of an Advertising Man</div>
+                    <div class="book-stats">124 entries</div>
+                </div>
+                
+                <div class="book-item">
+                    <div class="book-title">Den of Thieves</div>
+                    <div class="book-stats">26 entries</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="content-header">
+                <div class="current-book-title">$100 Startup</div>
+                <div class="entry-count">52 total entries</div>
+            </div>
+
+            <div class="add-entry-section">
+                <h3 class="add-entry-title">Add New Entry</h3>
+                <form>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Page</label>
+                            <input type="number" class="form-input" placeholder="Page number">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Note</label>
+                            <textarea class="form-textarea" placeholder="Your thoughts and insights..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Quote</label>
+                            <textarea class="form-textarea" placeholder="Important quotes from the book..."></textarea>
+                        </div>
+                    </div>
+                    <button type="submit" class="add-btn">Add Entry</button>
+                </form>
+            </div>
+
+            <div class="entries-section">
+                <div class="entries-header">
+                    <h2 class="entries-title">Entries</h2>
+                    <input type="text" class="filter-input" placeholder="Filter entries...">
+                </div>
+
+                <div class="entries-table">
+                    <div class="table-header">
+                        <div>Page</div>
+                        <div>Note</div>
+                        <div>Quote</div>
+                    </div>
+
+                    <div class="entry-row">
+                        <div class="page-number">14</div>
+                        <div class="note-text">How many "Chances" do I get?</div>
+                        <div class="quote-text"></div>
+                    </div>
+
+                    <div class="entry-row">
+                        <div class="page-number">16</div>
+                        <div class="note-text">I should list my skills and find the intersection</div>
+                        <div class="quote-text"></div>
+                    </div>
+
+                    <div class="entry-row">
+                        <div class="page-number">18</div>
+                        <div class="note-text">Tiny Publishing (Tiny co)</div>
+                        <div class="quote-text"></div>
+                    </div>
+
+                    <div class="entry-row">
+                        <div class="page-number">24</div>
+                        <div class="note-text">Don't involve them. They don't know what they want except what they are currently doing</div>
+                        <div class="quote-text">Instead of giving people what they want, the business owners have the idea that its better to involve customers behind the scenes...bc that's what they think the customers want</div>
+                    </div>
+
+                    <div class="entry-row">
+                        <div class="page-number">25</div>
+                        <div class="note-text"></div>
+                        <div class="quote-text">We're offering freedom</div>
+                    </div>
+
+                    <div class="entry-row">
+                        <div class="page-number">26</div>
+                        <div class="note-text">Fulfillment > making money</div>
+                        <div class="quote-text">Is selling happiness</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simple interactivity for demo
+        document.addEventListener('DOMContentLoaded', function() {
+            // Book selection
+            const bookItems = document.querySelectorAll('.book-item');
+            bookItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    bookItems.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    // Close mobile menu when book is selected
+                    if (window.innerWidth <= 768) {
+                        closeMobileMenu();
+                    }
+                });
+            });
+
+            // Tab switching
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+
+            // Entry row hover effects (disabled on mobile)
+            const entryRows = document.querySelectorAll('.entry-row');
+            entryRows.forEach(row => {
+                row.addEventListener('mouseenter', function() {
+                    if (window.innerWidth > 768) {
+                        this.style.transform = 'translateX(4px)';
+                    }
+                });
+                row.addEventListener('mouseleave', function() {
+                    if (window.innerWidth > 768) {
+                        this.style.transform = 'translateX(0)';
+                    }
+                });
+            });
+
+            // Form submission
+            const addForm = document.querySelector('.add-entry-section form');
+            addForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                // Add visual feedback
+                const btn = this.querySelector('.add-btn');
+                const originalText = btn.textContent;
+                btn.textContent = 'Added!';
+                btn.style.background = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
+                
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                    this.reset();
+                }, 1500);
+            });
+
+            // Handle window resize
+            window.addEventListener('resize', function() {
+                if (window.innerWidth > 768) {
+                    closeMobileMenu();
+                }
+            });
+        });
+
+        // Mobile menu functions
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.querySelector('.mobile-overlay');
+            
+            sidebar.classList.toggle('mobile-open');
+            overlay.classList.toggle('active');
+        }
+
+        function closeMobileMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.querySelector('.mobile-overlay');
+            
+            sidebar.classList.remove('mobile-open');
+            overlay.classList.remove('active');
+        }
+    </script>
+</body>
+</html>
