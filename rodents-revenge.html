@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rodent's Revenge — Single File</title>
+<style>
+  :root { --bg:#111; --ui:#222; --grid:#1b1b1b; --mouse:#6cf; --cat:#f80; --block:#39f; --wall:#666; --cheese:#fd5; }
+  html,body { height:100%; margin:0; background:var(--bg); color:#ddd; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+  #wrap { display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px; }
+  canvas { background:var(--grid); image-rendering: pixelated; border:1px solid #000; box-shadow: 0 0 0 2px #000, 0 0 24px #000 inset; }
+  #hud { display:flex; gap:12px; align-items:center; background:var(--ui); padding:6px 10px; border-radius:6px; border:1px solid #000; }
+  .btn { cursor:pointer; background:#333; padding:4px 8px; border-radius:4px; border:1px solid #000; user-select:none; }
+  .btn:active { transform: translateY(1px); }
+  #hint { opacity:.8; font-size:.9rem; }
+  /* Mobile dpad */
+  #dpad { display:none; gap:6px; flex-wrap:wrap; width:132px; justify-content:center; }
+  #dpad .btn { width:40px; height:40px; display:flex; align-items:center; justify-content:center; font-weight:700; }
+  @media (max-width: 800px) {
+    #dpad { display:flex; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div>Score: <span id="score">0</span></div>
+    <div>Level: <span id="level">1</span></div>
+    <div>Lives: <span id="lives">3</span></div>
+    <div class="btn" id="reset">Reset (R)</div>
+    <div class="btn" id="pause">Pause (P)</div>
+    <div id="hint">Move with arrows/WASD. Push lines of blue blocks if there’s space ahead. Cats step once per second.</div>
+  </div>
+  <canvas id="game" width="672" height="672"></canvas>
+  <div id="dpad">
+    <div style="width:100%; display:flex; justify-content:center;">
+      <div class="btn" data-dir="0,-1">▲</div>
+    </div>
+    <div class="btn" data-dir="-1,0">◀</div>
+    <div class="btn" data-dir="0,1">▼</div>
+    <div class="btn" data-dir="1,0">►</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // --- Config ---
+  const TILE = 28;                  // pixel size of a tile
+  const COLS = 24, ROWS = 24;       // grid size (outer ring is wall)
+  const CAT_STEP_MS = 1000;         // cats move once per second
+  const START_LIVES = 3;
+
+  // --- Tile enums ---
+  const EMPTY=0, WALL=1, BLOCK=2, MOUSE=3, CAT=4, CHEESE=5;
+
+  // --- State ---
+  let grid = [];
+  let mouse = {x:0,y:0};
+  let cats = [];
+  let score = 0, level = 1, lives = START_LIVES;
+  let paused = false;
+  let catTimer = null;
+  let ctx, canvas, scoreEl, levelEl, livesEl;
+
+  // --- Utilities ---
+  const idx = (x,y)=> y*COLS + x;
+  const inb = (x,y)=> x>=0 && y>=0 && x<COLS && y<ROWS;
+
+  function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+
+  function clearTimers(){
+    if (catTimer) { clearInterval(catTimer); catTimer = null; }
+  }
+
+  function resetLevel(seedUp=false){
+    clearTimers();
+    grid = new Array(COLS*ROWS).fill(EMPTY);
+    cats = [];
+
+    // Walls
+    for (let x=0;x<COLS;x++){ grid[idx(x,0)]=WALL; grid[idx(x,ROWS-1)]=WALL; }
+    for (let y=0;y<ROWS;y++){ grid[idx(0,y)]=WALL; grid[idx(COLS-1,y)]=WALL; }
+
+    // Blocks
+    const blockCount = 140 + (level-1)*10;
+    placeRandom(blockCount, BLOCK);
+
+    // Cats
+    const catCount = Math.min(6 + Math.floor((level-1)*0.6), 20);
+    placeRandom(catCount, CAT, (x,y)=>dist2(x,y, COLS/2, ROWS/2) > 25);
+
+    // Mouse
+    placeMouse();
+
+    if (seedUp) level++;
+    updateHUD();
+    render();
+
+    // Start cat loop
+    catTimer = setInterval(()=> {
+      if (!paused) {
+        stepCats();
+        checkTraps(); // turn boxed cats into cheese
+        render();
+        checkWin();
+      }
+    }, CAT_STEP_MS);
+  }
+
+  function dist2(x1,y1,x2,y2){ const dx=x2-x1, dy=y2-y1; return dx*dx+dy*dy; }
+
+  function placeRandom(count, tile, predicate=null){
+    let tries = 0, placed = 0, limit = 20000;
+    while (placed < count && tries < limit){
+      tries++;
+      const x = randInt(1,COLS-2), y = randInt(1,ROWS-2);
+      if (grid[idx(x,y)] === EMPTY && (!predicate || predicate(x,y))){
+        grid[idx(x,y)] = tile;
+        if (tile === CAT) cats.push({x,y});
+        placed++;
+      }
+    }
+  }
+
+  function placeMouse(){
+    // Prefer central empty spot
+    for (let y=1;y<ROWS-1;y++){
+      for (let x=1;x<COLS-1;x++){
+        if (grid[idx(x,y)]===EMPTY){
+          mouse.x=x; mouse.y=y; return;
+        }
+      }
+    }
+    // Fallback
+    mouse.x = 1; mouse.y = 1;
+  }
+
+  // --- Rendering ---
+  function render(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    for (let y=0;y<ROWS;y++){
+      for (let x=0;x<COLS;x++){
+        const t = grid[idx(x,y)];
+        drawTile(x,y,t);
+      }
+    }
+    // Draw mouse on top
+    drawTile(mouse.x, mouse.y, MOUSE);
+  }
+
+  function drawTile(x,y,t){
+    const px = x*TILE, py = y*TILE;
+    switch(t){
+      case EMPTY: /* grid bg already there */ break;
+      case WALL:
+        rect(px,py,TILE,TILE, getCSS('--wall'));
+        break;
+      case BLOCK:
+        rect(px+2,py+2,TILE-4,TILE-4, getCSS('--block'));
+        ctx.strokeStyle = "rgba(0,0,0,.6)"; ctx.lineWidth=2;
+        ctx.strokeRect(px+2,py+2,TILE-4,TILE-4);
+        break;
+      case CAT:
+        rect(px+3,py+3,TILE-6,TILE-6, getCSS('--cat'));
+        eye(px,py);
+        break;
+      case CHEESE:
+        rect(px+4,py+4,TILE-8,TILE-8, getCSS('--cheese'));
+        break;
+      case MOUSE:
+        rect(px+4,py+4,TILE-8,TILE-8, getCSS('--mouse'));
+        // tiny ears
+        circle(px+9,py+9,3, "#fff"); circle(px+TILE-9,py+9,3, "#fff");
+        break;
+    }
+  }
+  function rect(x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); }
+  function circle(x,y,r,c){ ctx.fillStyle=c; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); }
+  function eye(px,py){
+    circle(px+8,py+10,2,"#000"); circle(px+TILE-8,py+10,2,"#000");
+  }
+  function getCSS(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  // --- Input: mouse moves as fast as player sends them ---
+  const DIRS = {
+    "ArrowUp":[0,-1], "ArrowDown":[0,1], "ArrowLeft":[-1,0], "ArrowRight":[1,0],
+    "w":[0,-1], "s":[0,1], "a":[-1,0], "d":[1,0]
+  };
+
+  function tryMove(dx,dy){
+    if (paused) return;
+    const nx = mouse.x + dx, ny = mouse.y + dy;
+    if (!inb(nx,ny)) return;
+
+    const t = tileAt(nx,ny);
+
+    // Empty or cheese -> move
+    if (t === EMPTY || t === CHEESE){
+      if (t === CHEESE) { score += 25; updateHUD(); }
+      mouse.x = nx; mouse.y = ny;
+      render();
+      return;
+    }
+
+    // Block -> attempt chain push if space at far end
+    if (t === BLOCK){
+      if (attemptPush(nx,ny,dx,dy)){
+        // after shifting, move mouse into first block's former spot
+        mouse.x = nx; mouse.y = ny;
+        render();
+      }
+      return;
+    }
+
+    // Cat -> lose life
+    if (t === CAT){
+      loseLife();
+      return;
+    }
+
+    // Wall -> no-op
+  }
+
+  function tileAt(x,y){ return grid[idx(x,y)]; }
+  function setTile(x,y,v){ grid[idx(x,y)] = v; }
+
+  // Chain push: find contiguous blocks along direction, ensure empty after last block, then shift all by 1
+  function attemptPush(bx,by,dx,dy){
+    let x = bx, y = by;
+    const chain = [];
+    while (inb(x,y) && tileAt(x,y) === BLOCK){
+      chain.push([x,y]);
+      x += dx; y += dy;
+    }
+    if (!inb(x,y)) return false;          // hit border
+    if (tileAt(x,y) !== EMPTY) return false; // must have empty space after chain
+
+    // Shift from tail to head
+    for (let i = chain.length - 1; i >= 0; i--){
+      const [cx,cy] = chain[i];
+      const nx = cx + dx, ny = cy + dy;
+      setTile(nx,ny, BLOCK);
+    }
+    // Clear original first block pos
+    setTile(bx,by, EMPTY);
+    return true;
+  }
+
+  // --- Cats: move exactly once per second, independent of mouse actions ---
+  function stepCats(){
+    // Simple greedy move toward mouse, 4-neighborhood. Randomize axis priority a bit.
+    const order = Math.random()<0.5 ? 0 : 1; // 0: x first, 1: y first
+    const newCats = [];
+
+    for (let i=0;i<cats.length;i++){
+      let {x,y} = cats[i];
+
+      // If adjacent to mouse and moves into it -> lose life
+      let moved = false;
+
+      const moves = [];
+      const dx = Math.sign(mouse.x - x);
+      const dy = Math.sign(mouse.y - y);
+      if (order===0){
+        if (dx!==0) moves.push([dx,0]);
+        if (dy!==0) moves.push([0,dy]);
+      } else {
+        if (dy!==0) moves.push([0,dy]);
+        if (dx!==0) moves.push([dx,0]);
+      }
+      // Add side options to avoid stuck-on-block patterns
+      if (moves.length<2){
+        if (dx===0) { moves.push([-1,0],[1,0]); }
+        if (dy===0) { moves.push([0,-1],[0,1]); }
+      }
+      // Filter and take first valid
+      for (const [mx,my] of moves){
+        const nx = x+mx, ny = y+my;
+        const t = tileAt(nx,ny);
+        if (t===EMPTY || t===CHEESE){
+          x=nx; y=ny; moved = true; break;
+        }
+        if (nx===mouse.x && ny===mouse.y){
+          // cat reaches mouse
+          x=nx; y=ny; moved = true;
+          loseLife();
+          break;
+        }
+      }
+      newCats.push({x,y});
+    }
+
+    // Clear old cat tiles
+    for (let i=0;i<grid.length;i++){ if (grid[i]===CAT) grid[i]=EMPTY; }
+
+    // Write new cat tiles where not overlapping blocks/walls
+    cats = [];
+    for (const c of newCats){
+      if (tileAt(c.x,c.y)===EMPTY || tileAt(c.x,c.y)===CHEESE){
+        setTile(c.x,c.y,CAT);
+        cats.push({x:c.x,y:c.y});
+      }
+    }
+  }
+
+  // Cats that are fully surrounded by walls/blocks become cheese
+  function checkTraps(){
+    // A simple local trap check: no empty neighbor in 4-neighborhood
+    for (const c of cats){
+      const around = [[1,0],[-1,0],[0,1],[0,-1]];
+      let free = false;
+      for (const [dx,dy] of around){
+        const nx=c.x+dx, ny=c.y+dy;
+        const t = tileAt(nx,ny);
+        if (t===EMPTY || t===CHEESE) { free = true; break; }
+      }
+      if (!free){
+        // convert to cheese
+        setTile(c.x,c.y,CHEESE);
+      }
+    }
+    // Remove cats now standing on cheese tiles
+    cats = cats.filter(c => tileAt(c.x,c.y)===CAT);
+    // scoring for cheeses on board (collect when stepped on)
+  }
+
+  function checkWin(){
+    if (cats.length===0){
+      score += 100 + level*25;
+      level++;
+      updateHUD();
+      resetLevel(false);
+    }
+  }
+
+  function loseLife(){
+    lives--;
+    updateHUD();
+    if (lives<=0){
+      clearTimers();
+      alert("Game over! Score: " + score);
+      score = 0; level = 1; lives = START_LIVES;
+      updateHUD();
+      resetLevel(false);
+    } else {
+      // Soft reset player position
+      placeMouse();
+    }
+  }
+
+  function updateHUD(){
+    scoreEl.textContent = score.toString();
+    levelEl.textContent = level.toString();
+    livesEl.textContent = lives.toString();
+  }
+
+  // --- Boot ---
+  function boot(){
+    canvas = document.getElementById('game');
+    ctx = canvas.getContext('2d');
+    scoreEl = document.getElementById('score');
+    levelEl = document.getElementById('level');
+    livesEl = document.getElementById('lives');
+
+    // Fit canvas exactly to grid
+    canvas.width = COLS*TILE;
+    canvas.height = ROWS*TILE;
+
+    // Input
+    window.addEventListener('keydown', (e)=>{
+      const k = e.key;
+      if (DIRS[k]){
+        e.preventDefault();
+        const [dx,dy] = DIRS[k];
+        tryMove(dx,dy);
+      } else if (k===' '){
+        e.preventDefault(); /* wait turn */ render();
+      } else if (k==='p' || k==='P'){
+        paused = !paused;
+      } else if (k==='r' || k==='R'){
+        score = 0; level = 1; lives = START_LIVES; updateHUD(); resetLevel(false);
+      }
+    }, {passive:false});
+
+    // Buttons
+    document.getElementById('reset').onclick = ()=>{ score=0; level=1; lives=START_LIVES; updateHUD(); resetLevel(false); };
+    document.getElementById('pause').onclick = ()=>{ paused = !paused; };
+
+    // D-pad
+    document.querySelectorAll('#dpad .btn').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const [dx,dy] = b.getAttribute('data-dir').split(',').map(Number);
+        tryMove(dx,dy);
+      });
+    });
+
+    resetLevel(false);
+  }
+
+  window.addEventListener('load', boot);
+})();
+</script>
+</body>
+</html>
