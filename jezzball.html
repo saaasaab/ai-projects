@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JezzBall (1992‑style) — Single File</title>
+  <style>
+    html, body { margin:0; padding:0; background:#0b1220; color:#e8eefc; height:100%; }
+    #hud { position:fixed; top:0; left:0; right:0; background:#111a30; border-bottom:1px solid #1f2b49; display:flex; gap:16px; padding:8px 12px; z-index:10; }
+    .stat { padding:4px 10px; background:#101a33; border:1px solid #26355f; border-radius:8px; font-weight:600; }
+    .btn { cursor:pointer; padding:6px 10px; border-radius:8px; border:1px solid #3a4f88; background:#18264a; color:#e8eefc; font-weight:600; }
+    #wrap { display:grid; place-items:center; width:100%; height:100%; padding-top:52px; box-sizing:border-box; }
+    canvas { image-rendering:pixelated; border:2px solid #2a3c6d; background:#0c1530; }
+    #overlay { position:absolute; inset:52px 0 0 0; display:grid; place-items:center; pointer-events:none; }
+    .panel { pointer-events:auto; background:rgba(10,16,36,0.9); border:1px solid #3a4f88; border-radius:12px; padding:18px 20px; }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div class="stat">Level: <span id="levelLbl">1</span></div>
+    <div class="stat">Lives: <span id="livesLbl">3</span></div>
+    <div class="stat">Balls: <span id="ballsLbl">2</span></div>
+    <div class="stat">Cleared: <span id="clearedLbl">0%</span></div>
+    <div class="stat">Target: <span id="targetLbl">75%</span></div>
+    <button class="btn" id="toggleBtn">Orientation: <span id="oriLbl">Vertical</span></button>
+    <button class="btn" id="restartBtn">Restart</button>
+  </div>
+  <div id="wrap">
+    <canvas id="game" width="768" height="512"></canvas>
+    <div id="overlay"></div>
+  </div>
+
+  <script>
+  (() => {
+    // ====== Config ======
+    const CELL = 8;                         // pixels per cell
+    const GRID_W = 96;                      // 96 * 8 = 768 px
+    const GRID_H = 64;                      // 64 * 8 = 512 px
+    const CANVAS_W = GRID_W * CELL;
+    const CANVAS_H = GRID_H * CELL;
+
+    const TARGET_CLEAR_PCT = 75;            // % to clear to complete level
+    const START_LIVES = 3;
+    const START_BALLS = 2;
+    const MAX_SPEED = 120;                  // px/sec magnitude for balls
+    const RADIUS = 6;                       // ball radius in px
+    const WALL_GROW_INTERVAL = 24;          // ms between each growth step
+
+    // Cell states
+    const EMPTY = 0;        // free space
+    const FILL = 1;         // permanent filled/wall
+    const TEMP = 2;         // wall growing cells (deadly if hit)
+
+    // ====== DOM ======
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    const levelLbl = document.getElementById('levelLbl');
+    const livesLbl = document.getElementById('livesLbl');
+    const ballsLbl = document.getElementById('ballsLbl');
+    const clearedLbl = document.getElementById('clearedLbl');
+    const targetLbl = document.getElementById('targetLbl');
+    const toggleBtn = document.getElementById('toggleBtn');
+    const oriLbl = document.getElementById('oriLbl');
+    const restartBtn = document.getElementById('restartBtn');
+    const overlay = document.getElementById('overlay');
+
+    canvas.width = CANVAS_W;
+    canvas.height = CANVAS_H;
+
+    // ====== Game State ======
+    let grid;              // 2D array [row][col]
+    let balls = [];
+    let lives = START_LIVES;
+    let level = 1;
+    let orientation = 'v'; // 'v' or 'h'
+    let activeWall = null; // growing wall state
+    let lastTime = performance.now();
+    let wallTimer = 0;
+    let paused = false;
+    let justClearedPct = 0;
+
+    // cursor indicator
+    let hoverCell = null; // {r,c}
+
+    // ====== Utilities ======
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const colToX = c => c * CELL;
+    const rowToY = r => r * CELL;
+    const xToCol = x => Math.floor(x / CELL);
+    const yToRow = y => Math.floor(y / CELL);
+
+    function makeGrid() {
+      const g = new Array(GRID_H);
+      for (let r = 0; r < GRID_H; r++) {
+        g[r] = new Array(GRID_W).fill(EMPTY);
+      }
+      return g;
+    }
+
+    function randomSpeed() {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = MAX_SPEED * (0.6 + Math.random() * 0.6); // 60%..120%
+      return { vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed };
+    }
+
+    function spawnBalls(n) {
+      balls = [];
+      for (let i = 0; i < n; i++) {
+        const pad = 4 * CELL;
+        const x = pad + Math.random() * (CANVAS_W - pad * 2);
+        const y = pad + Math.random() * (CANVAS_H - pad * 2);
+        const { vx, vy } = randomSpeed();
+        balls.push({ x, y, vx, vy, r: RADIUS });
+      }
+      ballsLbl.textContent = String(n);
+    }
+
+    function resetLevel(newLevel = 1, keepLives = true) {
+      level = newLevel;
+      if (!keepLives) lives = START_LIVES;
+      grid = makeGrid();
+      activeWall = null;
+      spawnBalls(START_BALLS - 1 + level);
+      levelLbl.textContent = String(level);
+      livesLbl.textContent = String(lives);
+      targetLbl.textContent = TARGET_CLEAR_PCT + '%';
+      updateClearedPct();
+      showPanel(level === 1 ? introPanelHTML() : levelPanelHTML(level));
+    }
+
+    function gameOver() {
+      showPanel(gameOverPanelHTML());
+      paused = true;
+    }
+
+    function introPanelHTML() {
+      return `
+        <div class="panel">
+          <h3 class="title">JezzBall — 1992‑style clone</h3>
+          <p class="subtitle">Fill ${TARGET_CLEAR_PCT}% of the board without letting the balls hit your growing walls.</p>
+          <div class="compact">
+            <p><span class="kbd">Click</span> to build a wall. <span class="kbd">Space</span> or <span class="kbd">Right‑Click</span> toggles orientation. You lose a life if a ball hits a wall <em>while it is growing</em>.</p>
+            <p>Capture empty regions by completing walls that enclose space with no balls.</p>
+            <p>Clear ${TARGET_CLEAR_PCT}% to advance; each level adds a ball.</p>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button class="btn" id="startBtn">Start</button>
+          </div>
+        </div>`;
+    }
+
+    function levelPanelHTML(lvl) {
+      return `
+        <div class="panel">
+          <h3 class="title">Level ${lvl}</h3>
+          <p class="subtitle">Balls increased. Good luck!</p>
+          <div style="display:flex; gap:8px;">
+            <button class="btn" id="continueBtn">Play</button>
+          </div>
+        </div>`
+    }
+
+    function gameOverPanelHTML() {
+      return `
+        <div class="panel">
+          <h3 class="title">Game Over</h3>
+          <p class="subtitle">You ran out of lives.</p>
+          <div style="display:flex; gap:8px;">
+            <button class="btn" id="restartGameBtn">Restart</button>
+          </div>
+        </div>`;
+    }
+
+    function showPanel(html) {
+      overlay.innerHTML = html;
+      overlay.style.display = 'grid';
+      const startBtn = overlay.querySelector('#startBtn');
+      const continueBtn = overlay.querySelector('#continueBtn');
+      const restartBtn = overlay.querySelector('#restartGameBtn');
+      if (startBtn) startBtn.addEventListener('click', () => { overlay.innerHTML = ''; overlay.style.display = 'none'; paused = false; });
+      if (continueBtn) continueBtn.addEventListener('click', () => { overlay.innerHTML = ''; overlay.style.display = 'none'; paused = false; });
+      if (restartBtn) restartBtn.addEventListener('click', () => { overlay.innerHTML = ''; overlay.style.display = 'none'; paused = false; resetLevel(1, false); });
+      paused = true;
+    }
+
+    // ====== Collision Helpers ======
+    function eachFilledCellNearCircle(cx, cy, radius, cb) {
+      const minC = clamp(Math.floor((cx - radius) / CELL), 0, GRID_W - 1);
+      const maxC = clamp(Math.floor((cx + radius) / CELL), 0, GRID_W - 1);
+      const minR = clamp(Math.floor((cy - radius) / CELL), 0, GRID_H - 1);
+      const maxR = clamp(Math.floor((cy + radius) / CELL), 0, GRID_H - 1);
+      for (let r = minR; r <= maxR; r++) {
+        for (let c = minC; c <= maxC; c++) {
+          if (grid[r][c] === FILL) cb(r, c);
+        }
+      }
+    }
+
+    function circleIntersectsCell(cx, cy, radius, r, c) {
+      const rx = c * CELL, ry = r * CELL, rw = CELL, rh = CELL;
+      return (cx >= rx - radius && cx <= rx + rw + radius && cy >= ry - radius && cy <= ry + rh + radius);
+    }
+
+    function collidesWithFilled(cx, cy, radius) {
+      if (cx - radius < 0 || cx + radius > CANVAS_W) return true;
+      if (cy - radius < 0 || cy + radius > CANVAS_H) return true;
+      let hit = false;
+      eachFilledCellNearCircle(cx, cy, radius, (r,c) => {
+        if (circleIntersectsCell(cx, cy, radius, r, c)) hit = true;
+      });
+      return hit;
+    }
+
+    // ====== Balls Physics ======
+    function stepBalls(dt) {
+      for (const b of balls) {
+        let nx = b.x + b.vx * dt;
+        if (collidesWithFilled(nx, b.y, b.r)) {
+          b.vx = -b.vx;
+          nx = b.x + b.vx * dt;
+        }
+        b.x = clamp(nx, b.r, CANVAS_W - b.r);
+
+        let ny = b.y + b.vy * dt;
+        if (collidesWithFilled(b.x, ny, b.r)) {
+          b.vy = -b.vy;
+          ny = b.y + b.vy * dt;
+        }
+        b.y = clamp(ny, b.r, CANVAS_H - b.r);
+      }
+    }
+
+    // ====== Growing Wall ======
+    function startWall(col, row) {
+      if (activeWall) return;               // Only one at a time
+      if (col < 0 || col >= GRID_W || row < 0 || row >= GRID_H) return;
+      if (grid[row][col] !== EMPTY) return; // Can't start inside filled or temp
+
+      activeWall = {
+        orientation,
+        tempCells: [],          // union of both fronts
+        fronts: orientation === 'v'
+          ? [mkFront(row, col, -1, 0), mkFront(row, col, +1, 0)]
+          : [mkFront(row, col, 0, -1), mkFront(row, col, 0, +1)]
+      };
+
+      // Seed origin cell as temp for both fronts (shared center)
+      setTempForFront(activeWall.fronts[0], row, col);
+      setTempForFront(activeWall.fronts[1], row, col);
+    }
+
+    function mkFront(r, c, dr, dc) {
+      return { r, c, dr, dc, stopped: false, cells: [] };
+    }
+
+    function setTempForFront(front, r, c) {
+      if (grid[r][c] !== EMPTY && grid[r][c] !== TEMP) return false;
+      // If this specific cell isn't already tracked in activeWall.tempCells, add it
+      const key = r + ":" + c;
+      const exists = activeWall.tempCells.some(k => k.key === key);
+      if (!exists) {
+        grid[r][c] = TEMP;
+        activeWall.tempCells.push({ r, c, key });
+      }
+      // Track on this front too
+      // Avoid duplicates in the front list
+      if (!front.cells.some(k => k.r === r && k.c === c)) front.cells.push({ r, c });
+      return true;
+    }
+
+    function clearTempWall() {
+      if (!activeWall) return;
+      for (const cell of activeWall.tempCells) {
+        if (grid[cell.r][cell.c] === TEMP) grid[cell.r][cell.c] = EMPTY;
+      }
+      activeWall = null;
+    }
+
+    function commitFront(front) {
+      // Commit this front's cells to FILL, but leave the other front growing
+      for (const cell of front.cells) {
+        grid[cell.r][cell.c] = FILL;
+      }
+      // Remove these cells from shared temp list
+      const toRemove = new Set(front.cells.map(c => c.r + ":" + c.c));
+      activeWall.tempCells = activeWall.tempCells.filter(c => !toRemove.has(c.r + ":" + c.c));
+      front.stopped = true;
+    }
+
+    function finishWallIfDone() {
+      if (!activeWall) return;
+      const finished = activeWall.fronts.every(ff => ff.stopped);
+      if (finished) {
+        // Small chance some shared temp cells remain (center). Commit them too.
+        for (const cell of activeWall.tempCells) {
+          grid[cell.r][cell.c] = FILL;
+        }
+        activeWall = null;
+        captureRegions();
+        updateClearedPct();
+      }
+    }
+
+    function growWallStep() {
+      if (!activeWall) return;
+      for (const f of activeWall.fronts) {
+        if (f.stopped) continue;
+        const nr = f.r + f.dr;
+        const nc = f.c + f.dc;
+        if (nr < 0 || nr >= GRID_H || nc < 0 || nc >= GRID_W) {
+          commitFront(f); // hits border: solidify this half immediately
+          continue;
+        }
+        const state = grid[nr][nc];
+        if (state === FILL) {
+          commitFront(f); // reached an existing wall: solidify this half
+        } else {
+          setTempForFront(f, nr, nc);
+          f.r = nr; f.c = nc;
+        }
+      }
+
+      // Ball hits any remaining TEMP cell?
+      if (activeWall) {
+        for (const b of balls) {
+          if (ballHitsTemp(b)) {
+            lives -= 1;
+            livesLbl.textContent = String(lives);
+            clearTempWall();
+            if (lives < 0) gameOver();
+            return; // cancelled wall already
+          }
+        }
+      }
+
+      // If both halves have finished, finalize
+      finishWallIfDone();
+    }
+
+    function ballHitsTemp(ball) {
+      if (!activeWall) return false;
+      for (const cell of activeWall.tempCells) {
+        if (circleIntersectsCell(ball.x, ball.y, ball.r, cell.r, cell.c)) return true;
+      }
+      return false;
+    }
+
+    // ====== Capture Logic ======
+    function captureRegions() {
+      const visited = Array.from({ length: GRID_H }, () => new Array(GRID_W).fill(false));
+      const regionId = Array.from({ length: GRID_H }, () => new Array(GRID_W).fill(-1));
+      const regions = [];
+
+      function bfs(sr, sc, id) {
+        const cells = [];
+        const q = [{ r: sr, c: sc }];
+        visited[sr][sc] = true;
+        regionId[sr][sc] = id;
+        while (q.length) {
+          const { r, c } = q.shift();
+          cells.push({ r, c });
+          const nbrs = [
+            { r: r - 1, c },
+            { r: r + 1, c },
+            { r, c: c - 1 },
+            { r, c: c + 1 }
+          ];
+          for (const nb of nbrs) {
+            if (
+              nb.r >= 0 && nb.r < GRID_H && nb.c >= 0 && nb.c < GRID_W &&
+              !visited[nb.r][nb.c] && grid[nb.r][nb.c] === EMPTY
+            ) {
+              visited[nb.r][nb.c] = true;
+              regionId[nb.r][nb.c] = id;
+              q.push(nb);
+            }
+          }
+        }
+        return cells;
+      }
+
+      // Build regions of EMPTY cells
+      let id = 0;
+      for (let r = 0; r < GRID_H; r++) {
+        for (let c = 0; c < GRID_W; c++) {
+          if (!visited[r][c] && grid[r][c] === EMPTY) {
+            const cells = bfs(r, c, id);
+            regions.push({ cells, hasBall: false });
+            id++;
+          }
+        }
+      }
+
+      // Mark regions that contain balls
+      for (const b of balls) {
+        const rr = clamp(yToRow(b.y), 0, GRID_H - 1);
+        const cc = clamp(xToCol(b.x), 0, GRID_W - 1);
+        const rid = regionId[rr][cc];
+        if (rid >= 0) regions[rid].hasBall = true;
+      }
+
+      // Fill regions that have no balls
+      let capturedCount = 0;
+      for (const reg of regions) {
+        if (!reg.hasBall) {
+          for (const cell of reg.cells) {
+            grid[cell.r][cell.c] = FILL;
+            capturedCount++;
+          }
+        }
+      }
+      if (capturedCount > 0) justClearedPct = capturedCount * 100 / (GRID_W * GRID_H);
+
+      const pct = computeClearedPct();
+      if (pct >= TARGET_CLEAR_PCT) {
+        paused = true;
+        setTimeout(() => { resetLevel(level + 1, true); }, 150);
+      }
+    }
+
+    function computeClearedPct() {
+      let filled = 0;
+      for (let r = 0; r < GRID_H; r++) {
+        for (let c = 0; c < GRID_W; c++) {
+          if (grid[r][c] === FILL) filled++;
+        }
+      }
+      return Math.floor((filled * 100) / (GRID_W * GRID_H));
+    }
+
+    function updateClearedPct() {
+      const pct = computeClearedPct();
+      clearedLbl.textContent = pct + '%';
+    }
+
+    // ====== Rendering ======
+    function drawCursorIndicator() {
+      if (!hoverCell || paused) return;
+      const { r, c } = hoverCell;
+      if (grid[r][c] !== EMPTY || activeWall) {
+        // still show faint cell highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fillRect(colToX(c), rowToY(r), CELL, CELL);
+        return;
+      }
+      // full-length preview line in the current orientation
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.setLineDash([6, 6]);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ffd866';
+      if (orientation === 'v') {
+        const x = colToX(c) + CELL / 2;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, CANVAS_H);
+        ctx.stroke();
+      } else {
+        const y = rowToY(r) + CELL / 2;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(CANVAS_W, y);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // highlight the cell we will click
+      ctx.fillStyle = 'rgba(255,214,102,0.15)';
+      ctx.fillRect(colToX(c), rowToY(r), CELL, CELL);
+    }
+
+    function draw() {
+      ctx.fillStyle = '#0c1530';
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+      // Filled cells
+      for (let r = 0; r < GRID_H; r++) {
+        for (let c = 0; c < GRID_W; c++) {
+          if (grid[r][c] === FILL) {
+            ctx.fillStyle = '#142251';
+            ctx.fillRect(colToX(c), rowToY(r), CELL, CELL);
+          }
+        }
+      }
+
+      // Temp growing wall (flash)
+      if (activeWall) {
+        const t = performance.now() * 0.008;
+        const pulse = (Math.sin(t) * 0.5 + 0.5) * 0.35 + 0.4;
+        ctx.fillStyle = `rgba(248, 214, 72, ${pulse.toFixed(2)})`;
+        for (const cell of activeWall.tempCells) {
+          ctx.fillRect(colToX(cell.c), rowToY(cell.r), CELL, CELL);
+        }
+      }
+
+      // Balls
+      for (const b of balls) {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r + 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(241,76,76,0.25)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#f14c4c';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(b.x - b.r * 0.35, b.y - b.r * 0.35, Math.max(1, b.r * 0.25), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.fill();
+      }
+
+      // Border
+      ctx.strokeStyle = '#2a3c6d';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, CANVAS_W - 2, CANVAS_H - 2);
+
+      // Cursor indicator
+      drawCursorIndicator();
+
+      if (justClearedPct > 0) {
+        const msg = `+${justClearedPct.toFixed(1)}%`;
+        ctx.font = 'bold 20px system-ui, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.fillText(msg, CANVAS_W - 12, 26);
+        justClearedPct *= 0.92;
+        if (justClearedPct < 0.2) justClearedPct = 0;
+      }
+
+      ctx.font = 'bold 14px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      const oText = orientation === 'v' ? 'Orientation: Vertical' : 'Orientation: Horizontal';
+      ctx.fillText(oText + '  (Space / Right‑Click to toggle)', 10, CANVAS_H - 10);
+    }
+
+    // ====== Main Loop ======
+    function tick(ts) {
+      const dt = Math.min(0.032, (ts - lastTime) / 1000);
+      lastTime = ts;
+
+      if (!paused) {
+        stepBalls(dt);
+        wallTimer += dt * 1000;
+        if (wallTimer >= WALL_GROW_INTERVAL) {
+          wallTimer = 0;
+          growWallStep();
+        }
+      }
+
+      draw();
+      requestAnimationFrame(tick);
+    }
+
+    // ====== Input ======
+    function canvasPosToCell(evt) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (evt.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (evt.clientY - rect.top) * (canvas.height / rect.height);
+      return { c: clamp(xToCol(x), 0, GRID_W - 1), r: clamp(yToRow(y), 0, GRID_H - 1) };
+    }
+
+    canvas.addEventListener('mousemove', e => {
+      const { c, r } = canvasPosToCell(e);
+      hoverCell = { c, r };
+    });
+    canvas.addEventListener('mouseleave', () => { hoverCell = null; });
+
+    canvas.addEventListener('click', e => {
+      if (paused) return;
+      const { c, r } = canvasPosToCell(e);
+      startWall(c, r);
+    });
+
+    canvas.addEventListener('contextmenu', e => { e.preventDefault(); toggleOrientation(); });
+
+    function toggleOrientation() {
+      orientation = orientation === 'v' ? 'h' : 'v';
+      oriLbl.textContent = orientation === 'v' ? 'Vertical' : 'Horizontal';
+    }
+
+    window.addEventListener('keydown', e => {
+      if (e.code === 'Space') { e.preventDefault(); toggleOrientation(); }
+      if (e.key.toLowerCase() === 'p') paused = !paused;
+    });
+
+    toggleBtn.addEventListener('click', () => toggleOrientation());
+    restartBtn.addEventListener('click', () => { resetLevel(1, false); overlay.innerHTML = ''; overlay.style.display = 'none'; paused = false; });
+
+    // ====== Boot ======
+    resetLevel(1, true);
+    requestAnimationFrame(tick);
+  })();
+  </script>
+</body>
+</html>
