@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Timelapse / Slideshow Editor — Standalone</title>
+<style>
+  :root { --bg:#0f1115; --panel:#161a22; --muted:#aab3c0; --text:#e8edf3; --accent:#5fb4ff; --accent2:#7ee787; --danger:#ff6b6b; --warn:#ffbf69; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; }
+  #app { display: grid; grid-template-columns: 320px 1fr; grid-template-rows: auto 1fr auto; height: 100%; gap: 10px; padding: 10px; }
+  header, footer, .panel { background: var(--panel); border: 1px solid #232838; border-radius: 12px; }
+  header, footer { padding: 10px; }
+  header { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  header .group { display:flex; gap:8px; align-items:center; background:#10141b; border:1px solid #1f2534; padding:6px 8px; border-radius:10px; }
+  header label { color: var(--muted); }
+  input[type="number"], input[type="text"] { width: 80px; background:#0e1320; color:var(--text); border:1px solid #2a3145; border-radius:8px; padding:6px 8px; }
+  input[type="range"] { width:120px; }
+  input[type="checkbox"] { transform: translateY(1px); }
+  button { background:#1a2335; color:var(--text); border:1px solid #2a3145; border-radius:10px; padding:8px 10px; cursor:pointer; }
+  button.primary { background: linear-gradient(180deg,#1f6feb,#1158c7); border-color:#1f6feb; }
+  button.success { background: linear-gradient(180deg,#2ea043,#238636); border-color:#2ea043; }
+  button.warn { background: linear-gradient(180deg,#f2a800,#d78b00); border-color:#f2a800; color:#202020; }
+  button:disabled { opacity: .6; cursor: not-allowed; }
+  #left { grid-row: 2 / span 1; grid-column: 1; overflow: hidden; display:flex; flex-direction:column; }
+  #framesPanel { flex:1; overflow:auto; padding:10px; }
+  .frameItem { display:grid; grid-template-columns: 64px 1fr auto; gap:10px; padding:8px; border:1px solid #232838; border-radius:10px; margin-bottom:8px; background:#111620; }
+  .frameItem.selected { outline: 2px solid var(--accent); }
+  .thumb { width:64px; height:64px; border-radius:8px; overflow:hidden; background:#0b0f18; display:flex; align-items:center; justify-content:center; border:1px solid #232838; }
+  .thumb img { max-width:100%; max-height:100%; object-fit:contain; }
+  .frameMeta { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:6px 10px; align-items:center; }
+  .frameMeta label { color: var(--muted); font-size:12px; }
+  .frameActions { display:flex; flex-direction:column; gap:6px; }
+  #right { grid-row: 2; grid-column: 2; display:grid; grid-template-rows: 1fr auto; gap:10px; }
+  #stageWrap { position:relative; background:#0b0f18; border:1px solid #232838; border-radius:12px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  #stage { max-width:100%; max-height:100%; background:black; }
+  #overlayMsg { position:absolute; top:8px; left:8px; background:#0009; padding:6px 8px; border-radius:8px; font-size:12px; color:#dce3ed; }
+  #timeline { background:#10141b; border:1px solid #232838; border-radius:12px; padding:8px; display:flex; align-items:center; gap:10px; }
+  progress { width: 200px; height: 10px; }
+  .spacer { flex:1; }
+  .tiny { font-size:12px; color:var(--muted); }
+  .pill { padding:2px 8px; border-radius:999px; background:#111827; border:1px solid #283044; color:#cbd5e1; }
+  .danger { color: var(--danger); }
+  a.download { color: var(--accent2); text-decoration: none; font-weight: 600; }
+  footer { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  #dropzone { border:2px dashed #2a3145; border-radius:12px; padding:10px; text-align:center; color:#9aa6bd; }
+  #dropzone.dragover { background:#0d1322; border-color:#4976e6; color:#bcd3ff; }
+  @media (max-width: 1000px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; }
+    #left { grid-column:1; grid-row:2; }
+    #right { grid-column:1; grid-row:3; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="group">
+      <input id="fileInput" type="file" accept="image/*" multiple />
+      <button id="clearBtn" title="Remove all">Clear</button>
+      <div id="dropzone" title="Drop images here">Drop images to add</div>
+    </div>
+    <div class="group">
+      <label for="fps">FPS</label>
+      <input id="fps" type="number" min="1" max="120" step="1" value="30" />
+      <label class="pill tiny">Playback and export use this FPS</label>
+    </div>
+    <div class="group">
+      <label><input id="fitToCanvas" type="checkbox" checked /> Fit to canvas</label>
+      <label><input id="onion" type="checkbox" /> Onion-skin</label>
+      <label>Opacity <input id="onionAlpha" type="range" min="0" max="1" step="0.05" value="0.4"></label>
+      <label><input id="alignMode" type="checkbox" /> Align mode (drag)</label>
+    </div>
+    <div class="group">
+      <label>Canvas WxH</label>
+      <input id="canvasW" type="number" min="16" value="1280" />
+      <input id="canvasH" type="number" min="16" value="720" />
+      <button id="applyCanvasSize">Apply</button>
+      <button id="setFromFirst">Match first image</button>
+    </div>
+    <div class="group">
+      <button id="playBtn" class="primary">Play</button>
+      <button id="stopBtn">Stop</button>
+      <button id="exportBtn" class="success">Export WebM</button>
+    </div>
+    <div class="group">
+      <label class="tiny">Frames: <span id="totalFrames">0</span></label>
+      <label class="tiny">Duration: <span id="totalDuration">0.00s</span></label>
+    </div>
+  </header>
+
+  <aside id="left" class="panel">
+    <div style="padding:10px; display:flex; align-items:center; gap:10px;">
+      <button id="addBlank">Add placeholder</button>
+      <button id="applyRotationAll">Apply rotation to all</button>
+      <button id="applyFramesAll">Apply frames to all</button>
+      <span class="spacer"></span>
+      <span class="tiny">Click row to select</span>
+    </div>
+    <div id="framesPanel"></div>
+  </aside>
+
+  <main id="right">
+    <div id="stageWrap">
+      <canvas id="stage" width="1280" height="720"></canvas>
+      <div id="overlayMsg" class="tiny"></div>
+    </div>
+    <div id="timeline">
+      <button id="prevBtn">◀ Prev</button>
+      <button id="nextBtn">Next ▶</button>
+      <div class="group">
+        <label>Rotation° <input id="rotInput" type="number" step="0.1" value="0"></label>
+        <label>Frames <input id="framesInput" type="number" min="1" step="1" value="1"></label>
+        <button id="resetAlign">Reset align</button>
+      </div>
+      <div class="group">
+        <button id="moveUp">Move up</button>
+        <button id="moveDown">Move down</button>
+        <button id="duplicate">Duplicate</button>
+        <button id="delete" class="warn">Delete</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="tiny">Frame <span id="curIdx">0</span> / <span id="count">0</span> • Tick <span id="tickOf">0</span></div>
+      <progress id="progress" max="1" value="0"></progress>
+      <a id="downloadLink" class="download" style="display:none" download="timelapse.webm">Download video</a>
+    </div>
+  </main>
+
+  <footer>
+    <div class="tiny">
+      Tips: enable Onion-skin to align, then toggle Align mode to drag the current image. Per-frame rotation and frames are editable in the list or the timeline controls.
+    </div>
+    <div class="tiny">All processing is local to your browser.</div>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+  const fileInput = $('#fileInput');
+  const dropzone = $('#dropzone');
+  const clearBtn = $('#clearBtn');
+  const framesPanel = $('#framesPanel');
+  const canvas = $('#stage');
+  const ctx = canvas.getContext('2d');
+  const fpsInput = $('#fps');
+  const fitToCanvas = $('#fitToCanvas');
+  const onion = $('#onion');
+  const onionAlpha = $('#onionAlpha');
+  const alignMode = $('#alignMode');
+  const canvasW = $('#canvasW');
+  const canvasH = $('#canvasH');
+  const applyCanvasSize = $('#applyCanvasSize');
+  const setFromFirst = $('#setFromFirst');
+
+  const playBtn = $('#playBtn');
+  const stopBtn = $('#stopBtn');
+  const exportBtn = $('#exportBtn');
+  const prevBtn = $('#prevBtn');
+  const nextBtn = $('#nextBtn');
+  const rotInput = $('#rotInput');
+  const framesInput = $('#framesInput');
+  const resetAlignBtn = $('#resetAlign');
+  const moveUpBtn = $('#moveUp');
+  const moveDownBtn = $('#moveDown');
+  const duplicateBtn = $('#duplicate');
+  const deleteBtn = $('#delete');
+  const applyRotationAllBtn = $('#applyRotationAll');
+  const applyFramesAllBtn = $('#applyFramesAll');
+  const addBlankBtn = $('#addBlank');
+
+  const totalFramesEl = $('#totalFrames');
+  const totalDurationEl = $('#totalDuration');
+  const curIdxEl = $('#curIdx');
+  const countEl = $('#count');
+  const tickOfEl = $('#tickOf');
+  const progressEl = $('#progress');
+  const overlayMsg = $('#overlayMsg');
+  const downloadLink = $('#downloadLink');
+
+  let frames = []; // [{img, url, w, h, rotDeg, frames, offX, offY}]
+  let selected = -1;
+  let playing = false;
+  let playTimer = null;
+  let curTick = 0; // tick within current image
+  let recorder = null;
+  let recordedChunks = [];
+
+  function updateTotals() {
+    const totalTicks = frames.reduce((s,f)=>s + Math.max(1, f.frames|0), 0);
+    totalFramesEl.textContent = totalTicks;
+    const fps = Math.max(1, fpsInput.value|0);
+    totalDurationEl.textContent = (totalTicks / fps).toFixed(2) + 's';
+    countEl.textContent = frames.length;
+  }
+
+  function selectFrame(i) {
+    if (i < 0 || i >= frames.length) return;
+    selected = i;
+    curTick = 0;
+    // Update list selection UI
+    $$('.frameItem').forEach((node, idx) => node.classList.toggle('selected', idx === i));
+    // Sync inputs
+    rotInput.value = frames[i].rotDeg.toFixed(1);
+    framesInput.value = Math.max(1, frames[i].frames|0);
+    curIdxEl.textContent = (i+1);
+    tickOfEl.textContent = `${curTick+1}/${Math.max(1, frames[i].frames|0)}`;
+    draw();
+  }
+
+  function makeFrameRow(frame, idx) {
+    const row = document.createElement('div');
+    row.className = 'frameItem';
+    const th = document.createElement('div');
+    th.className = 'thumb';
+    const img = document.createElement('img');
+    if (frame.url) img.src = frame.url;
+    th.appendChild(img);
+
+    const meta = document.createElement('div');
+    meta.className = 'frameMeta';
+    meta.innerHTML = `
+      <label>Rotation°</label>
+      <input type="number" step="0.1" value="${frame.rotDeg}">
+      <label>Frames</label>
+      <input type="number" min="1" step="1" value="${frame.frames}">
+      <div class="tiny" style="grid-column:1/-1">Offset X: ${frame.offX|0} • Offset Y: ${frame.offY|0}</div>
+    `;
+
+    const actions = document.createElement('div');
+    actions.className = 'frameActions';
+    actions.innerHTML = `
+      <button class="up">↑</button>
+      <button class="down">↓</button>
+      <button class="dup">Duplicate</button>
+      <button class="del" title="Delete" style="color:#ffbf69">Delete</button>
+    `;
+
+    row.appendChild(th);
+    row.appendChild(meta);
+    row.appendChild(actions);
+
+    row.addEventListener('click', e => {
+      // Avoid selecting when clicking inputs in this row
+      if (e.target.tagName === 'INPUT' || e.target.closest('button')) return;
+      selectFrame(idx);
+    });
+
+    // Hook up inputs
+    const [rotIn, framesIn] = meta.querySelectorAll('input');
+    rotIn.addEventListener('input', () => {
+      frames[idx].rotDeg = parseFloat(rotIn.value) || 0;
+      if (selected === idx) rotInput.value = frames[idx].rotDeg.toFixed(1);
+      draw();
+    });
+    framesIn.addEventListener('input', () => {
+      const v = Math.max(1, Number(framesIn.value)|0);
+      frames[idx].frames = v;
+      if (selected === idx) framesInput.value = v;
+      updateTotals();
+      if (selected === idx) tickOfEl.textContent = `${curTick+1}/${v}`;
+    });
+
+    actions.querySelector('.up').addEventListener('click', e => {
+      e.stopPropagation();
+      if (idx > 0) {
+        const tmp = frames[idx-1]; frames[idx-1] = frames[idx]; frames[idx] = tmp;
+        rebuildList();
+        selectFrame(idx-1);
+      }
+    });
+    actions.querySelector('.down').addEventListener('click', e => {
+      e.stopPropagation();
+      if (idx < frames.length-1) {
+        const tmp = frames[idx+1]; frames[idx+1] = frames[idx]; frames[idx] = tmp;
+        rebuildList();
+        selectFrame(idx+1);
+      }
+    });
+    actions.querySelector('.dup').addEventListener('click', e => {
+      e.stopPropagation();
+      const copy = {...frames[idx], img: frames[idx].img, url: frames[idx].url};
+      frames.splice(idx+1, 0, copy);
+      rebuildList();
+      selectFrame(idx+1);
+    });
+    actions.querySelector('.del').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!frames.length) return;
+      const revoke = frames[idx].url;
+      frames.splice(idx,1);
+      if (revoke && revoke.startsWith('blob:')) URL.revokeObjectURL(revoke);
+      rebuildList();
+      selectFrame(Math.min(idx, frames.length-1));
+    });
+
+    return row;
+  }
+
+  function rebuildList() {
+    framesPanel.innerHTML = '';
+    frames.forEach((f, i) => framesPanel.appendChild(makeFrameRow(f, i)));
+    updateTotals();
+  }
+
+  function addImages(files) {
+    if (!files || !files.length) return;
+    const list = Array.from(files);
+    // Preserve order selected
+    let loaded = 0;
+    list.forEach(file => {
+      if (!file.type.startsWith('image/')) return;
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        frames.push({ img, url, w: img.naturalWidth, h: img.naturalHeight, rotDeg: 0, frames: 1, offX:0, offY:0 });
+        loaded++;
+        if (loaded === 1 && frames.length === 1) { // first ever image sets canvas
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          canvasW.value = img.naturalWidth;
+          canvasH.value = img.naturalHeight;
+        }
+        if (loaded === list.length) {
+          rebuildList();
+          if (selected === -1) selectFrame(0);
+          else draw();
+        } else {
+          rebuildList(); // incremental
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    });
+  }
+
+  // File input and DnD
+  fileInput.addEventListener('change', e => addImages(e.target.files));
+  ;['dragenter','dragover'].forEach(evt => dropzone.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover');
+  }));
+  ;['dragleave','drop'].forEach(evt => dropzone.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover');
+  }));
+  dropzone.addEventListener('drop', e => {
+    addImages(e.dataTransfer.files);
+  });
+  clearBtn.addEventListener('click', () => {
+    stop();
+    frames.forEach(f => f.url && f.url.startsWith('blob:') && URL.revokeObjectURL(f.url));
+    frames = [];
+    framesPanel.innerHTML = '';
+    selected = -1;
+    updateTotals();
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+    curIdxEl.textContent = '0'; countEl.textContent = '0'; tickOfEl.textContent = '0';
+  });
+
+  applyCanvasSize.addEventListener('click', () => {
+    const w = Math.max(16, canvasW.value|0), h = Math.max(16, canvasH.value|0);
+    canvas.width = w; canvas.height = h;
+    draw();
+  });
+  setFromFirst.addEventListener('click', () => {
+    if (!frames.length) return;
+    canvas.width = frames[0].w;
+    canvas.height = frames[0].h;
+    canvasW.value = frames[0].w;
+    canvasH.value = frames[0].h;
+    draw();
+  });
+
+  // Stage drawing
+  function drawImageTransformed(f) {
+    if (!f || !f.img) return;
+    const {img, rotDeg, offX, offY} = f;
+    const fit = fitToCanvas.checked;
+    let dw = img.naturalWidth, dh = img.naturalHeight, scale = 1;
+    if (fit) {
+      const sx = canvas.width / dw, sy = canvas.height / dh;
+      scale = Math.min(sx, sy);
+      dw *= scale; dh *= scale;
+    }
+    ctx.save();
+    ctx.translate((canvas.width/2) + offX, (canvas.height/2) + offY);
+    ctx.rotate((rotDeg||0) * Math.PI/180);
+    ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0,0,canvas.width, canvas.height);
+    if (selected >= 0) {
+      // Draw current first, then onion previous on top (as requested)
+      drawImageTransformed(frames[selected]);
+      if (onion.checked && selected > 0) {
+        ctx.globalAlpha = parseFloat(onionAlpha.value) || 0.4;
+        drawImageTransformed(frames[selected-1]);
+        ctx.globalAlpha = 1;
+      }
+    }
+    overlayMsg.textContent = selected >= 0
+      ? `Image ${selected+1}/${frames.length} • rot=${(frames[selected].rotDeg||0).toFixed(1)}° • offset=(${frames[selected].offX|0},${frames[selected].offY|0})`
+      : 'No images loaded';
+  }
+
+  // Selection controls
+  rotInput.addEventListener('input', () => {
+    if (selected < 0) return;
+    frames[selected].rotDeg = parseFloat(rotInput.value) || 0;
+    // Sync list row
+    const row = framesPanel.children[selected];
+    if (row) row.querySelectorAll('input')[0].value = frames[selected].rotDeg;
+    draw();
+  });
+  framesInput.addEventListener('input', () => {
+    if (selected < 0) return;
+    const v = Math.max(1, Number(framesInput.value)|0);
+    frames[selected].frames = v;
+    const row = framesPanel.children[selected];
+    if (row) row.querySelectorAll('input')[1].value = v;
+    updateTotals();
+    tickOfEl.textContent = `${curTick+1}/${v}`;
+  });
+  resetAlignBtn.addEventListener('click', () => {
+    if (selected < 0) return;
+    frames[selected].offX = 0; frames[selected].offY = 0;
+    // refresh tiny offset text
+    const lab = framesPanel.children[selected]?.querySelector('.tiny');
+    if (lab) lab.textContent = `Offset X: 0 • Offset Y: 0`;
+    draw();
+  });
+  moveUpBtn.addEventListener('click', ()=> {
+    if (selected > 0) {
+      const i = selected;
+      const tmp = frames[i-1]; frames[i-1] = frames[i]; frames[i] = tmp;
+      rebuildList(); selectFrame(i-1);
+    }
+  });
+  moveDownBtn.addEventListener('click', ()=> {
+    if (selected >= 0 && selected < frames.length-1) {
+      const i = selected;
+      const tmp = frames[i+1]; frames[i+1] = frames[i]; frames[i] = tmp;
+      rebuildList(); selectFrame(i+1);
+    }
+  });
+  duplicateBtn.addEventListener('click', ()=> {
+    if (selected < 0) return;
+    const copy = {...frames[selected], img: frames[selected].img, url: frames[selected].url};
+    frames.splice(selected+1, 0, copy);
+    rebuildList(); selectFrame(selected+1);
+  });
+  deleteBtn.addEventListener('click', ()=> {
+    if (selected < 0) return;
+    const revoke = frames[selected].url;
+    frames.splice(selected, 1);
+    if (revoke && revoke.startsWith('blob:')) URL.revokeObjectURL(revoke);
+    rebuildList(); selectFrame(Math.min(selected, frames.length-1));
+  });
+  applyRotationAllBtn.addEventListener('click', ()=> {
+    if (!frames.length) return;
+    const v = parseFloat(rotInput.value) || 0;
+    frames.forEach((f,i)=>{ f.rotDeg = v; const row = framesPanel.children[i]; if (row) row.querySelectorAll('input')[0].value = v; });
+    draw();
+  });
+  applyFramesAllBtn.addEventListener('click', ()=> {
+    if (!frames.length) return;
+    const v = Math.max(1, Number(framesInput.value)|0);
+    frames.forEach((f,i)=>{ f.frames = v; const row = framesPanel.children[i]; if (row) row.querySelectorAll('input')[1].value = v; });
+    updateTotals(); draw();
+  });
+  addBlankBtn.addEventListener('click', ()=> {
+    // Adds a solid black placeholder frame
+    const ph = { img: null, url: '', w: canvas.width, h: canvas.height, rotDeg:0, frames:1, offX:0, offY:0 };
+    frames.push(ph);
+    rebuildList();
+    selectFrame(frames.length-1);
+  });
+
+  // Mouse align drag
+  let dragging = false, lastX = 0, lastY = 0;
+  canvas.addEventListener('mousedown', e => {
+    if (!alignMode.checked || selected < 0) return;
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+  });
+  window.addEventListener('mousemove', e => {
+    if (!dragging || selected < 0) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    frames[selected].offX += dx;
+    frames[selected].offY += dy;
+    // update tiny label
+    const lab = framesPanel.children[selected]?.querySelector('.tiny');
+    if (lab) lab.textContent = `Offset X: ${frames[selected].offX|0} • Offset Y: ${frames[selected].offY|0}`;
+    draw();
+  });
+  window.addEventListener('mouseup', ()=> dragging = false);
+
+  // Playback
+  function stepTick() {
+    if (selected < 0 || !frames.length) return;
+    draw();
+    // advance tick
+    curTick++;
+    const need = Math.max(1, frames[selected].frames|0);
+    if (curTick >= need) {
+      curTick = 0;
+      if (selected < frames.length-1) selectFrame(selected+1);
+      else selectFrame(0);
+    } else {
+      tickOfEl.textContent = `${curTick+1}/${need}`;
+    }
+  }
+
+  function play() {
+    if (!frames.length || playing) return;
+    playing = true;
+    const fps = Math.max(1, fpsInput.value|0);
+    const dt = Math.round(1000 / fps);
+    playTimer = setInterval(stepTick, dt);
+    playBtn.disabled = true; stopBtn.disabled = false;
+  }
+  function stop() {
+    playing = false;
+    if (playTimer) clearInterval(playTimer);
+    playTimer = null;
+    playBtn.disabled = false; stopBtn.disabled = true;
+  }
+  playBtn.addEventListener('click', play);
+  stopBtn.addEventListener('click', stop);
+  prevBtn.addEventListener('click', ()=> {
+    stop();
+    if (selected > 0) selectFrame(selected-1);
+  });
+  nextBtn.addEventListener('click', ()=> {
+    stop();
+    if (selected < frames.length-1) selectFrame(selected+1);
+  });
+
+  // Export using MediaRecorder capturing the canvas at FPS
+  async function exportVideo() {
+    if (!frames.length) { alert('No frames to export'); return; }
+    stop();
+    downloadLink.style.display = 'none';
+    const fps = Math.max(1, fpsInput.value|0);
+    const stream = canvas.captureStream(fps);
+    recordedChunks = [];
+    const mimeCandidates = [
+      'video/webm;codecs=vp9',
+      'video/webm;codecs=vp8',
+      'video/webm',
+      'video/mp4' // generally not supported by MediaRecorder in Chrome
+    ];
+    let mimeType = '';
+    for (const m of mimeCandidates) {
+      if (MediaRecorder.isTypeSupported(m)) { mimeType = m; break; }
+    }
+    if (!mimeType) { alert('MediaRecorder does not support WebM on this browser'); return; }
+    recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000 });
+    recorder.ondataavailable = e => { if (e.data && e.data.size) recordedChunks.push(e.data); };
+    const done = new Promise(resolve => recorder.onstop = resolve);
+    recorder.start(100); // gather in chunks
+
+    // Render frames at exact ticks
+    const totalTicks = frames.reduce((s,f)=> s + Math.max(1, f.frames|0), 0);
+    progressEl.max = totalTicks; progressEl.value = 0;
+
+    // Temporarily disable onion during export to avoid overlay in output
+    const onionWas = onion.checked;
+    onion.checked = false;
+
+    // Save current selection to restore later
+    const savedSel = selected >= 0 ? selected : 0;
+    let tickCounter = 0;
+
+    // Draw each logical tick
+    for (let i = 0; i < frames.length; i++) {
+      // select and draw initial tick
+      selected = i; curTick = 0;
+      for (let t = 0; t < Math.max(1, frames[i].frames|0); t++) {
+        draw();
+        tickCounter++;
+        progressEl.value = tickCounter;
+        await waitExact(1000 / fps);
+      }
+    }
+
+    recorder.stop();
+    await done;
+
+    // Restore onion and selection
+    onion.checked = onionWas;
+    selectFrame(savedSel);
+    progressEl.value = 0;
+
+    const blob = new Blob(recordedChunks, { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    downloadLink.href = url;
+    downloadLink.style.display = 'inline-block';
+  }
+
+  function waitExact(ms) {
+    // Attempts to wait near the intended frame duration
+    return new Promise(res => setTimeout(res, ms));
+  }
+
+  exportBtn.addEventListener('click', exportVideo);
+
+  // Initial
+  updateTotals();
+  stopBtn.disabled = true;
+
+  // Keyboard shortcuts
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === ' ') { e.preventDefault(); playing ? stop() : play(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevBtn.click(); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); nextBtn.click(); }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TV Tenant Directory — Pseudo App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <style>
+    /* ===============================
+       TV DIRECTORY — THEMEABLE SHELL
+       =============================== */
+
+    :root {
+      /* Defaults (will be overridden by theme) */
+      --bg: #0b0f1a;
+      --primary: #3b82f6;
+      --secondary: #6b7280;
+      --accent: #10b981;
+      --text: #f8fafc;
+      --text-muted: #9aa4b2;
+
+      --pad: 24px;
+      --font-scale: 1;
+      --row-h: 44px;
+
+      --brightness: 1.0; /* 1 = 100% */
+      --contrast: 1.0;   /* 1 = 100% */
+
+      --hero-size: 50;    /* percentage of main axis for hero section */
+      --tenant-size: 50;  /* percentage of main axis for tenant list */
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    #app {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 100%;
+      filter: brightness(var(--brightness)) contrast(var(--contrast));
+      transition: filter 250ms ease;
+    }
+
+    .header {
+      position: sticky;
+      top: 0;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 16px;
+      align-items: center;
+      padding: calc(var(--pad) * 0.75) var(--pad);
+      background:
+        linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0)) ,
+        radial-gradient(1200px 50% at 0% 0%, rgba(59,130,246,0.10), transparent 60%) ,
+        rgba(10,14,24,0.35);
+      backdrop-filter: blur(6px);
+      z-index: 2;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .brand-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      color: white;
+    }
+
+    .brand .title {
+      font-size: calc(20px * var(--font-scale));
+      font-weight: 800;
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand .subtitle {
+      font-size: calc(12px * var(--font-scale));
+      color: var(--text-muted);
+    }
+
+    .header .managed-by {
+      align-self: end;
+      font-size: calc(12px * var(--font-scale));
+      color: var(--text-muted);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .header .clock {
+      font-feature-settings: "tnum";
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      color: #e5f0ff;
+      text-shadow: 0 0 12px rgba(59,130,246,0.45);
+    }
+
+    .main {
+      display: grid;
+      gap: var(--pad);
+      padding: var(--pad);
+    }
+
+    /* Orientation-aware layouts */
+    .landscape.two-col {
+      grid-template-columns: minmax(260px, 1fr) 2fr;
+    }
+    .portrait.two-col {
+      grid-template-rows: 1fr 1.2fr;
+    }
+
+    /* Hero section */
+    .hero {
+      position: relative;
+      border-radius: 20px;
+      overflow: hidden;
+      min-height: 220px;
+      background:
+        radial-gradient(120% 120% at -10% -10%, rgba(59,130,246,0.22), transparent 50%) ,
+        radial-gradient(120% 120% at 110% 110%, rgba(16,185,129,0.18), transparent 50%) ,
+        #0d1322;
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,0.05),
+        0 16px 40px rgba(0,0,0,0.35);
+    }
+
+    .hero .overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(0deg, rgba(0,0,0,0.45), rgba(0,0,0,0.05));
+      pointer-events: none;
+    }
+
+    .hero .content {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      padding: calc(var(--pad) * 1.25);
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(28px, 3.6vw, 56px);
+      line-height: 1.05;
+      letter-spacing: 0.2px;
+      text-shadow: 0 10px 36px rgba(0,0,0,0.45);
+    }
+
+    .hero .address {
+      font-size: clamp(12px, 1.2vw, 16px);
+      color: var(--text-muted);
+    }
+
+    /* Tenants panel */
+    .tenants {
+      position: relative;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 10px;
+      border-radius: 20px;
+      padding: calc(var(--pad) * 0.75);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)) ,
+        rgba(13,19,34,0.6);
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,0.06),
+        0 20px 60px rgba(0,0,0,0.35);
+      overflow: hidden;
+    }
+
+    .tenants .toolbar {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      padding-inline: 6px;
+    }
+
+    .tenants .toolbar .heading {
+      font-weight: 700;
+      font-size: calc(16px * var(--font-scale));
+      letter-spacing: 0.3px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(59,130,246,0.12);
+      border: 1px solid rgba(59,130,246,0.35);
+      color: #dce9ff;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .table {
+      position: relative;
+      border-radius: 14px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)) ;
+      border: 1px solid rgba(255,255,255,0.06);
+      min-height: 160px;
+    }
+
+    .thead, .row {
+      display: grid;
+      grid-template-columns: var(--cols);
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+    }
+
+    .thead {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: rgba(14,20,35,0.85);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .tbody {
+      max-height: 100%;
+      overflow: hidden;
+    }
+
+    .row {
+      height: var(--row-h);
+      border-bottom: 1px dashed rgba(255,255,255,0.06);
+      font-size: calc(14px * var(--font-scale));
+    }
+
+    .row:last-child { border-bottom: none; }
+
+    .cell.name {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      color: #eaf2ff;
+      flex: 0 0 auto;
+      overflow: hidden;
+    }
+
+    .avatar img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+    .ellipsis {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tfoot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: calc(12px * var(--font-scale));
+      padding-inline: 6px;
+      padding-top: 6px;
+    }
+
+    .page-dots {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .dot {
+      width: 8px; height: 8px; border-radius: 999px;
+      background: rgba(255,255,255,0.12);
+      outline: 1px solid rgba(255,255,255,0.12);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+    }
+
+    .dot.active {
+      background: var(--primary);
+      box-shadow:
+        0 0 12px rgba(59,130,246,0.65),
+        inset 0 0 0 1px rgba(255,255,255,0.45);
+      outline-color: rgba(59,130,246,0.65);
+      transform: translateZ(0);
+    }
+
+    .footer {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: calc(var(--pad) * 0.75) var(--pad);
+      color: var(--text-muted);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      background: linear-gradient(0deg, rgba(0,0,0,0.25), rgba(0,0,0,0));
+    }
+
+    .footer .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(16,185,129,0.12);
+      border: 1px solid rgba(16,185,129,0.35);
+      color: #bbf7d0;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .badge.offline {
+      background: rgba(234,179,8,0.12);
+      border-color: rgba(234,179,8,0.35);
+      color: #fde68a;
+    }
+
+    .badge.sleep {
+      background: rgba(148,163,184,0.12);
+      border-color: rgba(148,163,184,0.35);
+      color: #e2e8f0;
+    }
+
+    .sleep-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      background: black;
+      color: #9aa4b2;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      letter-spacing: 1px;
+    }
+    .sleeping .sleep-overlay { display: flex; }
+
+    /* Transitions */
+    .fade-enter { opacity: 0; transform: translateY(4px); }
+    .fade-enter-active { opacity: 1; transform: translateY(0); transition: all 220ms ease; }
+
+    /* Utility */
+    .sr-only { position: absolute; left: -9999px; }
+  </style>
+</head>
+<body>
+  <div id="app" class="landscape two-col">
+    <div class="header" id="header">
+      <div class="brand">
+        <div class="brand-badge" id="brandBadge">MP</div>
+        <div class="brand-text">
+          <div class="title" id="buildingName">Building</div>
+          <div class="subtitle" id="bundleName">Directory</div>
+        </div>
+      </div>
+      <div class="managed-by" id="managedBy"></div>
+      <div class="clock" id="clock">--:--</div>
+    </div>
+
+    <div class="main" id="main">
+      <section class="hero" id="hero">
+        <div class="overlay"></div>
+        <div class="content">
+          <div></div>
+          <div>
+            <h1 id="heroTitle">Welcome</h1>
+            <div class="address" id="heroAddress"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tenants" id="tenants">
+        <div class="toolbar">
+          <div class="heading">Tenant Directory</div>
+          <div class="chip" id="sortChip">Sorted by Name</div>
+        </div>
+
+        <div class="table">
+          <div class="thead" id="thead"></div>
+          <div class="tbody" id="tbody"></div>
+        </div>
+
+        <div class="tfoot">
+          <div id="pageInfo">Page 1</div>
+          <div class="page-dots" id="pageDots"></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="footer">
+      <div class="status">
+        <span class="badge" id="statusBadge">Online</span>
+        <span id="locationAddress"></span>
+      </div>
+      <div id="lastUpdated">Updated —</div>
+    </div>
+  </div>
+
+  <div class="sleep-overlay" id="sleepOverlay">Sleep Mode</div>
+
+  <script>
+    /**
+     * PSEUDO TV DIRECTORY APP
+     * - Loads bundle from API on boot
+     * - Applies theme (colors, typography, layout)
+     * - Renders hero + paginated tenant list
+     * - Caches last successful bundle for offline use
+     * - Honors display settings (brightness/contrast/sleep)
+     */
+
+    // =========================
+    // CONFIG
+    // =========================
+    const API_URL = "https://landpricecalculatorapi.onrender.com/tv-directory/published-bundles/68a93674a7b6a76415261489";
+    const CACHE_KEY = "tv_directory_bundle_cache_v1";
+    const PAGE_ROTATE_MS = 8000;             // time between page flips
+    const AUTO_REFRESH_MS = 5 * 60 * 1000;   // refetch interval if auto_refresh=true
+    const FALLBACK_TIMEZONE = "America/Los_Angeles";
+
+    // =========================
+    // STATE
+    // =========================
+    const state = {
+      bundle: null,
+      columns: [],
+      entries: [],
+      pages: [],
+      pageIndex: 0,
+      rowsPerPage: 8,
+      orientation: "landscape",
+      online: true,
+      clockTZ: FALLBACK_TIMEZONE,
+      rotateTimer: null,
+      refreshTimer: null
+    };
+
+    // =========================
+    // DOM
+    // =========================
+    const els = {
+      app: document.getElementById("app"),
+      header: document.getElementById("header"),
+      buildingName: document.getElementById("buildingName"),
+      managedBy: document.getElementById("managedBy"),
+      bundleName: document.getElementById("bundleName"),
+      brandBadge: document.getElementById("brandBadge"),
+      clock: document.getElementById("clock"),
+      hero: document.getElementById("hero"),
+      heroTitle: document.getElementById("heroTitle"),
+      heroAddress: document.getElementById("heroAddress"),
+      tenants: document.getElementById("tenants"),
+      thead: document.getElementById("thead"),
+      tbody: document.getElementById("tbody"),
+      pageDots: document.getElementById("pageDots"),
+      pageInfo: document.getElementById("pageInfo"),
+      lastUpdated: document.getElementById("lastUpdated"),
+      statusBadge: document.getElementById("statusBadge"),
+      locationAddress: document.getElementById("locationAddress"),
+      sleepOverlay: document.getElementById("sleepOverlay"),
+      main: document.getElementById("main"),
+      sortChip: document.getElementById("sortChip")
+    };
+
+    // =========================
+    // UTILITIES
+    // =========================
+    const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+    const toPct = (n) => `${clamp(n, 0, 100)}%`;
+    const safe = (v, d = "") => (v == null ? d : v);
+    const titleFromName = (s) => (s || "").toString().trim() || "Directory";
+
+    function initials(s) {
+      if (!s) return "•";
+      const parts = s.trim().split(/\s+/).slice(0, 2);
+      return parts.map(p => p[0] ? p[0].toUpperCase() : "").join("") || "•";
+    }
+
+    function sanitizeUrl(u) {
+      if (!u) return null;
+      let s = u.toString().trim();
+      if (!s) return null;
+      // remove spaces inside
+      s = s.replace(/\s+/g, "");
+      if (!/^https?:\/\//i.test(s)) s = "https://" + s;
+      try { new URL(s); return s; } catch { return null; }
+    }
+
+    function fmtTime(ts, tz) {
+      try {
+        return new Intl.DateTimeFormat(undefined, {
+          hour: "2-digit", minute: "2-digit", second: "2-digit",
+          hour12: true, timeZone: tz
+        }).format(ts);
+      } catch {
+        return new Date(ts).toLocaleTimeString();
+      }
+    }
+
+    function fmtDate(ts, tz) {
+      try {
+        return new Intl.DateTimeFormat(undefined, {
+          year: "numeric", month: "short", day: "2-digit",
+          hour: "2-digit", minute: "2-digit", hour12: true, timeZone: tz
+        }).format(ts);
+      } catch {
+        return new Date(ts).toLocaleString();
+      }
+    }
+
+    function calcRowsPerPage() {
+      // Measure available height inside tenants table (minus header/footer)
+      const tenantsRect = els.tenants.getBoundingClientRect();
+      const headRect = els.thead.getBoundingClientRect();
+      const footRect = els.pageDots.getBoundingClientRect();
+      const paddings = 32; // approximate internal padding
+      const available = Math.max(120, tenantsRect.height - (headRect.height + footRect.height + paddings + 40));
+      const rowH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--row-h")) || 44;
+      const rows = Math.max(4, Math.floor(available / rowH));
+      return rows;
+    }
+
+    function paginate(list, size) {
+      const pages = [];
+      for (let i = 0; i < list.length; i += size) pages.push(list.slice(i, i + size));
+      return pages.length ? pages : [[]];
+    }
+
+    // =========================
+    // RENDERING
+    // =========================
+    function applyTheme(bundle) {
+      const theme = bundle?.data?.theme ?? {};
+      const layout = theme.layoutOptions ?? {};
+      const colors = theme.colors ?? {};
+      const typo = theme.typography ?? {};
+      const tenants = theme.tenants ?? {};
+      const display = theme.display ?? {};
+      const media = theme.media ?? {};
+      const device = bundle?.data?.device ?? {};
+      const bundleSettings = bundle?.data?.bundle_settings ?? {};
+
+      // Colors
+      document.documentElement.style.setProperty("--bg", safe(colors.background, "#0b0f1a"));
+      document.documentElement.style.setProperty("--primary", safe(colors.primary, "#3b82f6"));
+      document.documentElement.style.setProperty("--secondary", safe(colors.secondary, "#6b7280"));
+      document.documentElement.style.setProperty("--accent", safe(colors.accent, "#10b981"));
+      document.documentElement.style.setProperty("--text", safe(colors.textPrimary, "#e5e7eb"));
+      document.documentElement.style.setProperty("--text-muted", safe(colors.textSecondary, "#9ca3af"));
+
+      // Padding
+      const pad = layout.uniformPadding ? (layout.contentPadding?.all ?? 24) : (layout.contentPadding?.top ?? 24);
+      document.documentElement.style.setProperty("--pad", `${pad}px`);
+
+      // Typography
+      const scale = clamp(typo.fontSizeScale ?? 1, 0.6, 1.6);
+      document.documentElement.style.setProperty("--font-scale", scale);
+
+      // Row height
+      const rowH = clamp(tenants.rowHeight ?? 40, 28, 72);
+      document.documentElement.style.setProperty("--row-h", `${rowH}px`);
+
+      // Brightness/Contrast
+      const brightness = clamp(bundleSettings.display_settings?.brightness ?? 100, 0, 200) / 100;
+      const contrast = clamp(bundleSettings.display_settings?.contrast ?? 100, 0, 200) / 100;
+      document.documentElement.style.setProperty("--brightness", brightness.toFixed(2));
+      document.documentElement.style.setProperty("--contrast", contrast.toFixed(2));
+
+      // Orientation
+      state.orientation = (layout.orientation || device.orientation || "landscape").toLowerCase();
+      els.app.classList.remove("landscape", "portrait");
+      els.app.classList.add(state.orientation);
+
+      // Layout sizing for hero/tenant split
+      const heroPct = clamp(layout.imageSectionSize ?? layout.imageSize ?? 50, 0, 100);
+      const listPct = clamp(layout.tenantListSize ?? (100 - heroPct), 0, 100);
+      document.documentElement.style.setProperty("--hero-size", heroPct);
+      document.documentElement.style.setProperty("--tenant-size", listPct);
+
+      // Apply two-column structure + hero position
+      const heroLeft = (layout.heroPosition || "left") === "left";
+      els.main.classList.toggle("two-col", true);
+      if (state.orientation === "landscape") {
+        els.main.style.gridTemplateColumns = heroLeft
+          ? `${heroPct}fr ${listPct}fr`
+          : `${listPct}fr ${heroPct}fr`;
+        if (!heroLeft) els.main.appendChild(els.hero);
+      } else {
+        els.main.style.gridTemplateRows = `${heroPct}fr ${listPct}fr`;
+        // In portrait, hero on top regardless (like a TV poster area)
+        els.main.prepend(els.hero);
+      }
+
+      // Managed By in header (theme.display)
+      els.managedBy.textContent = display.showManagedBy
+        ? (display.managedByText || "Managed by")
+        : "";
+
+      // Status badges
+      toggleSleep(bundleSettings.display_settings?.sleep_mode === true);
+
+      // Sort chip
+      const sortMethod = (tenants.sortMethod || "name").toLowerCase();
+      els.sortChip.textContent = `Sorted by ${sortMethod[0].toUpperCase() + sortMethod.slice(1)}`;
+    }
+
+    function renderHeader(bundle) {
+      const location = bundle?.data?.location ?? {};
+      const directory = bundle?.data?.directory ?? {};
+      const theme = bundle?.data?.theme ?? {};
+
+      const buildingName = theme.display?.showBuildingName ? (location.name || "Building") : titleFromName(directory.name);
+      els.buildingName.textContent = buildingName;
+      els.bundleName.textContent = titleFromName(bundle?.data?.bundle_name || directory.name);
+      els.brandBadge.textContent = initials(buildingName);
+    }
+
+    function renderHero(bundle) {
+      const location = bundle?.data?.location ?? {};
+      els.heroTitle.textContent = titleFromName(location.name);
+      els.heroAddress.textContent = location.address || "";
+      els.locationAddress.textContent = location.address || "";
+
+      // If theme had images, you could set background-image here.
+      // For now we keep gradient background for a sleek TV look.
+    }
+
+    function computeColumns(bundle) {
+      const order = (bundle?.data?.theme?.tenants?.columnOrder ?? ["name","floor","suite","category"]).slice();
+      const hidden = new Set(bundle?.data?.theme?.tenants?.hiddenColumns ?? []);
+      const supported = new Set(["name","floor","suite","category"]);
+
+      // Filter unsupported/hidden
+      const cols = order.filter(c => supported.has(c) && !hidden.has(c));
+
+      // Drop columns that are completely missing in data (e.g., category not present)
+      const entries = state.entries;
+      const present = (col) => {
+        if (col === "name") return true;
+        return entries.some(e => (e[col] ?? "") !== "");
+      };
+      state.columns = cols.filter(present);
+
+      // Grid template columns
+      // Give "name" more weight for readability
+      const weights = state.columns.map(c => c === "name" ? "1.6fr" : "0.7fr");
+      const template = weights.join(" ");
+      document.documentElement.style.setProperty("--cols", template);
+
+      // Render table header
+      els.thead.innerHTML = state.columns.map(c => `<div class="cell ${c}">${c}</div>`).join("");
+    }
+
+    function renderTenants(bundle) {
+      const tenantsCfg = bundle?.data?.theme?.tenants ?? {};
+      const sortMethod = (tenantsCfg.sortMethod || "name").toLowerCase();
+      const dir = bundle?.data?.directory ?? {};
+      const raw = Array.isArray(dir.entries) ? dir.entries : [];
+
+      // Transform entries
+      const entries = raw
+        .filter(e => e && e.active !== false)
+        .map(e => ({
+          name: e.company_name || "",
+          floor: e.floor || "",
+          suite: e.suite_room || "",
+          category: e.category || "",
+          logoUrl: sanitizeUrl(e.logo_url),
+          _id: e._id || e.id || Math.random().toString(36).slice(2)
+        }));
+
+      // Sorting
+      const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+      entries.sort((a, b) => {
+        if (sortMethod === "floor") return collator.compare(a.floor, b.floor);
+        if (sortMethod === "suite") return collator.compare(a.suite, b.suite);
+        return collator.compare(a.name, b.name);
+      });
+
+      state.entries = entries;
+      computeColumns(bundle);
+
+      // Pagination setup
+      state.rowsPerPage = calcRowsPerPage();
+      state.pages = paginate(state.entries, state.rowsPerPage);
+      state.pageIndex = 0;
+
+      drawPage();
+      drawDots();
+
+      // Start page rotation
+      clearInterval(state.rotateTimer);
+      state.rotateTimer = setInterval(nextPage, PAGE_ROTATE_MS);
+    }
+
+    function drawDots() {
+      const n = state.pages.length;
+      els.pageDots.innerHTML = "";
+      for (let i = 0; i < n; i++) {
+        const d = document.createElement("div");
+        d.className = "dot" + (i === state.pageIndex ? " active" : "");
+        els.pageDots.appendChild(d);
+      }
+      els.pageInfo.textContent = `Page ${n ? (state.pageIndex + 1) : 0} of ${n}`;
+    }
+
+    function drawPage() {
+      const page = state.pages[state.pageIndex] || [];
+      const rows = page.map(e => {
+        const nameCell = `
+          <div class="cell name">
+            <div class="avatar">${e.logoUrl ? `<img src="${e.logoUrl}" alt="${e.name} logo" />` : initials(e.name)}</div>
+            <div class="ellipsis">${escapeHtml(e.name)}</div>
+          </div>`;
+
+        const cells = state.columns.map(c => {
+          if (c === "name") return nameCell;
+          const val = escapeHtml(e[c] ?? "");
+          return `<div class="cell ${c} ellipsis">${val}</div>`;
+        }).join("");
+
+        return `<div class="row">${cells}</div>`;
+      }).join("");
+
+      // Simple fade-in
+      els.tbody.innerHTML = `<div class="fade-enter">${rows || ""}</div>`;
+      requestAnimationFrame(() => {
+        const child = els.tbody.firstElementChild;
+        if (child) child.classList.add("fade-enter-active");
+      });
+    }
+
+    function nextPage() {
+      if (!state.pages.length) return;
+      state.pageIndex = (state.pageIndex + 1) % state.pages.length;
+      drawPage();
+      drawDots();
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function toggleSleep(on) {
+      document.body.classList.toggle("sleeping", !!on);
+      els.statusBadge.textContent = on ? "Sleep" : (state.online ? "Online" : "Offline");
+      els.statusBadge.classList.toggle("sleep", !!on);
+      els.statusBadge.classList.toggle("offline", !state.online && !on);
+    }
+
+    function setOnline(online) {
+      state.online = !!online;
+      if (!document.body.classList.contains("sleeping")) {
+        els.statusBadge.textContent = online ? "Online" : "Offline";
+        els.statusBadge.classList.toggle("offline", !online);
+      }
+    }
+
+    // =========================
+    // DATA LOADING
+    // =========================
+    async function loadBundle() {
+      const useOffline = !!navigator && !navigator.onLine;
+      const allowOffline = true; // default; actual switch in bundle determines behavior post-load
+
+      try {
+        const res = await fetch(API_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data?.success) throw new Error("API success=false");
+        state.bundle = data;
+        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+        setOnline(true);
+        applyAll();
+      } catch (err) {
+        console.warn("[TV] Fetch failed:", err);
+        setOnline(false);
+        // Attempt cache if allowed
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          try {
+            state.bundle = JSON.parse(cached);
+            applyAll(/*cached*/ true);
+          } catch {}
+        } else {
+          // Render a minimal error state
+          els.tbody.innerHTML = `<div class="row"><div class="cell name">Unable to load directory.</div></div>`;
+        }
+      }
+    }
+
+    function applyAll(isCached = false) {
+      const b = state.bundle;
+      if (!b) return;
+      applyTheme(b);
+      renderHeader(b);
+      renderHero(b);
+      renderTenants(b);
+
+      const tz = b?.data?.location?.timezone || FALLBACK_TIMEZONE;
+      state.clockTZ = tz;
+
+      const updatedAt = b?.data?.updated_at || b?.data?.published_at || b?.data?.created_at || Date.now();
+      els.lastUpdated.textContent = (isCached ? "Cached — " : "Updated — ") + fmtDate(updatedAt, tz);
+
+      // Auto-refresh loop (if flagged)
+      const autoRefresh = !!(b?.data?.bundle_settings?.auto_refresh);
+      clearInterval(state.refreshTimer);
+      if (autoRefresh) {
+        state.refreshTimer = setInterval(loadBundle, AUTO_REFRESH_MS);
+      }
+    }
+
+    // =========================
+    // CLOCK
+    // =========================
+    function startClock() {
+      function tick() {
+        els.clock.textContent = fmtTime(Date.now(), state.clockTZ);
+        requestAnimationFrame(() => {}); // noop to keep compositor happy on some engines
+      }
+      tick();
+      setInterval(tick, 1000);
+    }
+
+    // =========================
+    // RESIZE HANDLER (re-page)
+    // =========================
+    let _resizeTimer = null;
+    function onResize() {
+      clearTimeout(_resizeTimer);
+      _resizeTimer = setTimeout(() => {
+        if (!state.entries.length) return;
+        const prevRows = state.rowsPerPage;
+        state.rowsPerPage = calcRowsPerPage();
+        if (state.rowsPerPage !== prevRows) {
+          state.pages = paginate(state.entries, state.rowsPerPage);
+          state.pageIndex = Math.min(state.pageIndex, state.pages.length - 1);
+          drawPage();
+          drawDots();
+        }
+      }, 150);
+    }
+
+    // =========================
+    // INIT
+    // =========================
+    (function init() {
+      // Base grid definition for table before theme arrives
+      document.documentElement.style.setProperty("--cols", "1.6fr 0.7fr 0.7fr 0.7fr");
+
+      startClock();
+      window.addEventListener("resize", onResize);
+      loadBundle();
+
+      // Keyboard helpers for testing on desktop:
+      // r = refresh; n = next page; s = toggle sleep
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "r") loadBundle();
+        if (e.key === "n") nextPage();
+        if (e.key === "s") {
+          const current = document.body.classList.contains("sleeping");
+          toggleSleep(!current);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
