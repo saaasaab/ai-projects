@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Equation Wrap 3D — build & export STL</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #111823;
+      --text: #eaeef6;
+      --muted: #8aa0b3;
+      --accent: #67d0ff;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    #ui {
+      position: fixed;
+      inset: 12px auto auto 12px;
+      width: 380px;
+      max-height: calc(100% - 24px);
+      overflow: auto;
+      padding: 14px 14px 10px;
+      background: linear-gradient(180deg, rgba(25, 34, 47, .95), rgba(15, 20, 28, .95));
+      border: 1px solid #1c2b3a;
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+      backdrop-filter: blur(6px);
+    }
+
+    #ui h1 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      font-weight: 650;
+      letter-spacing: .2px;
+      color: var(--text);
+    }
+
+    #ui .sub {
+      color: var(--muted);
+      margin: 2px 0 12px;
+      font-size: 12px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .row>label {
+      color: var(--muted);
+    }
+
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      box-sizing: border-box;
+      background: #0e1520;
+      color: var(--text);
+      border: 1px solid #203246;
+      padding: 8px 10px;
+      border-radius: 10px;
+      outline: none;
+      font-size: 13px;
+    }
+
+    input[type="number"] {
+      -moz-appearance: textfield;
+    }
+
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .stack {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    button {
+      appearance: none;
+      background: #122335;
+      color: var(--text);
+      border: 1px solid #22415c;
+      padding: 8px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button.primary {
+      background: #0f3a53;
+      border-color: #1f6a8e;
+    }
+
+    button:hover {
+      filter: brightness(1.06);
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 12px;
+      margin: 8px 0 0;
+    }
+
+    .tiny {
+      font-size: 11px;
+    }
+
+    .gridpair {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .sep {
+      height: 1px;
+      background: #1f2a34;
+      margin: 10px 0;
+    }
+
+    #credits {
+      position: fixed;
+      right: 12px;
+      bottom: 10px;
+      color: #b3c6d4;
+      font-size: 12px;
+      opacity: .8;
+    }
+
+    canvas {
+      display: block;
+    }
+  </style>
+  <!-- math.js for expression parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@12.4.1/lib/browser/math.js"></script>
+</head>
+
+<body>
+  <div id="ui">
+    <h1>Equation Wrap 3D</h1>
+    <div class="sub">Sweeps a circle of radius <code>|f(x)-g(x)|</code> around <code>g(x)</code> (perpendicular to X)
+      and builds a closed solid you can export as STL.</div>
+
+    <div class="row"><label>Top f(x)</label><input id="eqTop" type="text" value="4*x^2 + 5" /></div>
+    <div class="row"><label>Bottom g(x)</label><input id="eqBot" type="text" value="-sin(x)" /></div>
+
+    <div class="row"><label>X range</label>
+      <div class="gridpair">
+        <input id="x1" type="number" step="0.1" value="-20" title="x min" />
+        <input id="x2" type="number" step="0.1" value="20" title="x max" />
+        <input id="xSteps" type="number" step="1" min="10" value="40" title="steps along x" />
+        <input id="radial" type="number" step="1" min="8" value="64" title="radial segments" />
+      </div>
+    </div>
+
+    <div class="row"><label>Y clamp</label>
+      <div class="gridpair">
+        <input id="yMin" type="number" step="0.5" value="-20" title="minimum y shown" />
+        <input id="yMax" type="number" step="0.5" value="20" title="maximum y shown" />
+        <input id="radiusScale" type="number" step="0.1" value="1" title="scale radius if desired" />
+        <input id="capEnds" type="checkbox" checked title="cap ends" /><label for="capEnds" class="tiny"
+          style="align-self:center">Cap ends</label>
+      </div>
+    </div>
+
+    <div class="row"><label>Display</label>
+      <div class="stack">
+        <label class="tiny"><input id="showCurves" type="checkbox" /> show f(x), g(x)</label>
+        <label class="tiny"><input id="showGrid" type="checkbox" checked /> grid</label>
+        <label class="tiny"><input id="wire" type="checkbox" /> wireframe</label>
+      </div>
+    </div>
+    
+    <div class="row"><label>Line thickness</label>
+      <input id="lineThickness" type="number" step="0.05" min="0.01" max="0.2" value="0.25" title="Thickness of function lines" />
+    </div>
+
+    <div class="stack">
+      <button id="build" class="primary">Build / Update</button>
+      <button id="resetCam">Reset camera</button>
+      <button id="exportSTL">Export STL</button>
+    </div>
+
+    <div class="note">Syntax: <code>sin, cos, tan, arcsin, arccos, arctan, exp, log, sqrt, abs</code>, constants <code>pi, e</code>. Use
+      <code>^</code> for powers. Example: <code>x^2 + 5</code>, <code>-sin(x)</code>, <code>sqrt(abs(x))+2</code>, <code>arctan(x)</code>.
+    </div>
+  </div>
+
+  <div id="credits">Drag to orbit • right‑drag to pan • wheel to zoom</div>
+
+  <script type="module">
+
+
+// SOME Favorites:
+
+//  1: (1/5*x)^2 + 5  and -2*sin(.7*x)
+//  2: 2*sin(.7*x) and -(1/5*x)^2 - 5
+//  3: sqrt(25 - 1 x^2) and -1/x^2 
+//  4: 5*sqrt(1-(arccos(cos(pi*1/5x-pi))/pi)^2) and (4/5) * (-7 *sqrt(1 - (1/100) * x^2) +4 * sqrt(abs(x))) - 10
+
+// To get the. axis, you need to do g(x) =. (h(x) + f(x))/2
+
+
+
+    import * as THREE from './three.js';
+    import { OrbitControls } from './OrbitalControls.js';
+    import { STLExporter } from './STLExporter.js';
+
+  // ===== Scene =====
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b0f14);
+
+    const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.01, 10000);
+    camera.position.set(38, 32, 94);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x223344, 0.65);
+    scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(4, 8, 6);
+    dir.castShadow = false;
+    scene.add(dir);
+
+    // grid + axes
+    let grid = new THREE.GridHelper(200, 200, 0x274b63, 0x1a2c3b);
+    grid.rotation.x = Math.PI / 2; // put grid in X-Y plane? actually default is XZ; rotate to XY
+    grid.position.z = 0; // lie on z=0
+    scene.add(grid);
+
+    const axis = new THREE.AxesHelper(3.5);
+    axis.position.set(0, 0, 0);
+    scene.add(axis);
+
+    // containers
+    const modelGroup = new THREE.Group();
+    scene.add(modelGroup);
+
+    // materials
+    const matSolid = new THREE.MeshStandardMaterial({ color: 0x6fc1ff, roughness: 0.5, metalness: 0.05, transparent: true, opacity: 0.98 });
+    const matWire = new THREE.MeshBasicMaterial({ color: 0xbfe4ff, wireframe: true });
+    const lineMatTop = new THREE.LineBasicMaterial({ color: 0xff6b35 });
+    const lineMatBot = new THREE.LineBasicMaterial({ color: 0x00ff88 });
+
+    let solidMesh = null; // main mesh
+    let wireMesh = null;
+    let topLine = null;
+    let botLine = null;
+
+    function $(id) { return document.getElementById(id); }
+
+    // Compile equation string to a function f(x)
+    function compileExpr(exprStr) {
+      const compiled = window.math.compile(exprStr);
+      return (x) => {
+        try { 
+          return compiled.evaluate({ 
+            x, 
+            pi: Math.PI, 
+            e: Math.E,
+            arcsin: Math.asin,
+            arccos: Math.acos,
+            arctan: Math.atan
+          }); 
+        }
+        catch (e) { return NaN; }
+      };
+    }
+
+    function clamp(v, vmin, vmax) { return Math.max(vmin, Math.min(vmax, v)); }
+
+    function buildGeometry() {
+      // remove previous
+      modelGroup.clear();
+      solidMesh = wireMesh = topLine = botLine = null;
+
+      const f = compileExpr($("eqTop").value.trim());
+      const g = compileExpr($("eqBot").value.trim());
+
+      const x1 = parseFloat($("x1").value);
+      const x2 = parseFloat($("x2").value);
+      const steps = Math.max(10, parseInt($("xSteps").value));
+      const radial = Math.max(8, parseInt($("radial").value));
+      const yMin = parseFloat($("yMin").value);
+      const yMax = parseFloat($("yMax").value);
+      const radiusScale = parseFloat($("radiusScale").value);
+      const doCaps = $("capEnds").checked;
+
+      const dx = (x2 - x1) / steps;
+      const ringSize = radial + 1;
+
+      const positions = [];
+      const normals = [];
+      const indices = [];
+
+      // Precompute centers & radii
+      const centers = new Array(steps + 1);
+      const radii = new Array(steps + 1);
+
+      let bounds = { minx: x1, maxx: x2, miny: Infinity, maxy: -Infinity, maxr: 0 };
+
+      for (let i = 0; i <= steps; i++) {
+        const x = x1 + i * dx;
+        let yb = g(x); let yt = f(x);
+        if (!isFinite(yb)) yb = (yb > 0 ? yMax : yMin);
+        if (!isFinite(yt)) yt = (yt > 0 ? yMax : yMin);
+        yb = clamp(yb, yMin, yMax);
+        yt = clamp(yt, yMin, yMax);
+        let r = Math.abs(yt - yb) * radiusScale;
+        r = clamp(r, 0, Math.abs(yMax - yMin) * 5); // basic safety cap
+
+        centers[i] = { x, y: yb };
+        radii[i] = r;
+
+        bounds.miny = Math.min(bounds.miny, yb - r);
+        bounds.maxy = Math.max(bounds.maxy, yb + r);
+        bounds.maxr = Math.max(bounds.maxr, r);
+      }
+
+      // Build surface vertices
+      for (let i = 0; i <= steps; i++) {
+        const { x, y } = centers[i];
+        const r = radii[i];
+        for (let j = 0; j <= radial; j++) {
+          const a = j / radial * Math.PI * 2;
+          const cy = y + r * Math.sin(a);
+          const cz = r * Math.cos(a);
+          positions.push(x, cy, cz);
+          // normal pointing radially (approx.)
+          normals.push(0, Math.sin(a), Math.cos(a));
+        }
+      }
+
+      // Side faces
+      for (let i = 0; i < steps; i++) {
+        const row = i * ringSize;
+        const next = (i + 1) * ringSize;
+        for (let j = 0; j < radial; j++) {
+          const a = row + j;
+          const b = next + j;
+          const c = next + j + 1;
+          const d = row + j + 1;
+          indices.push(a, b, c, a, c, d);
+        }
+      }
+
+      // End caps (triangle fans)
+      if (doCaps && radii[0] > 0.0001) {
+        const startCenterIndex = positions.length / 3;
+        positions.push(centers[0].x, centers[0].y, 0);
+        normals.push(-1, 0, 0); // facing -x
+        for (let j = 0; j < radial; j++) {
+          const a = j; // ring index at i=0
+          const b = j + 1;
+          indices.push(startCenterIndex, a, b);
+        }
+      }
+
+      if (doCaps && radii[steps] > 0.0001) {
+        const endCenterIndex = positions.length / 3;
+        positions.push(centers[steps].x, centers[steps].y, 0);
+        normals.push(1, 0, 0); // facing +x
+        const ringStart = steps * ringSize;
+        for (let j = 0; j < radial; j++) {
+          const a = ringStart + j;
+          const b = ringStart + j + 1;
+          indices.push(endCenterIndex, b, a); // reverse winding
+        }
+      }
+
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geom.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      geom.setIndex(indices);
+      geom.computeBoundingBox();
+      geom.computeBoundingSphere();
+
+      solidMesh = new THREE.Mesh(geom, $("wire").checked ? matWire : matSolid);
+      solidMesh.castShadow = solidMesh.receiveShadow = false;
+      modelGroup.add(solidMesh);
+
+      if ($("wire").checked) {
+        wireMesh = solidMesh; // material is wire
+      }
+
+      // Curve lines on z=0 plane
+      if ($("showCurves").checked) {
+        const ptsTop = [];
+        const ptsBot = [];
+        for (let i = 0; i <= steps; i++) {
+          const x = x1 + i * dx;
+          let yb = clamp(g(x), yMin, yMax);
+          let yt = clamp(f(x), yMin, yMax);
+          if (!isFinite(yb)) yb = (yb > 0 ? yMax : yMin);
+          if (!isFinite(yt)) yt = (yt > 0 ? yMax : yMin);
+          ptsTop.push(new THREE.Vector3(x, yt, 0));
+          ptsBot.push(new THREE.Vector3(x, yb, 0));
+        }
+        const geoTop = new THREE.BufferGeometry().setFromPoints(ptsTop);
+        const geoBot = new THREE.BufferGeometry().setFromPoints(ptsBot);
+        topLine = new THREE.Line(geoTop, lineMatTop);
+        botLine = new THREE.Line(geoBot, lineMatBot);
+        modelGroup.add(topLine, botLine);
+      }
+
+      grid.visible = $("showGrid").checked;
+
+      // Only fit camera on initial build, not when updating settings
+      if (!solidMesh) {
+        // Fit camera
+        const bb = geom.boundingBox;
+        const cx = (bb.max.x + bb.min.x) / 2;
+        const cy = (bb.max.y + bb.min.y) / 2;
+        const cz = 0;
+        controls.target.set(cx, cy, cz);
+
+        const spanX = (bb.max.x - bb.min.x);
+        const spanY = (bb.max.y - bb.min.y);
+        const maxSpan = Math.max(spanX, spanY);
+        const dist = maxSpan * 1.6 + Math.max(3, bounds.maxr * 1.2);
+        camera.position.set(cx + dist, cy + dist * 0.7, cz + dist);
+        camera.near = Math.max(0.001, dist / 5000);
+        camera.far = Math.max(1000, dist * 50);
+        camera.updateProjectionMatrix();
+      }
+      
+      // Update curves and wireframe after building geometry
+      updateCurves();
+      updateWireframe();
+    }
+
+    // Function to update wireframe without rebuilding geometry
+    function updateWireframe() {
+      if (solidMesh) {
+        solidMesh.material = $("wire").checked ? matWire : matSolid;
+        if ($("wire").checked) {
+          wireMesh = solidMesh;
+        } else {
+          wireMesh = null;
+        }
+      }
+    }
+
+    // Function to update curves without rebuilding geometry
+    function updateCurves() {
+      // Remove existing curves and labels
+      if (topLine) modelGroup.remove(topLine);
+      if (botLine) modelGroup.remove(botLine);
+      
+
+      
+      if ($("showCurves").checked) {
+        const f = compileExpr($("eqTop").value.trim());
+        const g = compileExpr($("eqBot").value.trim());
+        
+        const x1 = parseFloat($("x1").value);
+        const x2 = parseFloat($("x2").value);
+        const steps = Math.max(10, parseInt($("xSteps").value));
+        const yMin = parseFloat($("yMin").value);
+        const yMax = parseFloat($("yMax").value);
+        
+        const dx = (x2 - x1) / steps;
+        
+        const ptsTop = [];
+        const ptsBot = [];
+        for (let i = 0; i <= steps; i++) {
+          const x = x1 + i * dx;
+          let yb = g(x);//clamp(g(x), yMin, yMax);
+          let yt = f(x);//clamp(f(x), yMin, yMax);
+          if (!isFinite(yb)) yb = (yb > 0 ? yMax : yMin);
+          if (!isFinite(yt)) yt = (yt > 0 ? yMax : yMin);
+          ptsTop.push(new THREE.Vector3(x, yt, 0));
+          ptsBot.push(new THREE.Vector3(x, yb, 0));
+        }
+        
+        const geoTop = new THREE.BufferGeometry().setFromPoints(ptsTop);
+        const geoBot = new THREE.BufferGeometry().setFromPoints(ptsBot);
+        
+        // Create thicker lines by using multiple line segments with slight offsets
+        const lineGroupTop = new THREE.Group();
+        const lineGroupBot = new THREE.Group();
+        
+        // Add multiple lines with slight offsets to create thickness
+        const thickness = parseFloat($("lineThickness").value);
+        for (let offset = -thickness; offset <= thickness; offset += thickness / 2) {
+          const offsetPtsTop = ptsTop.map(pt => new THREE.Vector3(pt.x, pt.y, pt.z + offset));
+          const offsetPtsBot = ptsBot.map(pt => new THREE.Vector3(pt.x, pt.y, pt.z + offset));
+          
+          const offsetGeoTop = new THREE.BufferGeometry().setFromPoints(offsetPtsTop);
+          const offsetGeoBot = new THREE.BufferGeometry().setFromPoints(offsetPtsBot);
+          
+          const offsetLineTop = new THREE.Line(offsetGeoTop, lineMatTop);
+          const offsetLineBot = new THREE.Line(offsetGeoBot, lineMatBot);
+          
+          lineGroupTop.add(offsetLineTop);
+          lineGroupBot.add(offsetLineBot);
+        }
+        
+        topLine = lineGroupTop;
+        botLine = lineGroupBot;
+        
+        modelGroup.add(topLine, botLine);
+      }
+    }
+
+    // Function to create text texture for labels
+    function createTextTexture(text, color) {
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = 256;
+      canvas.height = 64;
+      
+      context.fillStyle = '#000000';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      
+      context.font = 'bold 32px Arial';
+      context.fillStyle = '#' + color.toString(16).padStart(6, '0');
+      context.textAlign = 'left';
+      context.textBaseline = 'middle';
+      context.fillText(text, 10, canvas.height / 2);
+      
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.needsUpdate = true;
+      return texture;
+    }
+
+    // UI handlers
+    $("build").addEventListener('click', buildGeometry);
+    $("resetCam").addEventListener('click', () => {
+      controls.reset();
+    });
+    $("wire").addEventListener('change', updateWireframe);
+    $("showCurves").addEventListener('change', updateCurves);
+    $("showGrid").addEventListener('change', () => grid.visible = $("showGrid").checked);
+
+    // Export STL
+    $("exportSTL").addEventListener('click', () => {
+      if (!solidMesh) { alert('Build a model first.'); return; }
+      const exporter = new STLExporter();
+      // Parse just the solid mesh + caps + lines? For printing, export only the solid (ignore helper lines)
+      const sceneForExport = new THREE.Group();
+      // clone solid mesh to guarantee solid material
+      const clone = solidMesh.clone();
+      clone.material = new THREE.MeshStandardMaterial();
+      sceneForExport.add(clone);
+      const stlString = exporter.parse(sceneForExport, { binary: false });
+      const blob = new Blob([stlString], { type: 'model/stl' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const fname = 'equation-wrap.stl';
+      a.download = fname;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    });
+
+    // handle resize
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    // animate
+    renderer.setAnimationLoop(() => {
+      controls.update();
+      renderer.render(scene, camera);
+    });
+
+    // initial build
+    buildGeometry();
+  </script>
+</body>
+
+</html>
