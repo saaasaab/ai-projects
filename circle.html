@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glowing Blue Circle</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            background: linear-gradient(135deg, #0a1428, #1a2b4a);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .glow-circle {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle at center, 
+                rgba(0, 150, 255, 0.8) 0%,
+                rgba(0, 120, 255, 0.6) 20%,
+                rgba(0, 100, 255, 0.4) 40%,
+                rgba(0, 80, 255, 0.2) 60%,
+                rgba(0, 60, 255, 0.1) 80%,
+                transparent 100%);
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .glow-circle::before {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            right: -10px;
+            bottom: -10px;
+            border-radius: 50%;
+            background: radial-gradient(circle at center,
+                rgba(0, 200, 255, 0.3) 0%,
+                rgba(0, 150, 255, 0.2) 30%,
+                rgba(0, 100, 255, 0.1) 60%,
+                transparent 100%);
+            z-index: -1;
+        }
+
+        .glow-circle::after {
+            content: '';
+            position: absolute;
+            top: -20px;
+            left: -20px;
+            right: -20px;
+            bottom: -20px;
+            border-radius: 50%;
+            background: radial-gradient(circle at center,
+                rgba(0, 255, 255, 0.1) 0%,
+                rgba(0, 200, 255, 0.05) 50%,
+                transparent 100%);
+            z-index: -2;
+        }
+
+        /* Pulse animation */
+        .glow-circle.pulse {
+            animation: pulseGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% {
+                transform: scale(1);
+                filter: brightness(1);
+            }
+            50% {
+                transform: scale(1.1);
+                filter: brightness(1.3);
+            }
+        }
+
+        /* Demo buttons */
+        .controls {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            background: linear-gradient(135deg, #0066cc, #0099ff);
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 150, 255, 0.3);
+        }
+
+        .btn:hover {
+            background: linear-gradient(135deg, #0080ff, #00aaff);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 150, 255, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .status {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 16px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="glow-circle" id="glowCircle"></div>
+        
+        <div class="controls">
+            <button class="btn" onclick="togglePulse()">Toggle Pulse</button>
+            <button class="btn" onclick="resetCircle()">Reset</button>
+        </div>
+        
+        <div class="status" id="status">Click "Toggle Pulse" to see the animation</div>
+    </div>
+
+    <script>
+        const circle = document.getElementById('glowCircle');
+        const status = document.getElementById('status');
+        let isPulsing = false;
+
+        function togglePulse() {
+            isPulsing = !isPulsing;
+            if (isPulsing) {
+                circle.classList.add('pulse');
+                status.textContent = 'Pulsing animation active';
+            } else {
+                circle.classList.remove('pulse');
+                status.textContent = 'Pulsing animation stopped';
+            }
+        }
+
+        function resetCircle() {
+            circle.classList.remove('pulse');
+            isPulsing = false;
+            status.textContent = 'Circle reset to default state';
+        }
+    </script>
+</body>
+</html>
