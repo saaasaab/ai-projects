@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tilted Lane Laser Defense</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #111;
+      color: #f5f5f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    #ui {
+      position: fixed;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      font-size: 18px;
+      pointer-events: none;
+    }
+
+    #gameContainer {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    canvas {
+      background: radial-gradient(circle at center, #233344 0%, #1b2835 45%, #05070a 100%);
+      box-shadow: 0 0 40px rgba(0,0,0,0.8);
+      border-radius: 4px;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.7);
+      z-index: 20;
+    }
+
+    .card {
+      background: #1e2933;
+      padding: 24px 32px;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      max-width: 420px;
+      text-align: center;
+    }
+
+    .card h1 {
+      margin-top: 0;
+      margin-bottom: 8px;
+    }
+
+    .btn {
+      margin-top: 16px;
+      padding: 10px 24px;
+      border: none;
+      border-radius: 5px;
+      background: #0d72ff;
+      color: white;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+      filter: brightness(0.9);
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">Score: <span id="score">0</span></div>
+  <div id="gameContainer">
+    <canvas id="game" width="800" height="600"></canvas>
+  </div>
+
+  <div id="startOverlay" class="overlay">
+    <div class="card">
+      <h1>Tilted Lane Defense</h1>
+      <p>Defend the lane from incoming enemies.</p>
+      <p>Move with <strong>A/D</strong> or <strong>←/→</strong>, shoot with <strong>Space</strong>.</p>
+      <p>Break barriers to release power-ups.</p>
+      <button id="startBtn" class="btn">Start Game</button>
+    </div>
+  </div>
+
+  <div id="gameOverOverlay" class="overlay" style="display:none;">
+    <div class="card">
+      <h1>Game Over</h1>
+      <p>Your final score: <span id="finalScore">0</span></p>
+      <button id="restartBtn" class="btn">Play Again</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const scoreEl = document.getElementById("score");
+    const startOverlay = document.getElementById("startOverlay");
+    const gameOverOverlay = document.getElementById("gameOverOverlay");
+    const startBtn = document.getElementById("startBtn");
+    const restartBtn = document.getElementById("restartBtn");
+    const finalScoreEl = document.getElementById("finalScore");
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    // Logical "lane" coordinates:
+    // u ∈ [0,1] is left→right across the lane
+    // v ∈ [0,1] is top→bottom along the lane
+    //
+    // We'll project (u, v) onto a tilted trapezoid to get 2D canvas coordinates.
+
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    const lane = {
+      // Narrow playing field, tilted in 3D-ish perspective
+      topY: 80,
+      bottomY: H - 60,
+      topLeftX: W * 0.45,
+      topRightX: W * 0.55,
+      bottomLeftX: W * 0.35,
+      bottomRightX: W * 0.65
+    };
+
+    function projectToLane(u, v) {
+      // clamp
+      if (u < 0) u = 0;
+      if (u > 1) u = 1;
+      if (v < 0) v = 0;
+      if (v > 1) v = 1;
+
+      const topX = lerp(lane.topLeftX, lane.topRightX, u);
+      const bottomX = lerp(lane.bottomLeftX, lane.bottomRightX, u);
+
+      const x = lerp(topX, bottomX, v);
+      const y = lerp(lane.topY, lane.bottomY, v);
+      return { x, y };
+    }
+
+    // --- Game State ---
+    let keys = {};
+    let bullets = [];
+    let enemies = [];
+    let barriers = [];
+    let powerUps = [];
+
+    let score = 0;
+    let gameRunning = false;
+    let lastTime = 0;
+    let enemySpawnTimer = 0;
+    let enemySpawnInterval = 550; // ms, will go down over time for "more bad guys"
+
+    const player = {
+      u: 0.5,     // position across lane
+      v: 1.0,     // near bottom
+      radius: 14,
+      speed: 0.7, // lane units per second horizontally
+      shootCooldown: 0,
+      baseFireDelay: 220, // ms
+      fireDelay: 220,
+      tripleShot: false
+    };
+
+    const POWERUP_TYPES = ["rapid", "triple"];
+
+    let powerUpTimers = {
+      rapid: 0,
+      triple: 0
+    };
+
+    function resetGame() {
+      score = 0;
+      scoreEl.textContent = score;
+
+      bullets = [];
+      enemies = [];
+      barriers = [];
+      powerUps = [];
+
+      // reset player
+      player.u = 0.5;
+      player.v = 1.0;
+      player.fireDelay = player.baseFireDelay;
+      player.tripleShot = false;
+
+      powerUpTimers.rapid = 0;
+      powerUpTimers.triple = 0;
+
+      enemySpawnInterval = 550;
+      enemySpawnTimer = 0;
+      lastTime = performance.now();
+
+      // create some barriers along the lane
+      for (let i = 0; i < 4; i++) {
+        barriers.push({
+          u: 0.2 + 0.2 * i,
+          v: 0.28 + 0.12 * i,
+          width: 0.14,
+          height: 0.03,
+          hp: 4 + i, // vary the number shown
+        });
+      }
+    }
+
+    function spawnEnemy() {
+      enemies.push({
+        u: Math.random(), // inside lane only
+        v: -0.05,         // slightly above entry so they slide in
+        radius: 0.03 + Math.random() * 0.015,
+        speed: 0.15 + Math.random() * 0.06 // lane v per second
+      });
+    }
+
+    function spawnPowerUp(u, v) {
+      const type = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+      powerUps.push({
+        u,
+        v,
+        radius: 0.025,
+        type,
+        speed: 0.15
+      });
+    }
+
+    function shoot() {
+      if (player.shootCooldown > 0) return;
+
+      const bulletSpeed = 0.9; // lane v per second (fast)
+
+      const shots = [];
+      shots.push({ u: player.u, v: player.v - 0.02, radius: 0.01, speed: bulletSpeed });
+
+      if (player.tripleShot) {
+        shots.push({ u: player.u - 0.04, v: player.v - 0.02, radius: 0.01, speed: bulletSpeed });
+        shots.push({ u: player.u + 0.04, v: player.v - 0.02, radius: 0.01, speed: bulletSpeed });
+      }
+
+      shots.forEach(b => bullets.push(b));
+      player.shootCooldown = player.fireDelay;
+    }
+
+    function update(delta) {
+      const dt = delta / 1000; // seconds
+
+      // movement
+      let dir = 0;
+      if (keys["ArrowLeft"] || keys["KeyA"]) dir -= 1;
+      if (keys["ArrowRight"] || keys["KeyD"]) dir += 1;
+
+      player.u += dir * player.speed * dt;
+      // clamp to lane 0..1 (hard boundaries)
+      if (player.u < 0) player.u = 0;
+      if (player.u > 1) player.u = 1;
+
+      // shooting
+      if (keys["Space"]) {
+        shoot();
+      }
+
+      if (player.shootCooldown > 0) {
+        player.shootCooldown -= delta;
+        if (player.shootCooldown < 0) player.shootCooldown = 0;
+      }
+
+      // enemy spawning – more and more over time
+      enemySpawnTimer += delta;
+      if (enemySpawnTimer > enemySpawnInterval) {
+        enemySpawnTimer = 0;
+        spawnEnemy();
+
+        // make spawn faster over time but clamp minimum
+        enemySpawnInterval = Math.max(180, enemySpawnInterval * 0.985);
+      }
+
+      // Update bullets
+      bullets.forEach(b => {
+        b.v -= b.speed * dt;
+      });
+      bullets = bullets.filter(b => b.v > -0.1);
+
+      // Update enemies
+      enemies.forEach(e => {
+        e.v += e.speed * dt;
+      });
+
+      // Check lose condition
+      for (let e of enemies) {
+        if (e.v >= 0.98) {
+          gameOver();
+          return;
+        }
+      }
+
+      // Update power-ups
+      powerUps.forEach(p => {
+        p.v += p.speed * dt;
+      });
+      powerUps = powerUps.filter(p => p.v <= 1.1);
+
+      // Power-up timers
+      if (powerUpTimers.rapid > 0) {
+        powerUpTimers.rapid -= delta;
+        if (powerUpTimers.rapid <= 0) {
+          player.fireDelay = player.baseFireDelay;
+        }
+      }
+      if (powerUpTimers.triple > 0) {
+        powerUpTimers.triple -= delta;
+        if (powerUpTimers.triple <= 0) {
+          player.tripleShot = false;
+        }
+      }
+
+      // Bullet-enemy collisions
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const e = enemies[i];
+        const eR = e.radius;
+
+        for (let j = bullets.length - 1; j >= 0; j--) {
+          const b = bullets[j];
+          const dx = (e.u - b.u);
+          const dy = (e.v - b.v);
+          const dist2 = dx * dx + dy * dy;
+          const rad = eR + b.radius;
+          if (dist2 < rad * rad) {
+            enemies.splice(i, 1);
+            bullets.splice(j, 1);
+            score += 10;
+            scoreEl.textContent = score;
+            break;
+          }
+        }
+      }
+
+      // Bullet-barrier collisions
+      for (let bi = barriers.length - 1; bi >= 0; bi--) {
+        const barrier = barriers[bi];
+        const u0 = barrier.u - barrier.width / 2;
+        const u1 = barrier.u + barrier.width / 2;
+        const v0 = barrier.v - barrier.height / 2;
+        const v1 = barrier.v + barrier.height / 2;
+
+        for (let j = bullets.length - 1; j >= 0; j--) {
+          const b = bullets[j];
+          if (b.u >= u0 && b.u <= u1 && b.v >= v0 && b.v <= v1) {
+            bullets.splice(j, 1);
+            barrier.hp -= 1;
+            score += 2;
+            scoreEl.textContent = score;
+            if (barrier.hp <= 0) {
+              // spawn power-up at barrier position
+              spawnPowerUp(barrier.u, barrier.v);
+              barriers.splice(bi, 1);
+            }
+            break;
+          }
+        }
+      }
+
+      // Player-powerup collisions
+      for (let i = powerUps.length - 1; i >= 0; i--) {
+        const p = powerUps[i];
+        const dx = p.u - player.u;
+        const dy = p.v - player.v;
+        const rad = p.radius + 0.03;
+        if (dx * dx + dy * dy < rad * rad) {
+          applyPowerUp(p.type);
+          powerUps.splice(i, 1);
+        }
+      }
+
+      // Remove off-screen enemies (just in case)
+      enemies = enemies.filter(e => e.v < 1.2);
+    }
+
+    function applyPowerUp(type) {
+      if (type === "rapid") {
+        player.fireDelay = 90;
+        powerUpTimers.rapid = 6000; // 6 seconds
+      } else if (type === "triple") {
+        player.tripleShot = true;
+        powerUpTimers.triple = 6000;
+      }
+    }
+
+    function drawLane() {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(lane.topLeftX, lane.topY);
+      ctx.lineTo(lane.topRightX, lane.topY);
+      ctx.lineTo(lane.bottomRightX, lane.bottomY);
+      ctx.lineTo(lane.bottomLeftX, lane.bottomY);
+      ctx.closePath();
+
+      // faint floor
+      const grad = ctx.createLinearGradient(0, lane.topY, 0, lane.bottomY);
+      grad.addColorStop(0, "#24384d");
+      grad.addColorStop(1, "#111822");
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // glowing borders
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(0, 200, 255, 0.6)";
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function drawPlayer() {
+      const p = projectToLane(player.u, player.v);
+      const size = player.radius;
+
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.beginPath();
+      ctx.moveTo(0, -size);
+      ctx.lineTo(size * 0.8, size);
+      ctx.lineTo(-size * 0.8, size);
+      ctx.closePath();
+
+      ctx.fillStyle = "#3fa9ff";
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#cbe8ff";
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawBullets() {
+      ctx.save();
+      ctx.fillStyle = "#ffe066";
+      bullets.forEach(b => {
+        const p = projectToLane(b.u, b.v);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    function drawEnemies() {
+      ctx.save();
+      ctx.fillStyle = "#ff5b4d";
+      enemies.forEach(e => {
+        const p = projectToLane(e.u, e.v);
+        const r = e.radius * 200; // scale logical radius
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // little highlight
+        ctx.beginPath();
+        ctx.arc(p.x - r * 0.3, p.y - r * 0.3, r * 0.4, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,255,255,0.25)";
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    function drawBarriers() {
+      ctx.save();
+      barriers.forEach(barrier => {
+        const leftTop = projectToLane(barrier.u - barrier.width / 2, barrier.v - barrier.height / 2);
+        const rightBottom = projectToLane(barrier.u + barrier.width / 2, barrier.v + barrier.height / 2);
+
+        const w = rightBottom.x - leftTop.x;
+        const h = rightBottom.y - leftTop.y;
+
+        ctx.fillStyle = "#a855f7";
+        ctx.fillRect(leftTop.x, leftTop.y, w, h);
+
+        ctx.strokeStyle = "rgba(255,255,255,0.45)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(leftTop.x, leftTop.y, w, h);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "14px system-ui";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(barrier.hp.toString(), leftTop.x + w / 2, leftTop.y + h / 2);
+      });
+      ctx.restore();
+    }
+
+    function drawPowerUps() {
+      ctx.save();
+      powerUps.forEach(p => {
+        const pos = projectToLane(p.u, p.v);
+        const r = p.radius * 200;
+
+        const color = p.type === "rapid" ? "#22c55e" : "#f97316";
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        ctx.strokeStyle = "#111827";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = "#0b1120";
+        ctx.font = "bold 12px system-ui";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(p.type === "rapid" ? "R" : "3", pos.x, pos.y);
+      });
+      ctx.restore();
+    }
+
+    function gameOver() {
+      gameRunning = false;
+      finalScoreEl.textContent = score;
+      gameOverOverlay.style.display = "flex";
+    }
+
+    function loop(timestamp) {
+      if (!gameRunning) return;
+
+      const delta = timestamp - lastTime;
+      lastTime = timestamp;
+
+      update(delta);
+
+      // Draw
+      ctx.clearRect(0, 0, W, H);
+
+      // Dim surrounding area to emphasize narrow lane
+      ctx.fillStyle = "#05070a";
+      ctx.fillRect(0, 0, W, H);
+
+      drawLane();
+      drawBarriers();
+      drawPowerUps();
+      drawEnemies();
+      drawBullets();
+      drawPlayer();
+
+      requestAnimationFrame(loop);
+    }
+
+    // Input
+    window.addEventListener("keydown", (e) => {
+      keys[e.code] = true;
+      if (["ArrowLeft", "ArrowRight", "Space", "KeyA", "KeyD"].includes(e.code)) {
+        e.preventDefault();
+      }
+    });
+    window.addEventListener("keyup", (e) => {
+      keys[e.code] = false;
+    });
+
+    function startGame() {
+      resetGame();
+      gameRunning = true;
+      startOverlay.style.display = "none";
+      gameOverOverlay.style.display = "none";
+      lastTime = performance.now();
+      requestAnimationFrame(loop);
+    }
+
+    startBtn.addEventListener("click", startGame);
+    restartBtn.addEventListener("click", startGame);
+  </script>
+</body>
+</html>
