@@ -381,7 +381,6 @@
                         <option value="F#">F# / D#m</option>
                         <option value="C#">C# / A#m</option>
                         <option value="F">F / Dm</option>
-                        
                         <option value="Eb">Eb / Cm</option>
                         <option value="Ab">Ab / Fm</option>
                         <option value="Db">Db / Bbm</option>
@@ -1276,11 +1275,43 @@
 
                 const all = [...table.map(x => ({ ...x, dots: 0 })), ...dotted];
 
-                // find closest
+                // Find closest match, but prefer common note values (8th, quarter, half) over shorter ones
+                // when durations are ambiguous
                 let best = all[0], bestErr = Math.abs(all[0].u - units);
+                const commonDurations = [0.5, 1, 2]; // 8th, quarter, half notes
+                
                 for (const c of all) {
                     const err = Math.abs(c.u - units);
-                    if (err < bestErr - eps) { best = c; bestErr = err; }
+                    const isCommon = commonDurations.includes(c.u);
+                    const bestIsCommon = commonDurations.includes(best.u);
+                    
+                    // Prefer if: smaller error, OR similar error but this is common and best isn't
+                    if (err < bestErr - eps) {
+                        best = c;
+                        bestErr = err;
+                    } else if (Math.abs(err - bestErr) < 0.05 && isCommon && !bestIsCommon) {
+                        // If errors are very close (within 0.05), prefer common duration
+                        best = c;
+                        bestErr = err;
+                    } else if (Math.abs(err - bestErr) < 0.05 && c.u > best.u && c.u <= 1) {
+                        // If errors are very close, prefer longer note (but not too long)
+                        best = c;
+                        bestErr = err;
+                    }
+                }
+
+                // Special case: if duration is between 0.2 and 0.45 quarter notes, prefer 8th note (0.5)
+                // This handles cases where notes are slightly shorter than intended
+                if (units >= 0.2 && units <= 0.45) {
+                    const eighthNote = all.find(c => c.u === 0.5 && !c.dots);
+                    if (eighthNote) {
+                        const eighthErr = Math.abs(0.5 - units);
+                        // Prefer 8th note if it's reasonably close (within 0.2)
+                        if (eighthErr < 0.2) {
+                            best = eighthNote;
+                            bestErr = eighthErr;
+                        }
+                    }
                 }
 
                 // If way off, clamp to smallest
@@ -1406,7 +1437,7 @@
                             const isChord = Array.isArray(midis);
                             const midiArray = isChord ? midis : [midis];
                             
-                            const durInfo = durationFromSeconds(sec, bpm, subdiv);
+                            const durInfo = durationFromSeconds(sec, bpm);
                             let dur = durInfo.d.replace('d', '');
                             
                             // Convert all MIDIs to VexFlow keys
@@ -1440,7 +1471,7 @@
 
                         function createRest(sec) {
                             // convert rest seconds -> nearest duration
-                            const durInfo = durationFromSeconds(sec, bpm, subdiv);
+                            const durInfo = durationFromSeconds(sec, bpm);
                             let dur = durInfo.d.replace('d', ''); // VexFlow uses dots separately
                             const rest = new VF.StaveNote({ clef, keys: ['b/4'], duration: dur + 'r' });
                             if (durInfo.dots) {
@@ -1482,25 +1513,17 @@
                             const groupStart = group.startTime;
                             const groupEnd = group.maxEnd;
                             
-                            // Fill gap before this group with rest
+                            // Skip gaps without creating rests - just move cursor forward
                             while (measureTimeCursor < groupStart - 1e-6) {
                                 const measureEnd = measureStartTime + measureSec;
                                 
                                 if (groupStart < measureEnd) {
-                                    // Group is in current measure
-                                    const gap = groupStart - measureTimeCursor;
-                                    if (gap > 1e-6) {
-                                        currentMeasure.push(createRest(gap));
-                                    }
+                                    // Group is in current measure - just update cursor, no rest
                                     measureTimeCursor = groupStart;
                                     break;
                                 } else {
-                                    // Fill rest of current measure and move to next
-                                    const gap = measureEnd - measureTimeCursor;
-                                    if (gap > 1e-6) {
-                                        currentMeasure.push(createRest(gap));
-                                    }
-                                    // Finalize current measure
+                                    // Move to next measure without filling with rest
+                                    // Finalize current measure if it has notes
                                     if (currentMeasure.length > 0) {
                                         measures.push([...currentMeasure]);
                                     }
@@ -1543,12 +1566,7 @@
                             }
                         }
                         
-                        // Finalize last measure - pad with rest if needed
-                        const finalMeasureEnd = measureStartTime + measureSec;
-                        if (measureTimeCursor < finalMeasureEnd - 1e-6) {
-                            const pad = finalMeasureEnd - measureTimeCursor;
-                            currentMeasure.push(createRest(pad));
-                        }
+                        // Finalize last measure - no padding with rests
                         if (currentMeasure.length > 0) {
                             measures.push(currentMeasure);
                         }
@@ -1599,7 +1617,7 @@
                             if (i < trebleMeasures.length && trebleMeasures[i].length > 0) {
                                 const trebleStave = new VF.Stave(xPos, trebleYThisLine, measureWidth);
                                 if (isFirstMeasureInLine) {
-                                    trebleStave.addClef('treble').addTimeSignature(ts).addKeySignature(keySig);
+                                    trebleStave.addClef('treble').addTimeSignature(ts);
                                 }
                                 trebleStave.setContext(ctx).draw();
                                 
@@ -1616,7 +1634,7 @@
                             if (i < bassMeasures.length && bassMeasures[i].length > 0) {
                                 const bassStave = new VF.Stave(xPos, bassYThisLine, measureWidth);
                                 if (isFirstMeasureInLine) {
-                                    bassStave.addClef('bass').addTimeSignature(ts).addKeySignature(keySig);
+                                    bassStave.addClef('bass').addTimeSignature(ts);
                                 }
                                 bassStave.setContext(ctx).draw();
                                 
