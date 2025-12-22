@@ -1,0 +1,1695 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Video → Falling Notes → Sheet Music (Prototype)</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+            background: #0b0b0f;
+            color: #e9e9f1;
+        }
+
+        header {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        header .title {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 16px;
+            letter-spacing: 0.2px;
+        }
+
+        header p {
+            margin: 0;
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .wrap {
+            display: grid;
+            grid-template-columns: 420px 1fr;
+            gap: 0;
+            height: calc(100vh - 58px);
+        }
+
+        .panel {
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 14px;
+            overflow: auto;
+        }
+
+        .panel h2 {
+            margin: 12px 0 8px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            opacity: 0.85;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .row.single {
+            grid-template-columns: 1fr;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 6px;
+        }
+
+        input,
+        select,
+        button,
+        textarea {
+            width: 100%;
+            box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            color: #e9e9f1;
+            border-radius: 10px;
+            padding: 10px 10px;
+            outline: none;
+            font-size: 13px;
+        }
+
+        input[type="range"] {
+            padding: 6px 0;
+        }
+
+        button {
+            cursor: pointer;
+            transition: transform .02s ease, background .15s ease;
+            background: rgba(120, 180, 255, 0.16);
+            border-color: rgba(120, 180, 255, 0.35);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        button.secondary {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        button.danger {
+            background: rgba(255, 90, 90, 0.14);
+            border-color: rgba(255, 90, 90, 0.32);
+        }
+
+        .hint {
+            font-size: 12px;
+            opacity: 0.75;
+            line-height: 1.35;
+            margin-top: 6px;
+        }
+
+        .pill {
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .stage {
+            position: relative;
+            background: #000;
+            overflow: hidden;
+        }
+
+        .videoShell {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            background: #000;
+        }
+
+        video {
+            max-width: 100%;
+            max-height: 100%;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+
+
+        /* We draw analysis on top */
+        canvas#overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .overlayUI {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .noteBar {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(80, 220, 255, 0.95);
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 20px rgba(80, 220, 255, 0.3);
+            pointer-events: none;
+            display: block;
+            z-index: 5;
+        }
+
+        .kbdCal {
+            position: absolute;
+            bottom: 0;
+            height: 28%;
+            left: 0;
+            right: 0;
+            border-top: 1px dashed rgba(255, 255, 255, 0.10);
+            pointer-events: none;
+        }
+
+        .kbdMark {
+            position: absolute;
+            bottom: 6px;
+            width: 2px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.65);
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+            pointer-events: none;
+        }
+
+        .kbdMarkLabel {
+            position: absolute;
+            bottom: 60px;
+            transform: translateX(-50%);
+            font-size: 11px;
+            opacity: 0.9;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 3px 6px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .keyMarkerContainer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 200px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .keyMarker {
+            position: absolute;
+            bottom: 0;
+            width: 1px;
+            height: 200px;
+            background: rgba(80, 220, 255, 0.8);
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 0 4px rgba(80, 220, 255, 0.5);
+            cursor: move;
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        .keyMarker.dragging {
+            background: rgba(255, 200, 80, 0.9);
+            box-shadow: 0 0 0 2px rgba(255, 200, 80, 0.8), 0 0 12px rgba(255, 200, 80, 0.6);
+        }
+
+        .keyMarkerLabel {
+            position: absolute;
+            bottom: 204px;
+            transform: translateX(-50%);
+            font-size: 11px;
+            opacity: 0.95;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 3px 6px;
+            border-radius: 6px;
+            border: 1px solid rgba(80, 220, 255, 0.5);
+            pointer-events: none;
+            white-space: nowrap;
+            z-index: 11;
+            font-weight: 500;
+        }
+
+        .keyMarker.calibration {
+            background: rgba(255, 100, 100, 0.8);
+            box-shadow: 0 0 0 2px rgba(255, 100, 100, 0.6), 0 0 12px rgba(255, 100, 100, 0.5);
+        }
+
+        .sheetWrap {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 10px 14px 18px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            background: #0b0b0f;
+            z-index: 1;
+            max-height: 50vh;
+            overflow-y: auto;
+            display: none;
+        }
+
+        #sheet {
+            background: white;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 14px;
+            padding: 10px;
+            overflow: auto;
+            max-height: 45vh;
+            min-height: 200px;
+            width: 100%;
+        }
+
+        .kbdClickHint {
+            margin-top: 8px;
+            font-size: 12px;
+            opacity: 0.75;
+            line-height: 1.35;
+            padding: 10px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        textarea {
+            min-height: 140px;
+            resize: vertical;
+        }
+
+        @media (max-width: 1020px) {
+            .wrap {
+                grid-template-columns: 1fr;
+            }
+
+            .panel {
+                border-right: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="title">
+            <h1>Falling Notes → Sheet Music (Prototype)</h1>
+            <p>Detect colored notes crossing a selector bar, infer note duration, then render basic notation.</p>
+        </div>
+        <div class="pill" id="statusPill">Status: <span id="statusText">Idle</span></div>
+    </header>
+
+    <div class="wrap">
+        <div class="panel">
+            <h2>1) Load video</h2>
+
+            <div class="row single">
+                <div>
+                    <label>Local video file (recommended)</label>
+                    <input id="fileInput" type="file" accept="video/*" />
+                    <div class="hint">Load a local video file for pixel detection to work properly.</div>
+                </div>
+            </div>
+
+            <!-- Removed video URL section -->
+            <div class="row single" style="display:none;">
+                <div>
+                    <label>Or a direct video URL (must allow CORS)</label>
+                    <input id="videoUrl" placeholder="https://example.com/video.mp4" />
+                    <div class="hint">If the server blocks CORS, the canvas becomes “tainted” and pixel-reading is
+                        blocked.</div>
+                </div>
+            </div>
+
+            <div class="row">
+                <button id="playPauseBtn">Play / Pause</button>
+            </div>
+
+            <h2>2) Musical settings</h2>
+            <div class="row">
+                <div>
+                    <label>Key signature</label>
+                    <select id="keySig">
+                        <option value="Bb">Bb / Gm</option>
+                        <option value="C">C / Am</option>
+                        <option value="G">G / Em</option>
+                        <option value="D">D / Bm</option>
+                        <option value="A">A / F#m</option>
+                        <option value="E">E / C#m</option>
+                        <option value="B">B / G#m</option>
+                        <option value="F#">F# / D#m</option>
+                        <option value="C#">C# / A#m</option>
+                        <option value="F">F / Dm</option>
+                        
+                        <option value="Eb">Eb / Cm</option>
+                        <option value="Ab">Ab / Fm</option>
+                        <option value="Db">Db / Bbm</option>
+                        <option value="Gb">Gb / Ebm</option>
+                        <option value="Cb">Cb / Abm</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Time signature</label>
+                    <div class="row" style="grid-template-columns: 1fr 1fr; gap: 8px; margin:0;">
+                        <input id="tsNum" type="number" min="1" value="5" />
+                        <input id="tsDen" type="number" min="1" value="4" />
+                    </div>
+                    <div class="hint">Example: 4 / 4, 3 / 4, 6 / 8, etc.</div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div>
+                    <label>BPM</label>
+                    <input id="bpm" type="number" min="20" max="300" value="153" />
+                </div>
+                <div>
+                    <label>Quantize</label>
+                    <select id="quant">
+                        <option value="1">Quarter notes</option>
+                        <option value="2">Eighth notes</option>
+                        <option value="4" selected>Sixteenth notes</option>
+                        <option value="8">Thirty-second notes</option>
+                    </select>
+                </div>
+            </div>
+
+            <h2>3) Detection settings</h2>
+
+            <div class="row">
+                <div>
+                    <label>Selector bar (Y % from top)</label>
+                    <input id="barY" type="range" min="5" max="95" value="45" />
+                </div>
+                <div>
+                    <label>Bar thickness (px)</label>
+                    <input id="barThickness" type="number" min="1" max="20" value="1" />
+                </div>
+            </div>
+
+            <div class="row">
+                <div>
+                    <label>Min segment width (px)</label>
+                    <input id="minSeg" type="number" min="1" max="120" value="5" />
+                </div>
+                <div>
+                    <label>Release hold after (frames)</label>
+                    <input id="releaseFrames" type="number" min="1" max="60" value="6" />
+                </div>
+            </div>
+
+            <div class="row">
+                <div>
+                    <label>Background darkness threshold</label>
+                    <input id="darkThreshold" type="range" min="0" max="100" value="40" />
+                    <div class="hint" id="darkThresholdHint">Threshold: 40 (pixels darker than this are background,
+                        lighter are notes)</div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div>
+                    <label>Debug overlay</label>
+                    <select id="debug">
+                        <option value="off" selected>Off</option>
+                        <option value="on">On</option>
+                    </select>
+                </div>
+            </div>
+
+            <h2>4) Keyboard mapping (click stage)</h2>
+
+            <div class="row">
+                <div>
+                    <label>Left X → MIDI note</label>
+                    <input id="leftMidi" type="number" min="0" max="127" value="21" />
+                    <div class="hint">Typical: A0 = 21</div>
+                </div>
+                <div>
+                    <label>Right X → MIDI note</label>
+                    <input id="rightMidi" type="number" min="0" max="127" value="108" />
+                    <div class="hint">Typical: C8 = 108</div>
+                </div>
+            </div>
+
+            <div class="row" style="grid-template-columns: 1fr 1fr 1fr;">
+                <button id="setLeftBtn" class="secondary">Set LEFT (A0)</button>
+                <button id="setMiddleCBtn" class="secondary">Set MIDDLE C</button>
+                <button id="setRightBtn" class="secondary">Set RIGHT (C8)</button>
+            </div>
+
+            <div class="row">
+                <button id="acceptCalibrationBtn" class="secondary" style="display:none;">Accept calibration</button>
+                <button id="resetCalibrationBtn" class="danger" style="display:none;">Reset</button>
+            </div>
+
+            <div class="kbdClickHint">
+                <b>How to calibrate:</b><br />
+                1) Load a video and pause when the keyboard is visible.<br />
+                2) Click “Set LEFT marker”, then click the left-most playable key in the stage.<br />
+                3) Click “Set RIGHT marker”, then click the right-most playable key in the stage.
+            </div>
+
+            <h2>5) Capture & export</h2>
+            <div class="row">
+                <button id="startBtn">Start capture</button>
+                <button id="stopBtn" class="danger">Stop capture</button>
+            </div>
+            <div class="row">
+                <button id="renderBtn" class="secondary">Render sheet</button>
+                <button id="downloadJsonBtn" class="secondary">Download JSON</button>
+            </div>
+            <div class="row single">
+                <div>
+                    <label>Test with JSON (paste notes here to test rendering)</label>
+                    <textarea id="jsonInput" class="mono" spellcheck="false"
+                        placeholder='[{"midi":60,"t0":0,"t1":0.5},{"midi":62,"t0":0.5,"t1":1.0}]'></textarea>
+                    <button id="loadJsonBtn" class="secondary" style="margin-top: 6px;">Load JSON & Render</button>
+                </div>
+            </div>
+            <div class="row single">
+                <div>
+                    <label>Captured notes (JSON preview)</label>
+                    <textarea id="jsonOut" class="mono" spellcheck="false"></textarea>
+                </div>
+            </div>
+
+            <div class="hint">
+                Notes format: <span class="mono">[{"midi":60,"t0":0,"t1":0.5}, ...]</span><br />
+                <span class="mono">midi</span> = MIDI note number (0-127), <span class="mono">t0</span> = start time in
+                seconds, <span class="mono">t1</span> = end time in seconds
+            </div>
+        </div>
+
+        <div class="stage" id="stage">
+            <div class="videoShell">
+                <video id="video" playsinline crossorigin="anonymous"></video>
+            </div>
+
+            <canvas id="overlay"></canvas>
+
+            <div class="overlayUI" id="overlayUI">
+                <div class="noteBar" id="noteBar"></div>
+                <div class="kbdCal" id="kbdCal"></div>
+                <div class="kbdMark" id="leftMark" style="display:none"></div>
+                <div class="kbdMarkLabel" id="leftMarkLabel" style="display:none">LEFT</div>
+                <div class="kbdMark" id="rightMark" style="display:none"></div>
+                <div class="kbdMarkLabel" id="rightMarkLabel" style="display:none">RIGHT</div>
+            </div>
+
+            <div class="sheetWrap">
+                <div id="sheet"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VexFlow for sheet rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.3/build/cjs/vexflow.js"></script>
+
+    <script>
+        (() => {
+            const els = {
+                statusText: document.getElementById('statusText'),
+                statusPill: document.getElementById('statusPill'),
+
+                fileInput: document.getElementById('fileInput'),
+                playPauseBtn: document.getElementById('playPauseBtn'),
+
+                keySig: document.getElementById('keySig'),
+                tsNum: document.getElementById('tsNum'),
+                tsDen: document.getElementById('tsDen'),
+                bpm: document.getElementById('bpm'),
+                quant: document.getElementById('quant'),
+
+                barY: document.getElementById('barY'),
+                barThickness: document.getElementById('barThickness'),
+                minSeg: document.getElementById('minSeg'),
+                releaseFrames: document.getElementById('releaseFrames'),
+                darkThreshold: document.getElementById('darkThreshold'),
+                darkThresholdHint: document.getElementById('darkThresholdHint'),
+                debug: document.getElementById('debug'),
+
+                leftMidi: document.getElementById('leftMidi'),
+                rightMidi: document.getElementById('rightMidi'),
+                setLeftBtn: document.getElementById('setLeftBtn'),
+                setMiddleCBtn: document.getElementById('setMiddleCBtn'),
+                setRightBtn: document.getElementById('setRightBtn'),
+                acceptCalibrationBtn: document.getElementById('acceptCalibrationBtn'),
+                resetCalibrationBtn: document.getElementById('resetCalibrationBtn'),
+
+                startBtn: document.getElementById('startBtn'),
+                stopBtn: document.getElementById('stopBtn'),
+                renderBtn: document.getElementById('renderBtn'),
+                downloadJsonBtn: document.getElementById('downloadJsonBtn'),
+                jsonInput: document.getElementById('jsonInput'),
+                loadJsonBtn: document.getElementById('loadJsonBtn'),
+
+                jsonOut: document.getElementById('jsonOut'),
+
+                stage: document.getElementById('stage'),
+                video: document.getElementById('video'),
+                overlay: document.getElementById('overlay'),
+                overlayUI: document.getElementById('overlayUI'),
+                noteBar: document.getElementById('noteBar'),
+                kbdCal: document.getElementById('kbdCal'),
+                leftMark: document.getElementById('leftMark'),
+                leftMarkLabel: document.getElementById('leftMarkLabel'),
+                rightMark: document.getElementById('rightMark'),
+                rightMarkLabel: document.getElementById('rightMarkLabel'),
+
+                sheet: document.getElementById('sheet'),
+                sheetWrap: document.querySelector('.sheetWrap'),
+            };
+
+            // ---------- State ----------
+            let running = false;
+            let captureStartVideoTime = 0;
+            let captureStartPerf = 0;
+
+            // markers for keyboard mapping in stage pixel coords
+            let leftX = null;      // A0 = MIDI 21
+            let middleCX = null;   // C4 = MIDI 60
+            let rightX = null;     // C8 = MIDI 108
+            let awaitingClick = null; // "left" | "middleC" | "right" | null
+
+            // Final calibrated key positions: midi -> x position
+            const keyPositions = new Map(); // Map<midi, x>
+            let calibrationAccepted = false;
+
+            // active notes keyed by part+midi -> {t0, lastSeenFrame}
+            const active = new Map();
+            const captured = []; // {part, midi, t0, t1}
+
+            let frameIndex = 0;
+
+            // analysis canvas (draw video into it)
+            const analysisCanvas = document.createElement('canvas');
+            const analysisCtx = analysisCanvas.getContext('2d', { willReadFrequently: true });
+            const overlayCtx = els.overlay.getContext('2d');
+
+            function setStatus(s) { els.statusText.textContent = s; }
+
+            function resize() {
+                const rect = els.stage.getBoundingClientRect();
+                els.overlay.width = Math.floor(rect.width);
+                els.overlay.height = Math.floor(rect.height);
+
+                analysisCanvas.width = els.overlay.width;
+                analysisCanvas.height = els.overlay.height;
+
+                updateBarPosition();
+                updateMarkers();
+            }
+
+            window.addEventListener('resize', resize);
+
+            function updateBarPosition() {
+                const yPct = Number(els.barY.value) / 100;
+                const y = Math.round(yPct * els.overlay.height);
+                els.noteBar.style.top = `${y}px`;
+                els.noteBar.style.height = `${Math.max(1, Number(els.barThickness.value))}px`;
+                els.noteBar.style.display = 'block'; // Always show the bar
+            }
+
+            // Convert MIDI note to note name (e.g., 60 -> "C4", 21 -> "A0")
+            function midiToNoteName(midi) {
+                const pitchClasses = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                const pc = pitchClasses[midi % 12];
+                const octave = Math.floor(midi / 12) - 1;
+                return `${pc}${octave}`;
+            }
+
+            // Calculate all 88 key positions using 3-point calibration
+            function calculateKeyPositions() {
+                keyPositions.clear();
+
+                if (leftX == null || middleCX == null || rightX == null) {
+                    return; // Need all 3 calibration points
+                }
+
+                const leftMidi = 21;   // A0
+                const middleCMidi = 60; // C4
+                const rightMidi = 108;  // C8
+
+                // Use piecewise linear interpolation: left->middleC, middleC->right
+                // Calculate positions for keys 21-59 (left to middle C)
+                for (let midi = leftMidi; midi <= middleCMidi; midi++) {
+                    const t = (midi - leftMidi) / (middleCMidi - leftMidi);
+                    const x = leftX + t * (middleCX - leftX);
+                    keyPositions.set(midi, Math.round(x));
+                }
+
+                // Calculate positions for keys 60-108 (middle C to right)
+                for (let midi = middleCMidi; midi <= rightMidi; midi++) {
+                    const t = (midi - middleCMidi) / (rightMidi - middleCMidi);
+                    const x = middleCX + t * (rightX - middleCX);
+                    keyPositions.set(midi, Math.round(x));
+                }
+            }
+
+            // Create or update key markers in the DOM
+            function updateKeyMarkers() {
+                // Get or create the keyMarkerContainer
+                let keyMarkerContainer = document.getElementById('keyMarkerContainer');
+                if (!keyMarkerContainer) {
+                    keyMarkerContainer = document.createElement('div');
+                    keyMarkerContainer.id = 'keyMarkerContainer';
+                    keyMarkerContainer.className = 'keyMarkerContainer';
+                    els.overlayUI.appendChild(keyMarkerContainer);
+                }
+                
+                // Remove existing key markers (but keep the container)
+                keyMarkerContainer.querySelectorAll('.keyMarker, .keyMarkerLabel').forEach(el => el.remove());
+
+                // Show calibration points
+                if (leftX != null) {
+                    els.leftMark.style.display = 'block';
+                    els.leftMark.style.left = `${leftX}px`;
+                    els.leftMarkLabel.style.display = 'block';
+                    els.leftMarkLabel.style.left = `${leftX}px`;
+                    els.leftMarkLabel.textContent = 'A0 (21)';
+                    els.leftMark.classList.add('calibration');
+                } else {
+                    els.leftMark.style.display = 'none';
+                    els.leftMarkLabel.style.display = 'none';
+                }
+
+                if (middleCX != null) {
+                    // Create middle C marker if it doesn't exist
+                    let middleCMark = document.getElementById('middleCMark');
+                    let middleCLabel = document.getElementById('middleCLabel');
+                    if (!middleCMark) {
+                        middleCMark = document.createElement('div');
+                        middleCMark.id = 'middleCMark';
+                        middleCMark.className = 'kbdMark calibration';
+                        els.overlayUI.appendChild(middleCMark);
+                        middleCLabel = document.createElement('div');
+                        middleCLabel.id = 'middleCLabel';
+                        middleCLabel.className = 'kbdMarkLabel';
+                        middleCLabel.textContent = 'C4 (60)';
+                        els.overlayUI.appendChild(middleCLabel);
+                    }
+                    middleCMark.style.display = 'block';
+                    middleCMark.style.left = `${middleCX}px`;
+                    if (middleCLabel) {
+                        middleCLabel.style.display = 'block';
+                        middleCLabel.style.left = `${middleCX}px`;
+                    }
+                } else {
+                    const middleCMark = document.getElementById('middleCMark');
+                    const middleCLabel = document.getElementById('middleCLabel');
+                    if (middleCMark) middleCMark.style.display = 'none';
+                    if (middleCLabel) middleCLabel.style.display = 'none';
+                }
+
+                if (rightX != null) {
+                    els.rightMark.style.display = 'block';
+                    els.rightMark.style.left = `${rightX}px`;
+                    els.rightMarkLabel.style.display = 'block';
+                    els.rightMarkLabel.style.left = `${rightX}px`;
+                    els.rightMarkLabel.textContent = 'C8 (108)';
+                    els.rightMark.classList.add('calibration');
+                } else {
+                    els.rightMark.style.display = 'none';
+                    els.rightMarkLabel.style.display = 'none';
+                }
+
+                // If all 3 calibration points are set, show calculated key markers
+                if (leftX != null && middleCX != null && rightX != null) {
+                    calculateKeyPositions();
+
+                    // Show the container and accept/reset buttons
+                    keyMarkerContainer.style.display = 'block';
+                    els.acceptCalibrationBtn.style.display = 'block';
+                    els.resetCalibrationBtn.style.display = 'block';
+
+                    // Create markers for ALL keys - show lines for every key
+                    // Stagger labels within each octave to prevent overlap
+                    for (const [midi, x] of keyPositions.entries()) {
+                        // Calculate position within octave (0 = C, 1 = C#, 2 = D, ..., 11 = B)
+                        const positionInOctave = midi % 12;
+                        
+                        // C notes (position 0) get full height, others get progressively shorter
+                        // Reduce height by 14px for each step away from C
+                        const maxHeight = 200;
+                        const heightReduction = positionInOctave * 14;
+                        const lineHeight = Math.max(30, maxHeight - heightReduction); // Minimum 30px
+                        
+                        const marker = document.createElement('div');
+                        marker.className = 'keyMarker';
+                        marker.dataset.midi = midi;
+                        marker.style.left = `${x}px`;
+                        marker.style.height = `${lineHeight}px`;
+                        marker.style.display = 'block';
+                        
+                        const label = document.createElement('div');
+                        label.className = 'keyMarkerLabel';
+                        label.textContent = midiToNoteName(midi);
+                        label.style.left = `${x}px`;
+                        label.style.bottom = `${lineHeight + 4}px`; // Position label at top of line
+                        label.style.display = 'block';
+                        
+                        keyMarkerContainer.appendChild(marker);
+                        keyMarkerContainer.appendChild(label);
+                        
+                        // Make markers draggable
+                        setupMarkerDrag(marker, label, midi);
+                    }
+                } else {
+                    // Hide the container when calibration is incomplete
+                    if (keyMarkerContainer) {
+                        keyMarkerContainer.style.display = 'none';
+                    }
+                    els.acceptCalibrationBtn.style.display = 'none';
+                    els.resetCalibrationBtn.style.display = 'none';
+                }
+            }
+
+            // Setup drag functionality for a key marker
+            function setupMarkerDrag(marker, label, midi) {
+                let isDragging = false;
+                let startX = 0;
+                let startLeft = 0;
+
+                marker.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    marker.classList.add('dragging');
+                    const rect = els.overlayUI.getBoundingClientRect();
+                    startX = e.clientX;
+                    startLeft = parseInt(marker.style.left) || 0;
+                    e.preventDefault();
+                    e.stopPropagation(); // Prevent stage click handler
+                });
+
+                const handleMouseMove = (e) => {
+                    if (!isDragging) return;
+                    const deltaX = e.clientX - startX;
+                    const newLeft = Math.max(0, Math.min(els.overlay.width, startLeft + deltaX));
+                    marker.style.left = `${newLeft}px`;
+                    label.style.left = `${newLeft}px`;
+                    keyPositions.set(midi, Math.round(newLeft));
+                };
+
+                const handleMouseUp = () => {
+                    if (isDragging) {
+                        isDragging = false;
+                        marker.classList.remove('dragging');
+                    }
+                };
+
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+
+                // Clean up listeners when marker is removed (optional, but good practice)
+                marker.addEventListener('remove', () => {
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                });
+            }
+
+            function updateMarkers() {
+                updateKeyMarkers();
+            }
+
+            els.barY.addEventListener('input', updateBarPosition);
+            els.barThickness.addEventListener('input', updateBarPosition);
+
+            // ---------- Load video ----------
+            els.fileInput.addEventListener('change', () => {
+                const f = els.fileInput.files?.[0];
+                if (!f) return;
+                const url = URL.createObjectURL(f);
+                els.video.src = url;
+                els.video.load();
+                setStatus('Loaded local file');
+            });
+
+            els.playPauseBtn.addEventListener('click', async () => {
+                if (els.video.paused) await els.video.play();
+                else els.video.pause();
+            });
+
+            // ---------- Stage click calibration ----------
+            els.setLeftBtn.addEventListener('click', () => {
+                awaitingClick = 'left';
+                setStatus('Click stage to set LEFT marker (A0 = MIDI 21)');
+            });
+            els.setMiddleCBtn.addEventListener('click', () => {
+                awaitingClick = 'middleC';
+                setStatus('Click stage to set MIDDLE C marker (C4 = MIDI 60)');
+            });
+            els.setRightBtn.addEventListener('click', () => {
+                awaitingClick = 'right';
+                setStatus('Click stage to set RIGHT marker (C8 = MIDI 108)');
+            });
+
+            els.stage.addEventListener('click', (e) => {
+                if (!awaitingClick) return;
+                // Don't trigger if clicking on a draggable marker
+                if (e.target.classList.contains('keyMarker')) return;
+
+                const rect = els.stage.getBoundingClientRect();
+                const x = Math.round(e.clientX - rect.left);
+
+                if (awaitingClick === 'left') {
+                    leftX = x;
+                    setStatus('LEFT marker set (A0). Now set MIDDLE C.');
+                } else if (awaitingClick === 'middleC') {
+                    middleCX = x;
+                    setStatus('MIDDLE C marker set. Now set RIGHT marker.');
+                } else if (awaitingClick === 'right') {
+                    rightX = x;
+                    setStatus('All calibration points set! Adjust markers by dragging, then click "Accept calibration".');
+                }
+
+                awaitingClick = null;
+                updateMarkers();
+            });
+
+            els.acceptCalibrationBtn.addEventListener('click', () => {
+                if (keyPositions.size === 0) {
+                    alert('Please set all 3 calibration points first.');
+                    return;
+                }
+                calibrationAccepted = true;
+                updateMarkers(); // Update to show fewer markers
+                setStatus('Calibration accepted! You can now start capture.');
+            });
+
+            els.resetCalibrationBtn.addEventListener('click', () => {
+                leftX = null;
+                middleCX = null;
+                rightX = null;
+                keyPositions.clear();
+                calibrationAccepted = false;
+                awaitingClick = null;
+                updateMarkers();
+                els.acceptCalibrationBtn.style.display = 'none';
+                els.resetCalibrationBtn.style.display = 'none';
+                setStatus('Calibration reset.');
+            });
+
+            // Update darkness threshold hint
+            if (els.darkThreshold && els.darkThresholdHint) {
+                els.darkThreshold.addEventListener('input', () => {
+                    const threshold = Number(els.darkThreshold.value);
+                    els.darkThresholdHint.textContent = `Threshold: ${threshold} (pixels darker than this are background, lighter are notes)`;
+                });
+            }
+
+            // Handle keyboard calibration clicks
+            els.stage.addEventListener('click', (e) => {
+                if (!awaitingClick) return;
+                // Don't trigger if clicking on a draggable marker
+                if (e.target.classList.contains('keyMarker')) return;
+
+                const rect = els.stage.getBoundingClientRect();
+                const x = Math.round(e.clientX - rect.left);
+
+                if (awaitingClick === 'left') {
+                    leftX = x;
+                    setStatus('LEFT marker set (A0). Now set MIDDLE C.');
+                } else if (awaitingClick === 'middleC') {
+                    middleCX = x;
+                    setStatus('MIDDLE C marker set. Now set RIGHT marker.');
+                } else if (awaitingClick === 'right') {
+                    rightX = x;
+                    setStatus('All calibration points set! Adjust markers by dragging, then click "Accept calibration".');
+                }
+
+                awaitingClick = null;
+                updateMarkers();
+            });
+
+            // ---------- Color classification ----------
+            // Return true if pixel is a note (not background), false if background, null if transparent
+            function isNotePixel(r, g, b, a) {
+                if (a < 10) return null;
+
+                // Calculate brightness (luminance)
+                // Using standard luminance formula: 0.299*R + 0.587*G + 0.114*B
+                const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+
+                // Get darkness threshold
+                const threshold = Number(els.darkThreshold.value);
+
+                // If pixel is darker than threshold, it's background
+                if (brightness <= threshold) return false;
+
+                // Otherwise it's a note
+                return true;
+            }
+
+            // Map X position to MIDI based on calibrated key positions
+            function xToMidi(x) {
+                if (!calibrationAccepted || keyPositions.size === 0) {
+                    // Fallback to old method if calibration not accepted
+                    if (leftX == null || rightX == null || leftX === rightX) return null;
+                    const minX = Math.min(leftX, rightX);
+                    const maxX = Math.max(leftX, rightX);
+                    if (x < minX || x > maxX) return null;
+                    const leftMidi = 21;
+                    const rightMidi = 108;
+                    const t = (x - minX) / (maxX - minX);
+                    const midi = Math.round(leftMidi + t * (rightMidi - leftMidi));
+                    return Math.max(0, Math.min(127, midi));
+                }
+
+                // Find the closest key position
+                let closestMidi = null;
+                let minDist = Infinity;
+
+                for (const [midi, keyX] of keyPositions.entries()) {
+                    const dist = Math.abs(x - keyX);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        closestMidi = midi;
+                    }
+                }
+
+                // Only return if within reasonable distance (e.g., 20 pixels)
+                if (minDist < 20) {
+                    return closestMidi;
+                }
+
+                return null;
+            }
+
+            // ---------- Capture controls ----------
+            function resetCapture() {
+                active.clear();
+                captured.length = 0;
+                frameIndex = 0;
+                els.jsonOut.value = '';
+                els.sheet.innerHTML = '';
+            }
+
+            els.startBtn.addEventListener('click', async () => {
+                if (!els.video.src) {
+                    alert('Load a local video file (or CORS-enabled URL) first.');
+                    return;
+                }
+                if (!calibrationAccepted || keyPositions.size === 0) {
+                    alert('Please complete keyboard calibration first (set LEFT, MIDDLE C, and RIGHT markers, then accept).');
+                    return;
+                }
+                resetCapture();
+                running = true;
+                captureStartVideoTime = els.video.currentTime || 0;
+                captureStartPerf = performance.now();
+                setStatus('Capturing… (play video)');
+                if (els.video.paused) await els.video.play();
+            });
+
+            els.stopBtn.addEventListener('click', () => {
+                running = false;
+
+                // close out any active notes
+                const now = relTime();
+                for (const [key, st] of active.entries()) {
+                    captured.push({ midi: st.midi, t0: st.t0, t1: now });
+                }
+                active.clear();
+
+                els.video.pause();
+                setStatus('Stopped');
+                els.jsonOut.value = JSON.stringify(captured, null, 2);
+            });
+
+            els.downloadJsonBtn.addEventListener('click', () => {
+                const blob = new Blob([JSON.stringify(captured, null, 2)], { type: 'application/json' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'captured-notes.json';
+                a.click();
+            });
+
+            // relative time in seconds since capture start
+            function relTime() {
+                // Prefer video time for musical alignment
+                const t = (els.video.currentTime || 0) - captureStartVideoTime;
+                return Math.max(0, t);
+            }
+
+            // ---------- Main analysis loop ----------
+            function tick() {
+                requestAnimationFrame(tick);
+                resizeIfNeeded();
+
+                // draw overlay bar always
+                updateBarPosition();
+
+                // draw video frame to analysis canvas (scaled to stage)
+                const w = analysisCanvas.width, h = analysisCanvas.height;
+                try {
+                    analysisCtx.clearRect(0, 0, w, h);
+                    analysisCtx.drawImage(els.video, 0, 0, w, h);
+                } catch (err) {
+                    // If CORS taints the canvas, drawImage may succeed but getImageData will fail later.
+                }
+
+                overlayCtx.clearRect(0, 0, w, h);
+
+                // Always show the bar so user can position it
+                els.noteBar.style.display = 'block';
+
+                if (!running) {
+                    if (els.debug.value === 'on') {
+                        overlayCtx.fillStyle = 'rgba(255,255,255,0.08)';
+                        overlayCtx.fillRect(10, 10, 320, 60);
+                        overlayCtx.fillStyle = 'rgba(255,255,255,0.85)';
+                        overlayCtx.font = '12px ui-monospace, Menlo, Consolas, monospace';
+                        overlayCtx.fillText('Debug: load a local/CORS video and press Start capture', 18, 34);
+                        overlayCtx.fillText(`Markers: leftX=${leftX} rightX=${rightX}`, 18, 54);
+                    }
+                    return;
+                }
+
+                frameIndex++;
+
+                const yPct = Number(els.barY.value) / 100;
+                const barYpx = Math.round(yPct * h);
+                const thick = Math.max(1, Number(els.barThickness.value));
+                const y0 = Math.max(0, barYpx - Math.floor(thick / 2));
+                const y1 = Math.min(h - 1, barYpx + Math.floor(thick / 2));
+
+                // sample pixels in the bar region: compress to a 1D scanline by OR-ing classifications across thickness
+                let img;
+                try {
+                    img = analysisCtx.getImageData(0, y0, w, (y1 - y0 + 1));
+                } catch (e) {
+                    setStatus('Blocked by CORS (cannot read pixels). Use a local video file.');
+                    running = false;
+                    return;
+                }
+
+                const data = img.data;
+                const noteAtX = new Array(w).fill(false);
+
+                // For each x, look through bar thickness and check if there's a note (non-background pixel)
+                for (let x = 0; x < w; x++) {
+                    for (let yy = 0; yy < img.height; yy++) {
+                        const idx = (yy * w + x) * 4;
+                        const r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
+                        const isNote = isNotePixel(r, g, b, a);
+                        if (isNote === true) {
+                            noteAtX[x] = true;
+                            break; // Found a note pixel, no need to check further in this column
+                        }
+                    }
+                }
+
+                // Convert noteAtX into segments (runs of note pixels)
+                const minSeg = Math.max(1, Number(els.minSeg.value));
+                const segments = []; // {x0, x1, xc, midi}
+                let inNote = false;
+                let segStart = 0;
+
+                function flushSeg(endX) {
+                    if (!inNote) return;
+                    const width = endX - segStart + 1;
+                    if (width >= minSeg) {
+                        const x0 = segStart, x1 = endX;
+                        const xc = Math.round((x0 + x1) / 2);
+                        const midi = xToMidi(xc);
+                        if (midi != null) segments.push({ x0, x1, xc, midi });
+                    }
+                }
+
+                for (let x = 0; x < w; x++) {
+                    const isNote = noteAtX[x];
+                    if (isNote !== inNote) {
+                        flushSeg(x - 1);
+                        inNote = isNote;
+                        segStart = x;
+                    }
+                }
+                flushSeg(w - 1);
+
+                // Track note on/off based on segments present this frame
+                const now = relTime();
+                const releaseAfter = Math.max(1, Number(els.releaseFrames.value));
+
+                const seenThisFrame = new Set();
+
+                for (const seg of segments) {
+                    const key = seg.midi; // Just use MIDI as key, no part classification
+                    seenThisFrame.add(key);
+
+                    if (!active.has(key)) {
+                        active.set(key, { midi: seg.midi, t0: now, lastSeen: frameIndex });
+                    } else {
+                        const st = active.get(key);
+                        st.lastSeen = frameIndex;
+                    }
+                }
+
+                // release notes not seen recently
+                for (const [key, st] of active.entries()) {
+                    if (seenThisFrame.has(key)) continue;
+                    if ((frameIndex - st.lastSeen) >= releaseAfter) {
+                        captured.push({ midi: st.midi, t0: st.t0, t1: now });
+                        active.delete(key);
+                    }
+                }
+
+                // Draw visual rectangles for all detected segments
+                for (const seg of segments) {
+                    const rectHeight = Math.max(8, thick + 4);
+                    const rectY = barYpx - Math.floor(rectHeight / 2);
+
+                    // Draw rectangle in a single color for all notes
+                    overlayCtx.fillStyle = 'rgba(80, 200, 255, 0.6)';
+                    overlayCtx.strokeStyle = 'rgba(120, 220, 255, 0.9)';
+
+                    overlayCtx.lineWidth = 2;
+                    overlayCtx.fillRect(seg.x0, rectY, seg.x1 - seg.x0 + 1, rectHeight);
+                    overlayCtx.strokeRect(seg.x0, rectY, seg.x1 - seg.x0 + 1, rectHeight);
+
+                    // Draw a small indicator at the center
+                    overlayCtx.fillStyle = 'rgba(200, 240, 255, 0.9)';
+                    overlayCtx.fillRect(seg.xc - 2, rectY, 4, rectHeight);
+                }
+
+                // Debug overlay
+                if (els.debug.value === 'on') {
+                    overlayCtx.font = '12px ui-monospace, Menlo, Consolas, monospace';
+                    overlayCtx.fillStyle = 'rgba(0,0,0,0.55)';
+                    overlayCtx.fillRect(10, 10, 360, 22 + 16 * Math.min(6, segments.length));
+                    overlayCtx.fillStyle = 'rgba(255,255,255,0.90)';
+                    overlayCtx.fillText(`t=${now.toFixed(3)}s  segs=${segments.length}  active=${active.size}`, 18, 26);
+
+                    let line = 0;
+                    for (const seg of segments.slice(0, 6)) {
+                        overlayCtx.fillText(`midi=${seg.midi} x=${seg.xc}`, 18, 44 + line * 16);
+                        line++;
+                    }
+                }
+            }
+
+            let lastSize = { w: 0, h: 0 };
+            function resizeIfNeeded() {
+                const rect = els.stage.getBoundingClientRect();
+                const w = Math.floor(rect.width), h = Math.floor(rect.height);
+                if (w !== lastSize.w || h !== lastSize.h) {
+                    lastSize = { w, h };
+                    resize();
+                }
+            }
+
+            // ---------- Rendering (VexFlow) ----------
+            function midiToVFKey(midi) {
+                // Convert MIDI to scientific pitch, then VexFlow key string, ex "c/4", "f#/5"
+                const pitchClasses = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'];
+                const pc = pitchClasses[midi % 12];
+                const octave = Math.floor(midi / 12) - 1;
+                return `${pc}/${octave}`;
+            }
+
+            function quantizeTime(t, bpm, subdiv) {
+                // subdiv = 1 quarter, 2 eighth, 4 sixteenth, etc.
+                const beat = 60 / bpm; // quarter note seconds
+                const step = beat / subdiv;
+                return Math.round(t / step) * step;
+            }
+
+            function durationFromSeconds(sec, bpm) {
+                // convert seconds to VexFlow duration, constrained to common values
+                const beat = 60 / bpm;
+                const units = sec / beat; // in quarter notes
+                // Map quarter-note units to durations
+                // 4 = whole, 2 = half, 1 = quarter, 0.5 = eighth, 0.25 = sixteenth, 0.125 = 32nd
+                const eps = 1e-6;
+                const table = [
+                    { u: 4, d: 'w' },
+                    { u: 2, d: 'h' },
+                    { u: 1, d: 'q' },
+                    { u: 0.5, d: '8' },
+                    { u: 0.25, d: '16' },
+                    { u: 0.125, d: '32' },
+                ];
+
+                // Allow dotted variants (x1.5)
+                const dotted = [];
+                for (const t of table) dotted.push({ u: t.u * 1.5, d: t.d + 'd', base: t.d, dots: 1 });
+
+                const all = [...table.map(x => ({ ...x, dots: 0 })), ...dotted];
+
+                // find closest
+                let best = all[0], bestErr = Math.abs(all[0].u - units);
+                for (const c of all) {
+                    const err = Math.abs(c.u - units);
+                    if (err < bestErr - eps) { best = c; bestErr = err; }
+                }
+
+                // If way off, clamp to smallest
+                return best;
+            }
+
+            function buildPartTimeline(partNotes, bpm) {
+                // Convert raw notes -> note events (NO quantization)
+                // Output list of {midi, s, e, dur} in seconds
+                const out = [];
+                for (const n of partNotes) {
+                    let s = n.t0;
+                    let e = n.t1;
+                    if (e <= s) e = s + 0.1; // Minimum duration
+                    out.push({ midi: n.midi, s, e, dur: e - s });
+                }
+                // sort by start
+                out.sort((a, b) => a.s - b.s || a.midi - b.midi);
+                
+                // Align notes that start at nearly the same time (chord detection)
+                // Use a small threshold (50ms) for chord detection
+                const chordThreshold = 0.05; // 50ms
+                if (out.length > 0) {
+                    let currentGroup = [out[0]];
+                    let groupStart = out[0].s;
+                    
+                    for (let i = 1; i < out.length; i++) {
+                        const note = out[i];
+                        // If note starts within threshold of current group, add to group
+                        if (Math.abs(note.s - groupStart) <= chordThreshold) {
+                            currentGroup.push(note);
+                            // Update group start to be the earliest time
+                            groupStart = Math.min(groupStart, note.s);
+                        } else {
+                            // Align all notes in current group to groupStart
+                            for (const gNote of currentGroup) {
+                                gNote.s = groupStart;
+                            }
+                            // Start new group
+                            currentGroup = [note];
+                            groupStart = note.s;
+                        }
+                    }
+                    // Align last group
+                    for (const gNote of currentGroup) {
+                        gNote.s = groupStart;
+                    }
+                }
+                
+                return out;
+            }
+
+            function renderSheet(notesToRender = null) {
+                try {
+                    // Show the sheet music area
+                    if (els.sheetWrap) {
+                        els.sheetWrap.style.display = 'block';
+                    }
+                    
+                    els.sheet.innerHTML = '';
+
+                    // Use provided notes or captured notes
+                    const notes = notesToRender || captured;
+
+                    if (!notes || notes.length === 0) {
+                        alert('No notes to render. Either capture notes first or paste JSON in the test field.');
+                        return;
+                    }
+
+                    console.log('Rendering', notes.length, 'notes');
+                    console.log('Sample note:', notes[0]);
+
+                    const VF = Vex.Flow;
+                    const bpm = Number(els.bpm.value);
+                    const ts = `${Number(els.tsNum.value)}/${Number(els.tsDen.value)}`;
+
+
+                    // Split notes into treble (MIDI >= 60) and bass (MIDI < 60)
+                    const trebleNotes = notes.filter(n => n.midi >= 60);
+                    const bassNotes = notes.filter(n => n.midi < 60);
+                    
+                    const trebleTimeline = buildPartTimeline(trebleNotes, bpm);
+                    const bassTimeline = buildPartTimeline(bassNotes, bpm);
+
+                    console.log('Built timeline - Treble:', trebleTimeline.length, 'Bass:', bassTimeline.length);
+
+                    // Basic staff layout - treble and bass staves
+                    console.log('Sheet element:', els.sheet);
+                    console.log('Sheet clientWidth:', els.sheet.clientWidth);
+                    console.log('Sheet parent:', els.sheet.parentElement);
+                    
+                    // Ensure sheet has a minimum width - use parent width if sheet is 0
+                    let sheetWidth = els.sheet.clientWidth;
+                    if (sheetWidth === 0) {
+                        const parent = els.sheet.parentElement;
+                        sheetWidth = parent ? parent.clientWidth : 900;
+                        console.log('Sheet width was 0, using parent width:', sheetWidth);
+                    }
+                    const width = Math.max(900, sheetWidth - 40);
+                    const staveW = width - 40;
+                    
+                    // Initial renderer size (will be resized after calculating number of lines)
+                    console.log('Creating renderer with width:', width);
+                    const renderer = new VF.Renderer(els.sheet, VF.Renderer.Backends.SVG);
+                    const ctx = renderer.getContext();
+                    
+                    console.log('Renderer created, context:', ctx);
+                    
+                    // Convert to VexFlow StaveNotes and break into measures
+                    // Returns array of measures, each containing notes for that measure
+                    function toMeasures(events, clef) {
+                        const beat = 60 / bpm;
+                        const measureBeats = Number(els.tsNum.value) * (4 / Number(els.tsDen.value)); // in quarter-note units
+                        const measureSec = measureBeats * beat;
+
+                        const measures = [];
+                        let currentMeasure = [];
+                        let measureStartTime = 0;
+                        let measureTimeCursor = 0;
+
+                        function createNote(midis, sec) {
+                            // midis can be a single MIDI or array of MIDIs for chords
+                            const isChord = Array.isArray(midis);
+                            const midiArray = isChord ? midis : [midis];
+                            
+                            const durInfo = durationFromSeconds(sec, bpm, subdiv);
+                            let dur = durInfo.d.replace('d', '');
+                            
+                            // Convert all MIDIs to VexFlow keys
+                            const keys = midiArray.map(midi => midiToVFKey(midi));
+                            
+                            const n = new VF.StaveNote({ clef, keys: keys, duration: dur });
+                            
+                            // Add accidentals for sharps
+                            keys.forEach((key, idx) => {
+                                if (key.includes('#')) {
+                                    if (typeof n.addAccidental === 'function') {
+                                        try {
+                                            n.addAccidental(idx, new VF.Accidental('#'));
+                                        } catch (e) {
+                                            // If addAccidental fails, VexFlow should handle the sharp from the key string
+                                        }
+                                    }
+                                }
+                            });
+                            
+                            if (durInfo.dots) {
+                                // Add dot to the note
+                                if (typeof n.addDotToAll === 'function') {
+                                    n.addDotToAll();
+                                } else if (typeof n.addDot === 'function') {
+                                    n.addDot(0);
+                                }
+                            }
+                            return n;
+                        }
+
+                        function createRest(sec) {
+                            // convert rest seconds -> nearest duration
+                            const durInfo = durationFromSeconds(sec, bpm, subdiv);
+                            let dur = durInfo.d.replace('d', ''); // VexFlow uses dots separately
+                            const rest = new VF.StaveNote({ clef, keys: ['b/4'], duration: dur + 'r' });
+                            if (durInfo.dots) {
+                                // Add dot to the rest note
+                                if (typeof rest.addDotToAll === 'function') {
+                                    rest.addDotToAll();
+                                } else if (typeof rest.addDot === 'function') {
+                                    rest.addDot(0);
+                                }
+                            }
+                            return rest;
+                        }
+
+                        // Group events by start time to handle chords
+                        const eventGroups = [];
+                        let currentGroup = null;
+                        
+                        for (const ev of events) {
+                            if (!currentGroup || Math.abs(ev.s - currentGroup.startTime) > 1e-6) {
+                                // New time group
+                                if (currentGroup) eventGroups.push(currentGroup);
+                                currentGroup = {
+                                    startTime: ev.s,
+                                    midis: [ev.midi],
+                                    maxEnd: ev.e,
+                                    maxDur: ev.dur
+                                };
+                            } else {
+                                // Same time - add to chord
+                                currentGroup.midis.push(ev.midi);
+                                currentGroup.maxEnd = Math.max(currentGroup.maxEnd, ev.e);
+                                currentGroup.maxDur = Math.max(currentGroup.maxDur, ev.dur);
+                            }
+                        }
+                        if (currentGroup) eventGroups.push(currentGroup);
+
+                        // Process events and break into measures
+                        for (const group of eventGroups) {
+                            const groupStart = group.startTime;
+                            const groupEnd = group.maxEnd;
+                            
+                            // Fill gap before this group with rest
+                            while (measureTimeCursor < groupStart - 1e-6) {
+                                const measureEnd = measureStartTime + measureSec;
+                                
+                                if (groupStart < measureEnd) {
+                                    // Group is in current measure
+                                    const gap = groupStart - measureTimeCursor;
+                                    if (gap > 1e-6) {
+                                        currentMeasure.push(createRest(gap));
+                                    }
+                                    measureTimeCursor = groupStart;
+                                    break;
+                                } else {
+                                    // Fill rest of current measure and move to next
+                                    const gap = measureEnd - measureTimeCursor;
+                                    if (gap > 1e-6) {
+                                        currentMeasure.push(createRest(gap));
+                                    }
+                                    // Finalize current measure
+                                    if (currentMeasure.length > 0) {
+                                        measures.push([...currentMeasure]);
+                                    }
+                                    currentMeasure = [];
+                                    measureStartTime = measureEnd;
+                                    measureTimeCursor = measureStartTime;
+                                }
+                            }
+                            
+                            // Add the note/chord, breaking across measures if needed
+                            let remainingStart = groupStart;
+                            let remainingDur = group.maxDur;
+                            
+                            while (remainingDur > 1e-6) {
+                                const measureEnd = measureStartTime + measureSec;
+                                const timeUntilMeasureEnd = measureEnd - remainingStart;
+                                
+                                if (timeUntilMeasureEnd >= remainingDur) {
+                                    // Note fits entirely in current measure
+                                    group.midis.sort((a, b) => a - b);
+                                    currentMeasure.push(createNote(group.midis.length > 1 ? group.midis : group.midis[0], remainingDur));
+                                    measureTimeCursor = remainingStart + remainingDur;
+                                    remainingDur = 0;
+                                } else {
+                                    // Note spans measure boundary - split it
+                                    group.midis.sort((a, b) => a - b);
+                                    currentMeasure.push(createNote(group.midis.length > 1 ? group.midis : group.midis[0], timeUntilMeasureEnd));
+                                    
+                                    // Finalize current measure
+                                    if (currentMeasure.length > 0) {
+                                        measures.push([...currentMeasure]);
+                                    }
+                                    currentMeasure = [];
+                                    measureStartTime = measureEnd;
+                                    measureTimeCursor = measureStartTime;
+                                    
+                                    remainingStart = measureEnd;
+                                    remainingDur -= timeUntilMeasureEnd;
+                                }
+                            }
+                        }
+                        
+                        // Finalize last measure - pad with rest if needed
+                        const finalMeasureEnd = measureStartTime + measureSec;
+                        if (measureTimeCursor < finalMeasureEnd - 1e-6) {
+                            const pad = finalMeasureEnd - measureTimeCursor;
+                            currentMeasure.push(createRest(pad));
+                        }
+                        if (currentMeasure.length > 0) {
+                            measures.push(currentMeasure);
+                        }
+                        
+                        return measures;
+                    }
+
+                    // Create measures for treble and bass
+                    const trebleMeasures = trebleTimeline.length > 0 ? toMeasures(trebleTimeline, 'treble') : [];
+                    const bassMeasures = bassTimeline.length > 0 ? toMeasures(bassTimeline, 'bass') : [];
+                    
+                    // Determine number of measures (use max of treble and bass)
+                    const numMeasures = Math.max(trebleMeasures.length, bassMeasures.length);
+                    
+                    // Calculate measures per line (system)
+                    const measureWidth = 180; // Fixed width per measure
+                    const measuresPerLine = Math.max(1, Math.floor((staveW - 40) / measureWidth));
+                    const numLines = Math.ceil(numMeasures / measuresPerLine);
+                    
+                    // Calculate total height needed (each line needs ~160px: treble + bass + spacing)
+                    const lineHeight = 160; // Space for treble and bass staves per line
+                    const totalHeight = Math.max(400, 40 + (numLines * lineHeight)); // Minimum 400px, or calculated height
+                    
+                    console.log('Measures:', numMeasures, 'Per line:', measuresPerLine, 'Lines:', numLines, 'Height:', totalHeight);
+                    
+                    // Resize renderer to accommodate all lines
+                    renderer.resize(width, totalHeight);
+                    
+                    // Draw measures in rows (systems)
+                    const formatter = new VF.Formatter();
+                    
+                    for (let line = 0; line < numLines; line++) {
+                        const startMeasure = line * measuresPerLine;
+                        const endMeasure = Math.min(startMeasure + measuresPerLine, numMeasures);
+                        const measuresInThisLine = endMeasure - startMeasure;
+                        
+                        // Y positions for this line
+                        const lineY = 40 + (line * lineHeight);
+                        const trebleYThisLine = lineY;
+                        const bassYThisLine = lineY + 80; // Bass stave below treble
+                        
+                        for (let i = startMeasure; i < endMeasure; i++) {
+                            const measureIndex = i - startMeasure;
+                            const xPos = 20 + (measureIndex * measureWidth);
+                            const isFirstMeasureInLine = (measureIndex === 0);
+                            
+                            // Create treble stave for this measure
+                            if (i < trebleMeasures.length && trebleMeasures[i].length > 0) {
+                                const trebleStave = new VF.Stave(xPos, trebleYThisLine, measureWidth);
+                                if (isFirstMeasureInLine) {
+                                    trebleStave.addClef('treble').addTimeSignature(ts).addKeySignature(keySig);
+                                }
+                                trebleStave.setContext(ctx).draw();
+                                
+                                const trebleVoice = new VF.Voice({ num_beats: Number(els.tsNum.value), beat_value: Number(els.tsDen.value) });
+                                trebleVoice.setStrict(false);
+                                trebleVoice.addTickables(trebleMeasures[i]);
+                                
+                                formatter.joinVoices([trebleVoice]);
+                                formatter.format([trebleVoice], measureWidth - 10);
+                                trebleVoice.draw(ctx, trebleStave);
+                            }
+                            
+                            // Create bass stave for this measure
+                            if (i < bassMeasures.length && bassMeasures[i].length > 0) {
+                                const bassStave = new VF.Stave(xPos, bassYThisLine, measureWidth);
+                                if (isFirstMeasureInLine) {
+                                    bassStave.addClef('bass').addTimeSignature(ts).addKeySignature(keySig);
+                                }
+                                bassStave.setContext(ctx).draw();
+                                
+                                const bassVoice = new VF.Voice({ num_beats: Number(els.tsNum.value), beat_value: Number(els.tsDen.value) });
+                                bassVoice.setStrict(false);
+                                bassVoice.addTickables(bassMeasures[i]);
+                                
+                                formatter.joinVoices([bassVoice]);
+                                formatter.format([bassVoice], measureWidth - 10);
+                                bassVoice.draw(ctx, bassStave);
+                            }
+                        }
+                    }
+
+                    console.log('Sheet music drawn. Sheet innerHTML length:', els.sheet.innerHTML.length);
+                    console.log('Sheet element after render:', els.sheet);
+                    
+                    // Force a check to see if SVG was created
+                    const svg = els.sheet.querySelector('svg');
+                    if (svg) {
+                        console.log('SVG found! Width:', svg.width, 'Height:', svg.height);
+                    } else {
+                        console.error('No SVG element found in sheet!');
+                    }
+
+                    // Show JSON after render
+                    els.jsonOut.value = JSON.stringify(notes, null, 2);
+                    setStatus(`Rendered sheet with ${notes.length} notes`);
+                } catch (error) {
+                    console.error('Error rendering sheet:', error);
+                    alert('Error rendering sheet music: ' + error.message);
+                    setStatus('Error: ' + error.message);
+                }
+            }
+
+            els.renderBtn.addEventListener('click', () => renderSheet());
+
+            // Load JSON and render
+            els.loadJsonBtn.addEventListener('click', () => {
+                try {
+                    const jsonText = els.jsonInput.value.trim();
+                    if (!jsonText) {
+                        alert('Please paste JSON notes in the input field.');
+                        return;
+                    }
+                    const notes = JSON.parse(jsonText);
+                    if (!Array.isArray(notes)) {
+                        alert('JSON must be an array of note objects.');
+                        return;
+                    }
+                    // Validate note format
+                    for (const note of notes) {
+                        if (typeof note.midi !== 'number' || typeof note.t0 !== 'number' || typeof note.t1 !== 'number') {
+                            alert('Each note must have: { "midi": number, "t0": number, "t1": number }');
+                            return;
+                        }
+                    }
+                    // Store loaded notes in captured array so "Render sheet" button works
+                    captured.length = 0;
+                    captured.push(...notes);
+                    renderSheet(notes);
+                    setStatus(`Loaded and rendered ${notes.length} notes from JSON`);
+                } catch (e) {
+                    alert('Invalid JSON: ' + e.message);
+                }
+            });
+
+            // ---------- Start loop ----------
+            resize();
+            tick();
+            setStatus('Idle');
+        })();
+    </script>
+</body>
+
+</html>
