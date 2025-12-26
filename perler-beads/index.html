@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perler Bead Diagram Generator</title>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color-scheme: light dark;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      min-height: 100vh;
+      background: #111827;
+      color: #e5e7eb;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 16px;
+      padding: 16px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .panel {
+      background: #020617;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+      border: 1px solid #1f2937;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.4rem;
+    }
+
+    h2 {
+      margin-top: 16px;
+      margin-bottom: 8px;
+      font-size: 1rem;
+    }
+
+    label {
+      font-size: 0.85rem;
+      display: block;
+      margin-bottom: 4px;
+      color: #9ca3af;
+    }
+
+    input[type="number"],
+    input[type="file"],
+    .palette-box {
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 10px;
+      border: 1px solid #4b5563;
+      padding: 6px 8px;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 0.9rem;
+    }
+
+    input[type="range"] {
+      width: 100%;
+    }
+
+    .small-text {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 6px;
+      max-height: 260px;
+      overflow: auto;
+      padding: 6px;
+      border-radius: 10px;
+      border: 1px solid #1f2937;
+      background: radial-gradient(circle at top left, #111827, #020617);
+    }
+
+    .color-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 6px;
+      border-radius: 999px;
+      cursor: pointer;
+      user-select: none;
+      border: 1px solid transparent;
+      font-size: 0.8rem;
+      transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+    }
+
+    .color-item:hover {
+      border-color: #4b5563;
+      transform: translateY(-1px);
+    }
+
+    .color-swatch {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid #111827;
+      flex-shrink: 0;
+    }
+
+    .color-item input[type="checkbox"] {
+      flex-shrink: 0;
+    }
+
+    .toolbar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 0.8rem;
+    }
+
+    button {
+      border-radius: 999px;
+      border: 1px solid #4b5563;
+      padding: 6px 10px;
+      background: linear-gradient(135deg, #0f172a, #020617);
+      color: #e5e7eb;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    }
+
+    button:hover {
+      border-color: #10b981;
+      box-shadow: 0 12px 30px rgba(16,185,129,0.35);
+    }
+
+    .preview-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      height: calc(100vh - 32px);
+      min-height: 400px;
+      overflow: hidden;
+    }
+
+    .canvas-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    #diagramCanvas {
+      background: radial-gradient(circle at top, #111827, #020617);
+      border-radius: 16px;
+      border: 1px solid #1f2937;
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+    }
+
+    .status-bar {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    #message {
+      color: #fbbf24;
+    }
+
+    #legend {
+      font-size: 0.75rem;
+      max-height: 140px;
+      overflow: auto;
+      border-radius: 12px;
+      border: 1px solid #1f2937;
+      padding: 6px 8px;
+      background: #020617;
+    }
+
+    #legend table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    #legend th, #legend td {
+      text-align: left;
+      padding: 2px 4px;
+      border-bottom: 1px solid #111827;
+    }
+
+    #legend th {
+      font-weight: 500;
+      color: #9ca3af;
+    }
+
+    #legend .legend-swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 1px solid #111827;
+      display: inline-block;
+    }
+
+    /* Tablet and smaller desktop */
+    @media (max-width: 1024px) {
+      .app {
+        gap: 12px;
+        padding: 12px;
+      }
+      
+      .panel {
+        padding: 12px;
+      }
+      
+      .palette-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      }
+    }
+
+    /* Mobile landscape and small tablets */
+    @media (max-width: 800px) {
+      .app {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: 12px;
+      }
+      
+      .preview-wrapper {
+        height: auto;
+        min-height: 300px;
+        max-height: 60vh;
+      }
+      
+      h1 {
+        font-size: 1.2rem;
+      }
+      
+      h2 {
+        font-size: 0.95rem;
+        margin-top: 12px;
+      }
+      
+      .palette-grid {
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+        max-height: 200px;
+      }
+      
+      .toolbar-row {
+        flex-wrap: wrap;
+      }
+      
+      button {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+        min-height: 36px; /* Touch-friendly */
+      }
+      
+      input[type="number"],
+      input[type="file"] {
+        padding: 8px;
+        font-size: 0.9rem;
+        min-height: 36px; /* Touch-friendly */
+      }
+      
+      .status-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      
+      .status-bar button {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    /* Mobile portrait */
+    @media (max-width: 600px) {
+      .app {
+        padding: 8px;
+        gap: 8px;
+      }
+      
+      .panel {
+        padding: 12px;
+        border-radius: 12px;
+      }
+      
+      h1 {
+        font-size: 1.1rem;
+        margin-bottom: 6px;
+      }
+      
+      h2 {
+        font-size: 0.9rem;
+        margin-top: 10px;
+        margin-bottom: 6px;
+      }
+      
+      label {
+        font-size: 0.8rem;
+      }
+      
+      input[type="number"],
+      input[type="file"] {
+        padding: 10px;
+        font-size: 0.95rem;
+        min-height: 44px; /* Larger for touch */
+      }
+      
+      input[type="range"] {
+        min-height: 44px;
+      }
+      
+      .palette-grid {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 4px;
+        max-height: 180px;
+        padding: 4px;
+      }
+      
+      .color-item {
+        padding: 6px 8px;
+        font-size: 0.75rem;
+        min-height: 32px;
+      }
+      
+      .color-swatch {
+        width: 20px;
+        height: 20px;
+      }
+      
+      button {
+        padding: 10px 14px;
+        font-size: 0.9rem;
+        min-height: 44px;
+      }
+      
+      .toolbar-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+      }
+      
+      .toolbar-row button {
+        width: 100%;
+      }
+      
+      .preview-wrapper {
+        min-height: 250px;
+        max-height: 50vh;
+      }
+      
+      .canvas-container {
+        min-height: 250px;
+      }
+      
+      .status-bar {
+        font-size: 0.75rem;
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      #message,
+      #stats {
+        word-break: break-word;
+      }
+      
+      #legend {
+        max-height: 120px;
+        font-size: 0.7rem;
+        padding: 4px 6px;
+      }
+      
+      #legend th, #legend td {
+        padding: 4px 2px;
+      }
+      
+      #legend table {
+        font-size: 0.65rem;
+      }
+      
+      .legend-swatch {
+        width: 12px !important;
+        height: 12px !important;
+      }
+      
+      /* Radio buttons and labels for palette mode */
+      label[for^="palette"] {
+        padding: 10px 0;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+      }
+      
+      input[name="paletteMode"] {
+        width: 20px;
+        height: 20px;
+        margin: 0;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      
+      /* Palette mode container */
+      div[style*="flex-direction: column"][style*="gap: 6px"] {
+        gap: 4px !important;
+      }
+      
+      /* Small text adjustments */
+      .small-text {
+        font-size: 0.7rem;
+      }
+    }
+
+    /* Very small mobile */
+    @media (max-width: 400px) {
+      .app {
+        padding: 6px;
+      }
+      
+      .panel {
+        padding: 10px;
+      }
+      
+      h1 {
+        font-size: 1rem;
+      }
+      
+      .palette-grid {
+        grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+      }
+      
+      .color-item {
+        font-size: 0.7rem;
+        padding: 4px 6px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Controls Panel -->
+    <div class="panel">
+      <h1>Perler Bead Diagram</h1>
+      <p class="small-text">
+        Upload an image, choose your bead colors, and set how many beads wide you want.
+        The pattern updates automatically.
+      </p>
+
+      <h2>1. Image</h2>
+      <label for="imageInput">Upload source image</label>
+      <input id="imageInput" type="file" accept="image/*" />
+
+      <h2>2. Size</h2>
+      <label for="beadWidth">Beads across</label>
+      <input id="beadWidth" type="number" min="5" max="200" value="50" />
+      <div class="small-text">
+        Height will auto-adjust to keep the original aspect ratio.
+      </div>
+      <div style="margin-top: 8px;">
+        <label for="pixelSlider">Quick adjust</label>
+        <input id="pixelSlider" type="range" min="10" max="150" value="50" />
+      </div>
+
+      <h2>3. Available Colors</h2>
+      <label style="font-size: 0.85rem; display: block; margin-bottom: 8px; color: #9ca3af;">Color Palette Mode</label>
+      <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.85rem;">
+          <input type="radio" name="paletteMode" value="superbasic" checked style="cursor: pointer;" />
+          <span>Super Basic (<span id="superbasicCount">10</span> colors)</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.85rem;">
+          <input type="radio" name="paletteMode" value="basic" style="cursor: pointer;" />
+          <span>Basic (<span id="basicCount">20</span> colors)</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.85rem;">
+          <input type="radio" name="paletteMode" value="advanced" style="cursor: pointer;" />
+          <span>Advanced (<span id="advancedCount"></span> colors)</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.85rem;">
+          <input type="radio" name="paletteMode" value="adaptive" style="cursor: pointer;" />
+          <span>Adaptive (extracted from image)</span>
+        </label>
+      </div>
+      <div id="paletteModeIndicator" class="small-text" style="margin-bottom: 8px; color: #10b981;"></div>
+      <div class="toolbar-row">
+        <button id="selectAllBtn" type="button">Select all</button>
+        <button id="clearAllBtn" type="button">Clear all</button>
+      </div>
+      <div id="colorsContainer" class="palette-grid"></div>
+
+      <h2>4. Legend</h2>
+      <div id="legend">
+        <span class="small-text">Generate a pattern to see bead counts here.</span>
+      </div>
+    </div>
+
+    <!-- Preview Panel -->
+    <div class="panel preview-wrapper">
+      <div class="canvas-container">
+        <canvas id="diagramCanvas"></canvas>
+      </div>
+      <div class="status-bar">
+        <span id="message">Upload an image to get started.</span>
+        <span id="stats"></span>
+        <button id="saveDiagramBtn" type="button" style="display: none;">Save diagram to image</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Super Basic color palette ---
+    const SUPER_BASIC_COLORS = [
+      { name: "White",    hex: "#FFFFFF" },
+      { name: "Black",    hex: "#000000" },
+      { name: "Red",      hex: "#FF0000" },
+      { name: "Orange",   hex: "#FFA500" },
+      { name: "Yellow",   hex: "#FFFF00" },
+      { name: "Green",    hex: "#008000" },
+      { name: "Blue",     hex: "#0000FF" },
+      { name: "Purple",   hex: "#800080" },
+      { name: "Pink",     hex: "#FFC0CB" },
+      { name: "Brown",    hex: "#8B4513" }
+    ].map(c => ({
+      ...c,
+      r: parseInt(c.hex.slice(1, 3), 16),
+      g: parseInt(c.hex.slice(3, 5), 16),
+      b: parseInt(c.hex.slice(5, 7), 16)
+    }));
+
+    // --- Basic color palette ---
+    const BASIC_COLORS = [
+      { name: "White",    hex: "#FFFFFF" },
+      { name: "Black",    hex: "#000000" },
+      { name: "Light Gray", hex: "#C0C0C0" },
+      { name: "Dark Gray",  hex: "#606060" },
+      { name: "Red",      hex: "#FF0000" },
+      { name: "Dark Red", hex: "#8B0000" },
+      { name: "Orange",   hex: "#FFA500" },
+      { name: "Yellow",   hex: "#FFFF00" },
+      { name: "Lime",     hex: "#00FF00" },
+      { name: "Green",    hex: "#008000" },
+      { name: "Teal",     hex: "#008080" },
+      { name: "Cyan",     hex: "#00FFFF" },
+      { name: "Sky Blue", hex: "#87CEEB" },
+      { name: "Blue",     hex: "#0000FF" },
+      { name: "Navy",     hex: "#000080" },
+      { name: "Purple",   hex: "#800080" },
+      { name: "Magenta",  hex: "#FF00FF" },
+      { name: "Pink",     hex: "#FFC0CB" },
+      { name: "Tan",      hex: "#D2B48C" },
+      { name: "Brown",    hex: "#8B4513" }
+    ].map(c => ({
+      ...c,
+      r: parseInt(c.hex.slice(1, 3), 16),
+      g: parseInt(c.hex.slice(3, 5), 16),
+      b: parseInt(c.hex.slice(5, 7), 16)
+    }));
+
+    // --- Advanced comprehensive Perler bead palette ---
+    const ADVANCED_COLORS = [
+      // Whites & Grays
+      { name: "White", hex: "#FFFFFF" },
+      { name: "Pearl", hex: "#F8F8FF" },
+      { name: "Ivory", hex: "#FFFFF0" },
+      { name: "Light Gray", hex: "#C0C0C0" },
+      { name: "Medium Gray", hex: "#808080" },
+      { name: "Dark Gray", hex: "#606060" },
+      { name: "Charcoal", hex: "#36454F" },
+      { name: "Black", hex: "#000000" },
+      
+      // Reds
+      { name: "Pink", hex: "#FFC0CB" },
+      { name: "Rose", hex: "#FF007F" },
+      { name: "Hot Pink", hex: "#FF69B4" },
+      { name: "Light Pink", hex: "#FFB6C1" },
+      { name: "Coral", hex: "#FF7F50" },
+      { name: "Salmon", hex: "#FA8072" },
+      { name: "Light Red", hex: "#FF6B6B" },
+      { name: "Red", hex: "#FF0000" },
+      { name: "Crimson", hex: "#DC143C" },
+      { name: "Dark Red", hex: "#8B0000" },
+      { name: "Maroon", hex: "#800000" },
+      { name: "Burgundy", hex: "#800020" },
+      
+      // Oranges
+      { name: "Peach", hex: "#FFE5B4" },
+      { name: "Apricot", hex: "#FBCEB1" },
+      { name: "Light Orange", hex: "#FFD700" },
+      { name: "Orange", hex: "#FFA500" },
+      { name: "Dark Orange", hex: "#FF8C00" },
+      { name: "Burnt Orange", hex: "#CC5500" },
+      { name: "Rust", hex: "#B7410E" },
+      
+      // Yellows
+      { name: "Light Yellow", hex: "#FFFFE0" },
+      { name: "Lemon", hex: "#FFF700" },
+      { name: "Yellow", hex: "#FFFF00" },
+      { name: "Gold", hex: "#FFD700" },
+      { name: "Mustard", hex: "#FFDB58" },
+      { name: "Amber", hex: "#FFBF00" },
+      { name: "Dark Yellow", hex: "#CCCC00" },
+      
+      // Greens
+      { name: "Mint", hex: "#98FF98" },
+      { name: "Light Green", hex: "#90EE90" },
+      { name: "Lime", hex: "#00FF00" },
+      { name: "Lime Green", hex: "#32CD32" },
+      { name: "Yellow Green", hex: "#9ACD32" },
+      { name: "Green", hex: "#008000" },
+      { name: "Forest Green", hex: "#228B22" },
+      { name: "Dark Green", hex: "#006400" },
+      { name: "Olive", hex: "#808000" },
+      { name: "Sage", hex: "#87AE73" },
+      { name: "Emerald", hex: "#50C878" },
+      { name: "Teal", hex: "#008080" },
+      { name: "Dark Teal", hex: "#003D3D" },
+      
+      // Cyans & Blues
+      { name: "Cyan", hex: "#00FFFF" },
+      { name: "Aqua", hex: "#00CED1" },
+      { name: "Turquoise", hex: "#40E0D0" },
+      { name: "Light Blue", hex: "#ADD8E6" },
+      { name: "Sky Blue", hex: "#87CEEB" },
+      { name: "Baby Blue", hex: "#89CFF0" },
+      { name: "Powder Blue", hex: "#B0E0E6" },
+      { name: "Steel Blue", hex: "#4682B4" },
+      { name: "Blue", hex: "#0000FF" },
+      { name: "Royal Blue", hex: "#4169E1" },
+      { name: "Navy", hex: "#000080" },
+      { name: "Midnight Blue", hex: "#191970" },
+      { name: "Cobalt", hex: "#0047AB" },
+      { name: "Indigo", hex: "#4B0082" },
+      
+      // Purples
+      { name: "Lavender", hex: "#E6E6FA" },
+      { name: "Light Purple", hex: "#C8A2C8" },
+      { name: "Plum", hex: "#DDA0DD" },
+      { name: "Violet", hex: "#8A2BE2" },
+      { name: "Purple", hex: "#800080" },
+      { name: "Dark Purple", hex: "#4B0082" },
+      { name: "Magenta", hex: "#FF00FF" },
+      { name: "Fuchsia", hex: "#FF1493" },
+      { name: "Orchid", hex: "#DA70D6" },
+      
+      // Browns & Tans
+      { name: "Beige", hex: "#F5F5DC" },
+      { name: "Tan", hex: "#D2B48C" },
+      { name: "Khaki", hex: "#C3B091" },
+      { name: "Light Brown", hex: "#D2691E" },
+      { name: "Brown", hex: "#8B4513" },
+      { name: "Dark Brown", hex: "#654321" },
+      { name: "Chocolate", hex: "#7B3F00" },
+      { name: "Coffee", hex: "#6F4E37" },
+      { name: "Sienna", hex: "#A0522D" },
+      { name: "Burnt Sienna", hex: "#E97451" },
+      
+      // Metallics & Special
+      { name: "Silver", hex: "#C0C0C0" },
+      { name: "Gold", hex: "#FFD700" },
+      { name: "Copper", hex: "#B87333" },
+      { name: "Bronze", hex: "#CD7F32" },
+      
+      // Pastels
+      { name: "Pastel Pink", hex: "#FFD1DC" },
+      { name: "Pastel Blue", hex: "#AEC6CF" },
+      { name: "Pastel Green", hex: "#C1E1C1" },
+      { name: "Pastel Yellow", hex: "#FFF9C4" },
+      { name: "Pastel Purple", hex: "#E1C2FF" },
+      { name: "Pastel Orange", hex: "#FFB347" },
+      
+      // Extended Range
+      { name: "Neon Pink", hex: "#FF10F0" },
+      { name: "Neon Green", hex: "#39FF14" },
+      { name: "Neon Yellow", hex: "#FFFF33" },
+      { name: "Neon Blue", hex: "#1F51FF" },
+      { name: "Neon Orange", hex: "#FF6700" }
+    ].map(c => ({
+      ...c,
+      r: parseInt(c.hex.slice(1, 3), 16),
+      g: parseInt(c.hex.slice(3, 5), 16),
+      b: parseInt(c.hex.slice(5, 7), 16)
+    }));
+
+    let currentPalette = SUPER_BASIC_COLORS;
+    let paletteMode = "superbasic"; // "superbasic", "basic", "advanced", or "adaptive"
+
+    const imageInput = document.getElementById("imageInput");
+    const beadWidthInput = document.getElementById("beadWidth");
+    const pixelSlider = document.getElementById("pixelSlider");
+    const colorsContainer = document.getElementById("colorsContainer");
+    const canvas = document.getElementById("diagramCanvas");
+    const ctx = canvas.getContext("2d");
+    const messageEl = document.getElementById("message");
+    const statsEl = document.getElementById("stats");
+    const legendEl = document.getElementById("legend");
+    const selectAllBtn = document.getElementById("selectAllBtn");
+    const clearAllBtn = document.getElementById("clearAllBtn");
+    const paletteModeIndicator = document.getElementById("paletteModeIndicator");
+    const paletteModeRadios = document.querySelectorAll('input[name="paletteMode"]');
+    const saveDiagramBtn = document.getElementById("saveDiagramBtn");
+
+    const tempCanvas = document.createElement("canvas");
+    const tempCtx = tempCanvas.getContext("2d");
+
+    let sourceImage = null;
+    let extractedColors = null;
+    let currentColorCounts = null; // Store color counts for saving with legend
+
+    // --- Build color checkbox UI ---
+    function buildColorPalette() {
+      // Clear existing colors
+      colorsContainer.innerHTML = "";
+      
+      currentPalette.forEach((color, index) => {
+        const id = "color_" + index;
+
+        const wrapper = document.createElement("label");
+        wrapper.className = "color-item";
+        wrapper.htmlFor = id;
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.id = id;
+        checkbox.checked = true;
+        checkbox.dataset.index = index;
+
+        const swatch = document.createElement("span");
+        swatch.className = "color-swatch";
+        swatch.style.backgroundColor = color.hex;
+
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = color.name;
+
+        wrapper.appendChild(checkbox);
+        wrapper.appendChild(swatch);
+        wrapper.appendChild(nameSpan);
+
+        colorsContainer.appendChild(wrapper);
+      });
+    }
+
+    // Set initial counts
+    document.getElementById("superbasicCount").textContent = SUPER_BASIC_COLORS.length;
+    document.getElementById("basicCount").textContent = BASIC_COLORS.length;
+    document.getElementById("advancedCount").textContent = ADVANCED_COLORS.length;
+
+    function updatePaletteMode() {
+      const selectedMode = document.querySelector('input[name="paletteMode"]:checked')?.value || "superbasic";
+      paletteMode = selectedMode;
+      
+      if (paletteMode === "superbasic") {
+        currentPalette = SUPER_BASIC_COLORS;
+        paletteModeIndicator.textContent = "Using super basic palette (" + SUPER_BASIC_COLORS.length + " colors)";
+        paletteModeIndicator.style.color = "#9ca3af";
+      } else if (paletteMode === "basic") {
+        currentPalette = BASIC_COLORS;
+        paletteModeIndicator.textContent = "Using basic palette (" + BASIC_COLORS.length + " colors)";
+        paletteModeIndicator.style.color = "#9ca3af";
+      } else if (paletteMode === "advanced") {
+        currentPalette = ADVANCED_COLORS;
+        paletteModeIndicator.textContent = "Using advanced palette (" + ADVANCED_COLORS.length + " colors)";
+        paletteModeIndicator.style.color = "#fbbf24";
+      } else if (paletteMode === "adaptive") {
+        if (extractedColors && extractedColors.length > 0) {
+          currentPalette = extractedColors;
+          paletteModeIndicator.textContent = "Using " + extractedColors.length + " colors extracted from image";
+          paletteModeIndicator.style.color = "#10b981";
+        } else {
+          currentPalette = SUPER_BASIC_COLORS;
+          paletteModeIndicator.textContent = "No image loaded. Upload an image to use adaptive mode.";
+          paletteModeIndicator.style.color = "#ef4444";
+        }
+      }
+      
+      buildColorPalette();
+      renderDiagram();
+    }
+
+    function extractDominantColors(image, maxColors = 20) {
+      // Create a temporary canvas to analyze the image
+      const analysisCanvas = document.createElement("canvas");
+      const analysisCtx = analysisCanvas.getContext("2d");
+      
+      // Scale down for performance (max 200px on longest side)
+      const maxDimension = 200;
+      let width = image.width;
+      let height = image.height;
+      const scale = Math.min(1, maxDimension / Math.max(width, height));
+      
+      analysisCanvas.width = Math.floor(width * scale);
+      analysisCanvas.height = Math.floor(height * scale);
+      analysisCtx.drawImage(image, 0, 0, analysisCanvas.width, analysisCanvas.height);
+      
+      const imgData = analysisCtx.getImageData(0, 0, analysisCanvas.width, analysisCanvas.height);
+      const data = imgData.data;
+      
+      // Quantize colors to reduce similar shades (group similar colors)
+      const quantize = 16; // Round colors to nearest multiple of 16
+      const colorMap = new Map();
+      
+      // Count quantized colors
+      for (let i = 0; i < data.length; i += 4) {
+        const r = Math.floor(data[i] / quantize) * quantize;
+        const g = Math.floor(data[i + 1] / quantize) * quantize;
+        const b = Math.floor(data[i + 2] / quantize) * quantize;
+        const a = data[i + 3];
+        
+        // Skip transparent pixels
+        if (a < 128) continue;
+        
+        const key = `${r},${g},${b}`;
+        if (!colorMap.has(key)) {
+          colorMap.set(key, { r, g, b, count: 0 });
+        }
+        colorMap.get(key).count++;
+      }
+      
+      // Convert to array and sort by frequency
+      let colors = Array.from(colorMap.values())
+        .sort((a, b) => b.count - a.count);
+      
+      // Remove very similar colors to get more distinct palette
+      const minDistance = 40; // Minimum color distance to keep distinct
+      const distinctColors = [];
+      
+      for (const color of colors) {
+        let isDistinct = true;
+        for (const existing of distinctColors) {
+          const dr = color.r - existing.r;
+          const dg = color.g - existing.g;
+          const db = color.b - existing.b;
+          const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+          if (dist < minDistance) {
+            isDistinct = false;
+            // Merge counts if similar
+            existing.count += color.count;
+            break;
+          }
+        }
+        if (isDistinct) {
+          distinctColors.push(color);
+          if (distinctColors.length >= maxColors) break;
+        }
+      }
+      
+      // Sort by frequency again after merging
+      distinctColors.sort((a, b) => b.count - a.count);
+      
+      // Convert to palette format with better names
+      return distinctColors.slice(0, maxColors).map((c, idx) => {
+        const hex = hexFromRGB(c.r, c.g, c.b);
+        // Try to find a matching name from basic colors
+        let name = `Color ${idx + 1}`;
+        const normalizedHex = hex.toUpperCase();
+        for (const basicColor of BASIC_COLORS) {
+          if (basicColor.hex.toUpperCase() === normalizedHex) {
+            name = basicColor.name;
+            break;
+          }
+        }
+        // If no match found, use hex code as name
+        if (name.startsWith('Color ')) {
+          name = hex.toUpperCase();
+        }
+        return {
+          name: name,
+          hex: hex,
+          r: c.r,
+          g: c.g,
+          b: c.b
+        };
+      });
+    }
+
+    buildColorPalette();
+
+    function getSelectedColors() {
+      const selected = [];
+      const checkboxes = colorsContainer.querySelectorAll("input[type='checkbox']");
+      checkboxes.forEach(cb => {
+        if (cb.checked) {
+          const idx = parseInt(cb.dataset.index, 10);
+          if (!Number.isNaN(idx) && idx < currentPalette.length) {
+            selected.push(currentPalette[idx]);
+          }
+        }
+      });
+      return selected;
+    }
+
+    function hexFromRGB(r, g, b) {
+      const toHex = (v) => v.toString(16).padStart(2, "0");
+      return "#" + toHex(r) + toHex(g) + toHex(b);
+    }
+
+    function findClosestColor(r, g, b, palette) {
+      let best = null;
+      let bestDist = Infinity;
+      
+      // Determine the dominant color channel (the one with highest value)
+      const dominantWeight = 1.25; // Weight dominant channel 1.25x more
+      let weightR = 1, weightG = 1, weightB = 1;
+      
+      if (r >= g && r >= b) {
+        weightR = dominantWeight;
+      } else if (g >= r && g >= b) {
+        weightG = dominantWeight;
+      } else {
+        weightB = dominantWeight;
+      }
+      
+      for (const color of palette) {
+        const dr = (r - color.r) * weightR;
+        const dg = (g - color.g) * weightG;
+        const db = (b - color.b) * weightB;
+        const dist = dr * dr + dg * dg + db * db; // no need for sqrt
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = color;
+        }
+      }
+      return best;
+    }
+
+    function scaleCanvasToFit() {
+      if (canvas.width === 0 || canvas.height === 0) return;
+      
+      const container = canvas.parentElement;
+      if (!container) return;
+      
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+      if (containerWidth === 0 || containerHeight === 0) return;
+      
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
+      const scaleX = containerWidth / canvasWidth;
+      const scaleY = containerHeight / canvasHeight;
+      const scale = Math.min(scaleX, scaleY, 1); // Don't scale up, only down
+      
+      canvas.style.width = (canvasWidth * scale) + 'px';
+      canvas.style.height = (canvasHeight * scale) + 'px';
+    }
+
+    function saveDiagramToImage() {
+      if (canvas.width === 0 || canvas.height === 0 || !sourceImage) {
+        messageEl.textContent = "No diagram to save. Generate a diagram first.";
+        return;
+      }
+      
+      // Create a new canvas for the combined image with legend
+      const saveCanvas = document.createElement("canvas");
+      const saveCtx = saveCanvas.getContext("2d");
+      
+      const diagramWidth = canvas.width;
+      const diagramHeight = canvas.height;
+      
+      // Calculate legend dimensions
+      const legendPadding = 40;
+      const legendItemHeight = 30;
+      const legendSwatchSize = 20;
+      const legendSwatchMargin = 10;
+      const legendTextMargin = 10;
+      const legendCol1Width = 150; // Color name
+      const legendCol2Width = 100; // Hex code
+      const legendCol3Width = 80;  // Quantity
+      const legendWidth = legendCol1Width + legendCol2Width + legendCol3Width + legendPadding * 2;
+      
+      const entries = currentColorCounts 
+        ? Array.from(currentColorCounts.values()).sort((a, b) => b.count - a.count)
+        : [];
+      
+      const legendHeaderHeight = 40;
+      const legendHeight = legendHeaderHeight + (entries.length * legendItemHeight) + legendPadding * 2;
+      const gap = 20; // Gap between diagram and legend
+      
+      // Set canvas size: diagram on left, legend on right
+      saveCanvas.width = diagramWidth + gap + legendWidth;
+      saveCanvas.height = Math.max(diagramHeight, legendHeight);
+      
+      // Fill background
+      saveCtx.fillStyle = "#020617";
+      saveCtx.fillRect(0, 0, saveCanvas.width, saveCanvas.height);
+      
+      // Draw diagram
+      saveCtx.drawImage(canvas, 0, 0);
+      
+      // Draw legend background
+      const legendX = diagramWidth + gap;
+      const legendBgPadding = 10;
+      saveCtx.fillStyle = "#111827";
+      saveCtx.fillRect(
+        legendX - legendBgPadding, 
+        legendBgPadding, 
+        legendWidth + legendBgPadding * 2, 
+        Math.max(diagramHeight, legendHeight) - legendBgPadding * 2
+      );
+      
+      // Draw legend title
+      saveCtx.fillStyle = "#e5e7eb";
+      saveCtx.font = "bold 20px system-ui, sans-serif";
+      saveCtx.textAlign = "left";
+      saveCtx.fillText("Bill of Materials", legendX + legendPadding, legendPadding + 25);
+      
+      // Draw legend header
+      saveCtx.fillStyle = "#9ca3af";
+      saveCtx.font = "14px system-ui, sans-serif";
+      saveCtx.fillText("Color", legendX + legendPadding, legendPadding + legendHeaderHeight);
+      saveCtx.fillText("Hex", legendX + legendPadding + legendCol1Width, legendPadding + legendHeaderHeight);
+      saveCtx.fillText("Qty", legendX + legendPadding + legendCol1Width + legendCol2Width, legendPadding + legendHeaderHeight);
+      
+      // Draw separator line
+      saveCtx.strokeStyle = "#374151";
+      saveCtx.lineWidth = 1;
+      saveCtx.beginPath();
+      saveCtx.moveTo(legendX + legendPadding, legendPadding + legendHeaderHeight + 5);
+      saveCtx.lineTo(legendX + legendWidth - legendPadding, legendPadding + legendHeaderHeight + 5);
+      saveCtx.stroke();
+      
+      // Draw legend items
+      saveCtx.font = "12px system-ui, sans-serif";
+      entries.forEach((entry, index) => {
+        const y = legendPadding + legendHeaderHeight + 15 + (index * legendItemHeight);
+        
+        // Draw color swatch
+        saveCtx.fillStyle = entry.color.hex;
+        saveCtx.beginPath();
+        saveCtx.arc(
+          legendX + legendPadding + legendSwatchSize / 2,
+          y,
+          legendSwatchSize / 2,
+          0,
+          Math.PI * 2
+        );
+        saveCtx.fill();
+        
+        // Draw swatch border
+        saveCtx.strokeStyle = "#1f2937";
+        saveCtx.lineWidth = 1;
+        saveCtx.stroke();
+        
+        // Draw color name
+        saveCtx.fillStyle = "#e5e7eb";
+        saveCtx.textAlign = "left";
+        saveCtx.fillText(
+          entry.color.name,
+          legendX + legendPadding + legendSwatchSize + legendSwatchMargin,
+          y + 4
+        );
+        
+        // Draw hex code
+        saveCtx.fillStyle = "#9ca3af";
+        saveCtx.fillText(
+          entry.color.hex.toUpperCase(),
+          legendX + legendPadding + legendCol1Width,
+          y + 4
+        );
+        
+        // Draw quantity
+        saveCtx.fillStyle = "#e5e7eb";
+        saveCtx.textAlign = "right";
+        saveCtx.fillText(
+          entry.count.toString(),
+          legendX + legendPadding + legendCol1Width + legendCol2Width + legendCol3Width,
+          y + 4
+        );
+      });
+      
+      // Convert to blob and trigger download
+      saveCanvas.toBlob((blob) => {
+        if (!blob) {
+          messageEl.textContent = "Failed to save diagram.";
+          return;
+        }
+        
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `perler-bead-diagram-${Date.now()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        messageEl.textContent = "Diagram saved successfully!";
+        setTimeout(() => {
+          if (sourceImage) {
+            const beadCols = Math.max(5, Math.min(200, parseInt(beadWidthInput.value || "50", 10)));
+            messageEl.textContent = `Diagram generated: ${beadCols} × ${Math.round(beadCols * (sourceImage.height / sourceImage.width))} beads.`;
+          }
+        }, 2000);
+      }, "image/png");
+    }
+
+    function renderDiagram() {
+      if (!sourceImage) {
+        messageEl.textContent = "Upload an image to get started.";
+        statsEl.textContent = "";
+        legendEl.innerHTML = '<span class="small-text">Generate a pattern to see bead counts here.</span>';
+        canvas.width = 1;
+        canvas.height = 1;
+        canvas.style.width = 'auto';
+        canvas.style.height = 'auto';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        saveDiagramBtn.style.display = 'none';
+        return;
+      }
+
+      const beadCols = Math.max(5, Math.min(200, parseInt(beadWidthInput.value || "50", 10)));
+      beadWidthInput.value = beadCols;
+      pixelSlider.value = beadCols;
+
+      const palette = getSelectedColors();
+      if (palette.length === 0) {
+        messageEl.textContent = "Select at least one color to generate a pattern.";
+        statsEl.textContent = "";
+        legendEl.innerHTML = '<span class="small-text">Select some colors above first.</span>';
+        canvas.width = 1;
+        canvas.height = 1;
+        canvas.style.width = 'auto';
+        canvas.style.height = 'auto';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        saveDiagramBtn.style.display = 'none';
+        return;
+      }
+
+      // Maintain aspect ratio based on original image
+      const aspect = sourceImage.height / sourceImage.width;
+      const beadRows = Math.max(5, Math.round(beadCols * aspect));
+
+      const beadSize = 12; // pixels per bead in final diagram
+
+      // Step 1: Scale the original image down to bead grid size
+      tempCanvas.width = beadCols;
+      tempCanvas.height = beadRows;
+      tempCtx.clearRect(0, 0, beadCols, beadRows);
+      tempCtx.drawImage(sourceImage, 0, 0, beadCols, beadRows);
+
+      const imgData = tempCtx.getImageData(0, 0, beadCols, beadRows);
+      const data = imgData.data;
+
+      // Prepare canvas for final drawing (internal resolution)
+      const canvasWidth = beadCols * beadSize;
+      const canvasHeight = beadRows * beadSize;
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Scale canvas CSS size to fit container while maintaining aspect ratio
+      scaleCanvasToFit();
+
+      ctx.fillStyle = "#020617";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const colorCounts = new Map(); // name -> {color, count}
+      currentColorCounts = colorCounts; // Store for saving with legend
+
+      // Step 2: Map each "pixel" to closest bead color & draw
+      for (let y = 0; y < beadRows; y++) {
+        for (let x = 0; x < beadCols; x++) {
+          const idx = (y * beadCols + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          const a = data[idx + 3];
+
+          // Treat transparent-ish pixels as empty -> skip (optional)
+          if (a < 16) continue;
+
+          const closest = findClosestColor(r, g, b, palette);
+          if (!closest) continue;
+
+          // Count beads per color
+          if (!colorCounts.has(closest.name)) {
+            colorCounts.set(closest.name, { color: closest, count: 0 });
+          }
+          colorCounts.get(closest.name).count++;
+
+          // Draw bead
+          const centerX = x * beadSize + beadSize / 2;
+          const centerY = y * beadSize + beadSize / 2;
+          const radius = beadSize * 0.45;
+
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+          
+          // Add white outline for black beads so they're visible on dark background
+          if (closest.name === "Black" || (closest.r === 0 && closest.g === 0 && closest.b === 0)) {
+            ctx.strokeStyle = "#FFFFFF";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
+          
+          ctx.fillStyle = closest.hex;
+          ctx.fill();
+
+          // Tiny inner circle to suggest the bead hole
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, radius * 0.3, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(0,0,0,0.25)";
+          ctx.fill();
+        }
+      }
+
+      // Optional: grid overlay
+      ctx.strokeStyle = "rgba(15,23,42,0.5)";
+      ctx.lineWidth = 0.5;
+      for (let x = 0; x <= beadCols; x++) {
+        const gx = x * beadSize + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(gx, 0);
+        ctx.lineTo(gx, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= beadRows; y++) {
+        const gy = y * beadSize + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(0, gy);
+        ctx.lineTo(canvas.width, gy);
+        ctx.stroke();
+      }
+
+      messageEl.textContent = `Diagram generated: ${beadCols} × ${beadRows} beads.`;
+      statsEl.textContent = `${beadCols * beadRows} total positions (some may be empty if transparent).`;
+      
+      // Show save button
+      saveDiagramBtn.style.display = 'inline-flex';
+
+      // Build legend with bead counts
+      const entries = Array.from(colorCounts.values()).sort((a, b) => b.count - a.count);
+      if (entries.length === 0) {
+        legendEl.innerHTML = '<span class="small-text">No opaque pixels detected. Try a different image.</span>';
+      } else {
+        let html = "<table><thead><tr><th>Color</th><th>Beads</th></tr></thead><tbody>";
+        for (const entry of entries) {
+          html += `<tr>
+            <td><span class="legend-swatch" style="background:${entry.color.hex}"></span> ${entry.color.name}</td>
+            <td>${entry.count}</td>
+          </tr>`;
+        }
+        html += "</tbody></table>";
+        legendEl.innerHTML = html;
+      }
+    }
+
+    // --- Event handlers ---
+
+    // Image upload
+    imageInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      const img = new Image();
+      img.onload = () => {
+        sourceImage = img;
+        messageEl.textContent = "Extracting colors from image...";
+        
+        // Extract dominant colors from the image
+        extractedColors = extractDominantColors(img, 20);
+        
+        // If adaptive mode is selected, update to use extracted colors
+        if (paletteMode === "adaptive") {
+          updatePaletteMode();
+        }
+        
+        messageEl.textContent = "Image loaded. Generating diagram...";
+        renderDiagram();
+      };
+      img.onerror = () => {
+        messageEl.textContent = "Failed to load image. Try a different file.";
+        if (paletteMode === "adaptive") {
+          paletteModeIndicator.textContent = "No image loaded. Upload an image to use adaptive mode.";
+          paletteModeIndicator.style.color = "#ef4444";
+        }
+      };
+      img.src = URL.createObjectURL(file);
+    });
+
+    // Bead width input
+    beadWidthInput.addEventListener("input", () => {
+      renderDiagram();
+    });
+
+    // Slider keeps in sync with bead input
+    pixelSlider.addEventListener("input", () => {
+      beadWidthInput.value = pixelSlider.value;
+      renderDiagram();
+    });
+
+    // Color palette toggles
+    colorsContainer.addEventListener("change", (e) => {
+      if (e.target && e.target.matches("input[type='checkbox']")) {
+        renderDiagram();
+      }
+    });
+
+    // Select/Clear all
+    selectAllBtn.addEventListener("click", () => {
+      colorsContainer.querySelectorAll("input[type='checkbox']").forEach(cb => cb.checked = true);
+      renderDiagram();
+    });
+
+    clearAllBtn.addEventListener("click", () => {
+      colorsContainer.querySelectorAll("input[type='checkbox']").forEach(cb => cb.checked = false);
+      renderDiagram();
+    });
+
+    // Palette mode radio buttons
+    paletteModeRadios.forEach(radio => {
+      radio.addEventListener("change", () => {
+        updatePaletteMode();
+      });
+    });
+
+    // Save diagram button
+    saveDiagramBtn.addEventListener("click", () => {
+      saveDiagramToImage();
+    });
+
+    // Handle window resize to rescale canvas
+    window.addEventListener("resize", () => {
+      scaleCanvasToFit();
+    });
+
+    // Initial blank state
+    updatePaletteMode();
+  </script>
+</body>
+</html>
