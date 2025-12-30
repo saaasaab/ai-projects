@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ink Splatter Simulator</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #f4f4f4;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #222;
+      overflow: hidden;
+    }
+    #ui {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px 14px;
+      border-radius: 10px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+      z-index: 10;
+      font-size: 13px;
+    }
+    #ui button {
+      border: none;
+      padding: 6px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-right: 6px;
+    }
+    #generateBtn {
+      background: #111;
+      color: #fff;
+    }
+    #clearBtn {
+      background: #ddd;
+    }
+    #animateBtn {
+      background: #4a90e2;
+      color: #fff;
+    }
+    #animateBtn.active {
+      background: #2d6ba3;
+    }
+    #ui label {
+      margin-right: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    #ui input[type="range"] {
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div style="margin-bottom:6px;">
+      <button id="generateBtn">New Splatter</button>
+      <button id="clearBtn">Clear</button>
+      <button id="animateBtn">Animate</button>
+    </div>
+    <div>
+      <label>
+        Density
+        <input id="densitySlider" type="range" min="0" max="1" step="0.01" value="0.6" />
+      </label>
+      <label>
+        Spread
+        <input id="spreadSlider" type="range" min="0" max="1" step="0.01" value="0.7" />
+      </label>
+    </div>
+    <div style="margin-top:6px;">
+      <label>
+        Curvature
+        <input id="curvatureSlider" type="range" min="-1" max="1" step="0.01" value="0.5" />
+      </label>
+      <label>
+        Anim Speed
+        <input id="speedSlider" type="range" min="0.1" max="3" step="0.05" value="1" />
+      </label>
+    </div>
+    <div style="margin-top:6px;">
+      <label>
+        Branch Thickness
+        <input id="branchThicknessSlider" type="range" min="0.3" max="2" step="0.05" value="1" />
+      </label>
+    </div>
+    <div style="margin-top:4px; opacity:0.7;">
+      Click the canvas or press <b>space</b> for more splatters.
+    </div>
+    <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.1);">
+      <label style="display:block; margin-bottom:4px;">
+        Seed (copy to save):
+        <input id="seedInput" type="text" readonly style="width:100%; margin-top:2px; padding:4px; font-family:monospace; font-size:11px; background:#f5f5f5;" />
+      </label>
+      <label style="display:block; margin-top:4px;">
+        Load Seed:
+        <input id="loadSeedInput" type="text" placeholder="Paste seed here" style="width:100%; margin-top:2px; padding:4px; font-family:monospace; font-size:11px;" />
+      </label>
+      <button id="loadSeedBtn" style="margin-top:4px; padding:4px 8px; width:100%;">Load Seed</button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    let densitySlider, spreadSlider, curvatureSlider, speedSlider, branchThicknessSlider;
+    let lastSplatterCenter = { cx: undefined, cy: undefined };
+    let isAnimating = false;
+    let splatterData = null;
+    let animationTime = 0;
+    let currentSeedData = null; // Contains: {seed: number, density, spread, curvature, speed, branchThickness}
+
+    function setup() {
+      createCanvas(window.innerWidth, window.innerHeight);
+      pixelDensity(1);
+      background(245);
+
+      densitySlider = document.getElementById('densitySlider');
+      spreadSlider = document.getElementById('spreadSlider');
+      curvatureSlider = document.getElementById('curvatureSlider');
+      speedSlider = document.getElementById('speedSlider');
+      branchThicknessSlider = document.getElementById('branchThicknessSlider');
+
+      document.getElementById('loadSeedBtn').onclick = () => {
+        const seedStr = document.getElementById('loadSeedInput').value.trim();
+        if (seedStr) {
+          try {
+            // Try parsing as JSON first (new format)
+            const seedData = JSON.parse(seedStr);
+            if (seedData.seed !== undefined) {
+              // Restore all slider settings before setting currentSeedData
+              if (seedData.density !== undefined) densitySlider.value = seedData.density;
+              if (seedData.spread !== undefined) spreadSlider.value = seedData.spread;
+              if (seedData.curvature !== undefined) curvatureSlider.value = seedData.curvature;
+              if (seedData.speed !== undefined) speedSlider.value = seedData.speed;
+              if (seedData.branchThickness !== undefined) branchThicknessSlider.value = seedData.branchThickness;
+              
+              // Update seed data with restored slider values
+              currentSeedData = {
+                seed: seedData.seed,
+                density: parseFloat(densitySlider.value),
+                spread: parseFloat(spreadSlider.value),
+                curvature: parseFloat(curvatureSlider.value),
+                speed: parseFloat(speedSlider.value),
+                branchThickness: parseFloat(branchThicknessSlider.value)
+              };
+              
+              isAnimating = false;
+              document.getElementById('animateBtn').classList.remove('active');
+              generateSplatter();
+            } else {
+              alert('Invalid seed format. Missing seed value.');
+            }
+          } catch (e) {
+            // Try old format (just a number) for backwards compatibility
+            try {
+              const seed = parseInt(seedStr, 10);
+              if (!isNaN(seed)) {
+                currentSeedData = { 
+                  seed: seed,
+                  density: parseFloat(densitySlider.value),
+                  spread: parseFloat(spreadSlider.value),
+                  curvature: parseFloat(curvatureSlider.value),
+                  speed: parseFloat(speedSlider.value),
+                  branchThickness: parseFloat(branchThicknessSlider.value)
+                };
+                isAnimating = false;
+                document.getElementById('animateBtn').classList.remove('active');
+                generateSplatter();
+              } else {
+                alert('Invalid seed format. Please enter a valid JSON string or number.');
+              }
+            } catch (e2) {
+              alert('Invalid seed format. Please enter a valid JSON string or number.');
+            }
+          }
+        }
+      };
+
+      document.getElementById('generateBtn').onclick = () => {
+        currentSeedData = null; // Generate new seed
+        isAnimating = false;
+        document.getElementById('animateBtn').classList.remove('active');
+        generateSplatter();
+      };
+      document.getElementById('clearBtn').onclick = () => {
+        background(245);
+        lastSplatterCenter = { cx: undefined, cy: undefined };
+        splatterData = null;
+        isAnimating = false;
+        document.getElementById('animateBtn').classList.remove('active');
+      };
+
+      const animateBtn = document.getElementById('animateBtn');
+      animateBtn.onclick = () => {
+        isAnimating = !isAnimating;
+        if (isAnimating) {
+          animateBtn.classList.add('active');
+          animationTime = 0; // Reset animation time
+          if (!splatterData) {
+            generateSplatter();
+          }
+        } else {
+          animateBtn.classList.remove('active');
+          // Redraw static version
+          background(245);
+          if (splatterData) {
+            drawSplatter(splatterData, 0);
+          }
+        }
+      };
+
+      // Live updates on slider change
+      densitySlider.addEventListener('input', () => {
+        // Keep the same seed, just update the slider value in seed data
+        if (currentSeedData) {
+          currentSeedData.density = parseFloat(densitySlider.value);
+        }
+        isAnimating = false;
+        animateBtn.classList.remove('active');
+        background(245);
+        generateSplatter(lastSplatterCenter.cx, lastSplatterCenter.cy);
+      });
+      spreadSlider.addEventListener('input', () => {
+        // Keep the same seed, just update the slider value in seed data
+        if (currentSeedData) {
+          currentSeedData.spread = parseFloat(spreadSlider.value);
+        }
+        isAnimating = false;
+        animateBtn.classList.remove('active');
+        background(245);
+        generateSplatter(lastSplatterCenter.cx, lastSplatterCenter.cy);
+      });
+      curvatureSlider.addEventListener('input', () => {
+        // Keep the same seed, just update the slider value in seed data
+        if (currentSeedData) {
+          currentSeedData.curvature = parseFloat(curvatureSlider.value);
+        }
+        isAnimating = false;
+        animateBtn.classList.remove('active');
+        background(245);
+        generateSplatter(lastSplatterCenter.cx, lastSplatterCenter.cy);
+      });
+      branchThicknessSlider.addEventListener('input', () => {
+        // Branch thickness can update live without regenerating
+        if (splatterData) {
+          background(245);
+          const currentTime = isAnimating ? animationTime : 0;
+          drawSplatter(splatterData, currentTime);
+        }
+      });
+
+      // Generate initial splatter
+      generateSplatter();
+    }
+
+    function windowResized() {
+      resizeCanvas(window.innerWidth, window.innerHeight);
+      background(245);
+      if (splatterData) {
+        const currentTime = isAnimating ? animationTime : 0;
+        drawSplatter(splatterData, currentTime);
+      }
+    }
+
+    function draw() {
+      if (isAnimating && splatterData) {
+        const speed = parseFloat(speedSlider.value);
+        animationTime += 0.02 * speed;
+        background(245);
+        drawSplatter(splatterData, animationTime);
+      }
+    }
+
+    function mousePressed() {
+      // Ignore clicks on the UI panel
+      const ui = document.getElementById('ui').getBoundingClientRect();
+      if (
+        mouseX >= ui.left && mouseX <= ui.right &&
+        mouseY >= ui.top && mouseY <= ui.bottom
+      ) return;
+
+      currentSeedData = null; // Generate new seed on click
+      isAnimating = false;
+      document.getElementById('animateBtn').classList.remove('active');
+      generateSplatter(mouseX, mouseY);
+    }
+
+    function keyPressed() {
+      if (key === ' ') {
+        currentSeedData = null; // Generate new seed on space
+        isAnimating = false;
+        document.getElementById('animateBtn').classList.remove('active');
+        generateSplatter();
+        return false; // prevent page scroll
+      }
+    }
+
+    function generateSplatter(cx, cy) {
+      // Generate or use seed data
+      if (currentSeedData === null) {
+        // Generate new seed with current slider values
+        const seed = floor(random(1000000, 9999999));
+        const density = parseFloat(densitySlider.value);
+        const spread = parseFloat(spreadSlider.value);
+        const curvature = parseFloat(curvatureSlider.value);
+        const speed = parseFloat(speedSlider.value);
+        const branchThickness = parseFloat(branchThicknessSlider.value);
+        
+        currentSeedData = {
+          seed: seed,
+          density: density,
+          spread: spread,
+          curvature: curvature,
+          speed: speed,
+          branchThickness: branchThickness
+        };
+      } else {
+        // If we have seed data, update it with current slider values
+        // (Don't restore slider values here - that only happens when loading a seed)
+        // Slider event listeners already update currentSeedData when user changes sliders
+        currentSeedData.density = parseFloat(densitySlider.value);
+        currentSeedData.spread = parseFloat(spreadSlider.value);
+        currentSeedData.curvature = parseFloat(curvatureSlider.value);
+        currentSeedData.speed = parseFloat(speedSlider.value);
+        currentSeedData.branchThickness = parseFloat(branchThicknessSlider.value);
+      }
+      
+      randomSeed(currentSeedData.seed);
+      
+      // Get current slider values for generation
+      let density = parseFloat(densitySlider.value); // 0–1
+      let spread  = parseFloat(spreadSlider.value);  // 0–1
+      let curvatureMultiplier = parseFloat(curvatureSlider.value); // 0–1
+      
+      // Update seed display with JSON string (seed data already has current values)
+      document.getElementById('seedInput').value = JSON.stringify(currentSeedData);
+      
+      // Center defaults to middle of page
+      if (cx === undefined || cy === undefined) {
+        cx = width * 0.5;
+        cy = height * 0.5;
+      }
+      
+      // Store the center for live updates
+      lastSplatterCenter = { cx, cy };
+
+      const baseRays       = 6;
+      const extraRays      = int(16 * density);
+      const rayCount       = baseRays + extraRays;
+
+      // More variable arm lengths - wider range
+      const minLen         = 50;
+      const maxLen         = 350 + spread * 200;
+
+      const mainBlotRadius = 15 + density * 5; // Bigger center splatter
+
+      // Build splatter data structure
+      splatterData = {
+        cx, cy,
+        mainBlotRadius,
+        density,
+        spread,
+        maxLen,
+        curvatureMultiplier,
+        rays: []
+      };
+
+      // Generate rays data
+      for (let i = 0; i < rayCount; i++) {
+        const angleBase = random(TWO_PI);
+        const len = random(minLen, maxLen);
+        const segments = int(len / 5);
+
+        const baseWidth = map(len, minLen, maxLen, 4, 10) + random(-1.5, 1.5);
+        const endWidth = 0.6 + random(-0.3, 0.3);
+        const widthVariation = random(0.7, 1.3);
+        
+        // Store animation parameters (different frequency per ray)
+        const animSpeed = random(0.5, 1.2);
+        const animPhase = random(TWO_PI);
+        const animAmplitude = random(0.15, 0.3);
+
+        let curvature = random(-0.15, 0.15);
+        const raySegments = [];
+        const branches = [];
+
+        // Build segments data
+        for (let s = 0; s < segments; s++) {
+          const t = s / segments;
+          curvature += random(-0.08, 0.08);
+          curvature = constrain(curvature, -0.25, 0.25);
+          
+          // Curvature increases with distance (t) - less at beginning, more as it extends
+          // t^2 makes it ramp up faster, curvatureMultiplier controls overall intensity
+          const curvatureIntensity = pow(t, 1.2) * curvatureMultiplier;
+          const baseCurvature = curvature + random(-0.12, 0.12);
+          const segmentCurvature = baseCurvature * (0.3 + curvatureIntensity * 1.4);
+          
+          raySegments.push({
+            t,
+            curvature: segmentCurvature,
+            widthVar: 0.9 + random(0, 0.2)
+          });
+
+          // Branches
+          const branchChance = 0.35;
+          if (random() < branchChance && s > segments * 0.15) {
+            const branchLen = random(10, 50);
+            const branchSeg = int(branchLen / 4);
+            const branchAngleOffset = random([-1, 1]) * random(0.3, 0.9);
+            const branchAnimPhase = random(TWO_PI);
+            const branchAnimSpeed = random(0.7, 1.5);
+            
+            let bCurvature = random(-0.2, 0.2);
+            const branchSegments = [];
+            for (let bs = 0; bs < branchSeg; bs++) {
+              const t2 = bs / branchSeg;
+              bCurvature += random(-0.1, 0.1);
+              bCurvature = constrain(bCurvature, -0.3, 0.3);
+              // Branch curvature also increases with distance
+              const branchCurvatureIntensity = pow(t2, 1.2) * curvatureMultiplier;
+              const branchBaseCurv = bCurvature + random(-0.15, 0.15);
+              branchSegments.push({
+                t: t2,
+                curvature: branchBaseCurv * (0.4 + branchCurvatureIntensity * 1.2)
+              });
+            }
+            
+            branches.push({
+              segmentIndex: s,
+              length: branchLen,
+              segments: branchSegments,
+              angleOffset: branchAngleOffset,
+              animPhase: branchAnimPhase,
+              animSpeed: branchAnimSpeed,
+              hasDroplet: random() < 0.4,
+              dropletSize: random(2, 5)
+            });
+          }
+          
+          // Second smaller branch
+          if (random() < 0.18 && s > segments * 0.3) {
+            const branchLen = random(8, 30);
+            const branchSeg = int(branchLen / 4);
+            const branchAngleOffset = random([-1, 1]) * random(0.4, 1.2);
+            const branchAnimPhase = random(TWO_PI);
+            const branchAnimSpeed = random(0.8, 1.6);
+            
+            let bCurvature = random(-0.25, 0.25);
+            const branchSegments = [];
+            for (let bs = 0; bs < branchSeg; bs++) {
+              const t2 = bs / branchSeg;
+              bCurvature += random(-0.12, 0.12);
+              bCurvature = constrain(bCurvature, -0.35, 0.35);
+              // Secondary branch curvature also increases with distance
+              const branchCurvatureIntensity = pow(t2, 1.2) * curvatureMultiplier;
+              const branchBaseCurv = bCurvature + random(-0.18, 0.18);
+              branchSegments.push({
+                t: t2,
+                curvature: branchBaseCurv * (0.4 + branchCurvatureIntensity * 1.2)
+              });
+            }
+            
+            branches.push({
+              segmentIndex: s,
+              length: branchLen,
+              segments: branchSegments,
+              angleOffset: branchAngleOffset,
+              animPhase: branchAnimPhase,
+              animSpeed: branchAnimSpeed,
+              isSecondary: true,
+              hasDroplet: false
+            });
+          }
+        }
+
+        splatterData.rays.push({
+          angleBase,
+          length: len,
+          segments: raySegments,
+          branches,
+          baseWidth,
+          endWidth,
+          widthVariation,
+          animSpeed,
+          animPhase,
+          animAmplitude
+        });
+      }
+
+      // Collect all branch points for droplet spawning
+      const branchPoints = collectBranchPoints(splatterData, cx, cy);
+      
+      // Generate droplets data - spawn near branches with high probability
+      const dropletCount = int(200 + 500 * density);
+      splatterData.droplets = [];
+      splatterData.dropletConnections = []; // Store connections for deterministic drawing
+      
+      for (let i = 0; i < dropletCount; i++) {
+        let x, y, size, branchInfo = null;
+        
+        // High probability (0.7) to spawn near a branch, low (0.3) to spawn randomly
+        if (branchPoints.length > 0 && random() < 0.7) {
+          // Spawn near a branch
+          const branchPoint = random(branchPoints);
+          branchInfo = branchPoint;
+          
+          // Distance from branch - minimum distance to avoid being ON the branch
+          const minDist = 8; // Minimum distance from branch (must be outside)
+          const maxDist = 45; // Maximum distance from branch
+          
+          // Probability distribution: very low probability very close, higher probability further out
+          // Use a distribution that favors medium distances
+          const distT = pow(random(0.3, 1.0), 1.5); // Squared distribution favors larger distances
+          const dist = lerp(minDist, maxDist, distT);
+          const distRatio = (dist - minDist) / (maxDist - minDist); // 0 = close (but outside), 1 = far
+          
+          // Perpendicular offset from branch (mostly perpendicular, slight forward/back)
+          const offsetAngle = branchPoint.angle + PI / 2 + random(-0.2, 0.2);
+          const offsetDist = random(-dist * 0.6, dist * 0.6);
+          
+          // Position droplet - mostly perpendicular to branch direction
+          const offsetX = cos(offsetAngle) * dist + cos(branchPoint.angle) * random(-dist * 0.3, dist * 0.3);
+          const offsetY = sin(offsetAngle) * dist + sin(branchPoint.angle) * random(-dist * 0.3, dist * 0.3);
+          x = branchPoint.x + offsetX;
+          y = branchPoint.y + offsetY;
+          
+          // Store branch info for animation (store the full branch point info)
+          branchInfo = {
+            ...branchPoint, // Copy all branch point properties
+            offsetX: offsetX,
+            offsetY: offsetY
+          };
+          
+          // Larger dots closer (inverse relationship with distance, but not too close)
+          const maxSize = 3.5;
+          const minSize = 0.8;
+          size = lerp(maxSize, minSize, distRatio) * random(0.8, 1.2);
+        } else {
+          // Spawn randomly in open area (smaller dots)
+          const r = random(20, maxLen + 120);
+          const angle = random(TWO_PI);
+          const jitter = random(-15, 15);
+          x = cx + cos(angle) * (r + jitter);
+          y = cy + sin(angle) * (r + jitter * 0.4);
+          size = random(0.5, 2); // Smaller dots in open areas
+        }
+        
+        const alpha = random(80, 220);
+        const sizeVariation = random(0.7, 1.4);
+        splatterData.droplets.push({ 
+          x, y, size, alpha, sizeVariation,
+          branchInfo // Store branch info for animation
+        });
+      }
+      
+      // Pre-generate droplet connections (deterministic, stored once)
+      generateDropletConnections(splatterData, cx, cy);
+
+      // Reset random seed after generation (for any non-deterministic operations)
+      randomSeed();
+      
+      // Draw the splatter
+      background(245);
+      drawSplatter(splatterData, 0);
+    }
+
+
+    function drawSplatter(data, time) {
+      const { cx, cy, mainBlotRadius, droplets, rays } = data;
+      const branchThickness = parseFloat(branchThicknessSlider.value);
+
+      // Slight paper tint
+      noStroke();
+      fill(245, 245, 245, 50);
+      rect(0, 0, width, height);
+
+      // Draw central splatter that bulges toward branches
+      drawCentralSplatter(data, cx, cy, time);
+
+      // Draw rays with animation
+      let branchGlobalIdx = 0;
+      for (let rayIdx = 0; rayIdx < rays.length; rayIdx++) {
+        const ray = rays[rayIdx];
+        const { angleBase, length, segments: raySegments, branches, baseWidth, endWidth, widthVariation, animSpeed, animPhase, animAmplitude } = ray;
+        const segCount = raySegments.length;
+        
+        let x = cx;
+        let y = cy;
+        let currentAngle = angleBase; // Base angle, will accumulate curvature
+        let prevX = cx;
+        let prevY = cy;
+
+        for (let s = 0; s < segCount; s++) {
+          const seg = raySegments[s];
+          const t = seg.t;
+          
+          // Accumulate curvature to get the base path angle
+          currentAngle += seg.curvature;
+          
+          // Add oscillating sway on top of the base path (doesn't accumulate)
+          // Base sway at root
+          const baseSway = sin(time * animSpeed + animPhase) * animAmplitude * 0.3;
+          // Position-dependent sway increases with distance from center
+          const positionSway = sin(time * animSpeed * 0.7 + animPhase + t * 3) * animAmplitude * (0.2 + t * 0.8);
+          // Combined sway oscillates around the base path
+          const sway = baseSway + positionSway;
+          
+          // Final angle = base path angle + sway (sway oscillates, doesn't accumulate)
+          const animatedAngle = currentAngle + sway;
+
+          let nextX = x + cos(animatedAngle) * 5;
+          let nextY = y + sin(animatedAngle) * 5;
+
+
+          // Parent branches grow MORE relative to child branches (1.25x multiplier)
+          const parentThickness = branchThickness * 1.25;
+          const w = lerp(baseWidth * widthVariation, endWidth, t) * seg.widthVar * parentThickness;
+          stroke(0, 0, 0, 220 - t * 120);
+          strokeWeight(w);
+          line(x, y, nextX, nextY);
+
+          // Draw branches from this segment
+          for (let branch of branches) {
+            if (branch.segmentIndex === s) {
+              drawBranch(x, y, animatedAngle, branch, w, time, branchThickness, branchGlobalIdx); // Use animated angle so branch starts from visible position
+              branchGlobalIdx++;
+            }
+          }
+
+          prevX = x;
+          prevY = y;
+          x = nextX;
+          y = nextY;
+        }
+      }
+
+      // Calculate animated droplet positions first (for connections)
+      const animatedDroplets = droplets.map(drop => {
+        let drawX = drop.x;
+        let drawY = drop.y;
+        
+        // Animate droplet if it's linked to a branch
+        if (drop.branchInfo) {
+          // Calculate the animated branch position at current time
+          const animBranchPos = calculateAnimatedBranchPosition(drop.branchInfo, time, data, cx, cy);
+          
+          if (animBranchPos) {
+            // Rotate the offset to match the animated branch angle
+            const angleDiff = animBranchPos.angle - drop.branchInfo.angle;
+            const cosDiff = cos(angleDiff);
+            const sinDiff = sin(angleDiff);
+            
+            // Rotate the offset vector to match branch rotation
+            const rotatedOffsetX = drop.branchInfo.offsetX * cosDiff - drop.branchInfo.offsetY * sinDiff;
+            const rotatedOffsetY = drop.branchInfo.offsetX * sinDiff + drop.branchInfo.offsetY * cosDiff;
+            
+            // Position droplet relative to animated branch position
+            drawX = animBranchPos.x + rotatedOffsetX;
+            drawY = animBranchPos.y + rotatedOffsetY;
+            
+            // Add slight flow in branch direction
+            const flowSpeed = 0.12;
+            const flowDist = time * flowSpeed;
+            drawX += cos(animBranchPos.angle) * flowDist;
+            drawY += sin(animBranchPos.angle) * flowDist;
+          }
+        }
+        
+        return { ...drop, animatedX: drawX, animatedY: drawY };
+      });
+
+      // Draw droplet connections (Voronoi-like network) using animated positions
+      drawDropletConnections(data.dropletConnections || [], animatedDroplets);
+
+      // Draw droplets (animated if linked to branch)
+      for (let animatedDrop of animatedDroplets) {
+        noStroke();
+        fill(0, 0, 0, animatedDrop.alpha);
+        ellipse(animatedDrop.animatedX, animatedDrop.animatedY, animatedDrop.size, animatedDrop.size * animatedDrop.sizeVariation);
+      }
+    }
+
+    function drawCentralSplatter(data, cx, cy, time) {
+      const { rays, mainBlotRadius } = data;
+      
+      // Collect branch attachment points (where branches connect to center/rays)
+      const attachmentPoints = [];
+      
+      // For each ray, get the first few segment positions (near the center)
+      for (let rayIdx = 0; rayIdx < rays.length; rayIdx++) {
+        const ray = rays[rayIdx];
+        let x = cx;
+        let y = cy;
+        let currentAngle = ray.angleBase;
+        
+        // Get position at first few segments to create bulges (closer to center)
+        for (let s = 0; s < min(6, ray.segments.length); s++) {
+          const seg = ray.segments[s];
+          const t = seg.t;
+          currentAngle += seg.curvature;
+          
+          // Add sway animation (same logic as drawSplatter - sway doesn't accumulate)
+          const baseSway = sin(time * ray.animSpeed + ray.animPhase) * ray.animAmplitude * 0.3;
+          const positionSway = sin(time * ray.animSpeed * 0.7 + ray.animPhase + t * 3) * ray.animAmplitude * (0.2 + t * 0.8);
+          const sway = baseSway + positionSway;
+          const animatedAngle = currentAngle + sway;
+          
+          x += cos(animatedAngle) * 5;
+          y += sin(animatedAngle) * 5;
+          
+          // Only use points close to center for bulging
+          const distFromCenter = sqrt((x - cx) ** 2 + (y - cy) ** 2);
+          if (distFromCenter < mainBlotRadius * 2 && (s === 0 || s === 2 || s === 4)) {
+            attachmentPoints.push({ x, y, dist: distFromCenter, angle: animatedAngle });
+          }
+        }
+        
+        // Also get branch attachment points
+        for (let branch of ray.branches) {
+          if (branch.segmentIndex < 6) {
+            // Calculate position at branch attachment (same logic as main ray)
+            let bx = cx;
+            let by = cy;
+            let branchBaseAngle = ray.angleBase;
+            
+            for (let s = 0; s <= branch.segmentIndex; s++) {
+              const seg = ray.segments[s];
+              const t = seg.t;
+              branchBaseAngle += seg.curvature;
+              
+              // Add sway animation (same logic as drawSplatter - sway doesn't accumulate)
+              const baseSway = sin(time * ray.animSpeed + ray.animPhase) * ray.animAmplitude * 0.3;
+              const positionSway = sin(time * ray.animSpeed * 0.7 + ray.animPhase + t * 3) * ray.animAmplitude * (0.2 + t * 0.8);
+              const sway = baseSway + positionSway;
+              const animatedAngle = branchBaseAngle + sway;
+              
+              bx += cos(animatedAngle) * 5;
+              by += sin(animatedAngle) * 5;
+            }
+            
+            const distFromCenter = sqrt((bx - cx) ** 2 + (by - cy) ** 2);
+            if (distFromCenter < mainBlotRadius * 2) {
+              // Calculate final animated angle at attachment point
+              const finalSeg = ray.segments[branch.segmentIndex];
+              const finalT = finalSeg.t;
+              const finalBaseSway = sin(time * ray.animSpeed + ray.animPhase) * ray.animAmplitude * 0.3;
+              const finalPositionSway = sin(time * ray.animSpeed * 0.7 + ray.animPhase + finalT * 3) * ray.animAmplitude * (0.2 + finalT * 0.8);
+              const finalSway = finalBaseSway + finalPositionSway;
+              const finalAnimatedAngle = branchBaseAngle + finalSway;
+              attachmentPoints.push({ x: bx, y: by, dist: distFromCenter, angle: finalAnimatedAngle });
+            }
+          }
+        }
+      }
+      
+      // Draw organic splatter shape with bulges
+      noStroke();
+      fill(0, 0, 0, 240);
+      
+      // Create a shape using beginShape/endShape with control points
+      beginShape();
+      
+      // Generate points around the center, bulging toward attachment points
+      const numPoints = 40;
+      for (let i = 0; i < numPoints; i++) {
+        const angle = (i / numPoints) * TWO_PI;
+        let radius = mainBlotRadius;
+        
+        // Find nearby attachment points to create bulges
+        for (let att of attachmentPoints) {
+          const attAngle = atan2(att.y - cy, att.x - cx);
+          let angleDiff = angle - attAngle;
+          // Normalize angle difference to -PI to PI
+          while (angleDiff > PI) angleDiff -= TWO_PI;
+          while (angleDiff < -PI) angleDiff += TWO_PI;
+          const normalizedAngleDiff = abs(angleDiff) / PI; // 0 to 1
+          
+          // Create bulge if attachment point is in this direction
+          if (normalizedAngleDiff < 0.6) {
+            const bulgeStrength = pow(1 - (normalizedAngleDiff / 0.6), 1.5); // Smooth falloff
+            const bulgeSize = map(att.dist, 0, mainBlotRadius * 1.5, mainBlotRadius * 1.0, mainBlotRadius * 0.4);
+            radius = max(radius, mainBlotRadius + bulgeSize * bulgeStrength);
+          }
+        }
+        
+        // Add some organic variation (deterministic based on angle and seed)
+        const variationSeed = floor((angle * 1000 + cx + cy) % 1000);
+        randomSeed(variationSeed);
+        const variation = 0.88 + random(0, 0.24);
+        randomSeed(); // Reset
+        radius *= variation;
+        
+        const x = cx + cos(angle) * radius;
+        const y = cy + sin(angle) * radius;
+        vertex(x, y);
+      }
+      
+      endShape(CLOSE);
+    }
+
+    function collectBranchPoints(splatterData, cx, cy) {
+      const { rays } = splatterData;
+      const branchPoints = [];
+      
+      // Collect points along all branches (rays and sub-branches)
+      // Store enough info to recalculate animated position
+      for (let rayIdx = 0; rayIdx < rays.length; rayIdx++) {
+        const ray = rays[rayIdx];
+        let x = cx;
+        let y = cy;
+        let currentAngle = ray.angleBase;
+        
+        // Collect points along main ray
+        for (let s = 0; s < ray.segments.length; s++) {
+          currentAngle += ray.segments[s].curvature;
+          x += cos(currentAngle) * 5;
+          y += sin(currentAngle) * 5;
+          
+          // Add point along ray (sample every few segments)
+          if (s % 2 === 0) {
+            branchPoints.push({
+              x, y, 
+              angle: currentAngle,
+              animSpeed: ray.animSpeed,
+              animPhase: ray.animPhase,
+              animAmplitude: ray.animAmplitude,
+              type: 'ray',
+              rayIdx: rayIdx,
+              segmentIdx: s,
+              t: ray.segments[s].t
+            });
+          }
+          
+          // Add branch points
+          for (let branchIdx = 0; branchIdx < ray.branches.length; branchIdx++) {
+            const branch = ray.branches[branchIdx];
+            if (branch.segmentIndex === s) {
+              let bx = x;
+              let by = y;
+              let branchAngle = currentAngle + branch.angleOffset;
+              
+              for (let bs = 0; bs < branch.segments.length; bs++) {
+                branchAngle += branch.segments[bs].curvature;
+                const segLen = branch.isSecondary ? 3 : 4;
+                bx += cos(branchAngle) * segLen;
+                by += sin(branchAngle) * segLen;
+                
+                // Add point along branch
+                if (bs % 2 === 0 || bs === branch.segments.length - 1) {
+                  branchPoints.push({
+                    x: bx, y: by,
+                    angle: branchAngle,
+                    animSpeed: branch.animSpeed,
+                    animPhase: branch.animPhase,
+                    animAmplitude: 0.2,
+                    type: 'branch',
+                    rayIdx: rayIdx,
+                    branchIdx: branchIdx,
+                    segmentIdx: s,
+                    branchSegmentIdx: bs,
+                    t: branch.segments[bs].t,
+                    isSecondary: branch.isSecondary
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      return branchPoints;
+    }
+    
+    function calculateAnimatedBranchPosition(branchInfo, time, splatterData, cx, cy) {
+      if (!branchInfo) return null;
+      
+      const { rays } = splatterData;
+      
+      if (branchInfo.type === 'ray') {
+        // Calculate animated ray position (matching drawSplatter logic)
+        const ray = rays[branchInfo.rayIdx];
+        let x = cx;
+        let y = cy;
+        let currentAngle = ray.angleBase;
+        
+        // Build up to target segment - each segment uses its animated angle
+        for (let s = 0; s <= branchInfo.segmentIdx; s++) {
+          const seg = ray.segments[s];
+          const t = seg.t;
+          currentAngle += seg.curvature;
+          
+          // Add sway animation at each segment (same logic as drawSplatter)
+          const baseSway = sin(time * ray.animSpeed + ray.animPhase) * ray.animAmplitude * 0.3;
+          const positionSway = sin(time * ray.animSpeed * 0.7 + ray.animPhase + t * 3) * ray.animAmplitude * (0.2 + t * 0.8);
+          const sway = baseSway + positionSway;
+          const animatedAngle = currentAngle + sway;
+          
+          x += cos(animatedAngle) * 5;
+          y += sin(animatedAngle) * 5;
+          
+          if (s === branchInfo.segmentIdx) {
+            return { x, y, angle: animatedAngle };
+          }
+        }
+      } else if (branchInfo.type === 'branch') {
+        // Calculate animated branch position
+        const ray = rays[branchInfo.rayIdx];
+        const branch = ray.branches[branchInfo.branchIdx];
+        
+        // First get to parent segment (with animated position)
+        let x = cx;
+        let y = cy;
+        let currentAngle = ray.angleBase;
+        
+        // Traverse ray segments up to branch attachment point
+        for (let s = 0; s <= branchInfo.segmentIdx; s++) {
+          const seg = ray.segments[s];
+          const t = seg.t;
+          currentAngle += seg.curvature;
+          
+          // Add ray sway at this segment (same as drawSplatter)
+          const baseSway = sin(time * ray.animSpeed + ray.animPhase) * ray.animAmplitude * 0.3;
+          const positionSway = sin(time * ray.animSpeed * 0.7 + ray.animPhase + t * 3) * ray.animAmplitude * (0.2 + t * 0.8);
+          const sway = baseSway + positionSway;
+          const animatedRayAngle = currentAngle + sway;
+          
+          x += cos(animatedRayAngle) * 5;
+          y += sin(animatedRayAngle) * 5;
+        }
+        
+        // Now traverse the branch from attachment point
+        let branchAngle = currentAngle + branch.angleOffset;
+        const segLen = branchInfo.isSecondary ? 3 : 4;
+        
+        for (let bs = 0; bs <= branchInfo.branchSegmentIdx; bs++) {
+          const branchSeg = branch.segments[bs];
+          const t2 = branchSeg.t;
+          branchAngle += branchSeg.curvature;
+          
+          // Add branch sway (same as drawBranch)
+          const branchBaseSway = sin(time * branch.animSpeed * 1.5 + branch.animPhase) * 0.2;
+          const branchTipSway = branchBaseSway * (1 + t2 * 0.6);
+          const branchSway = branchTipSway;
+          const animatedBranchAngle = branchAngle + branchSway;
+          
+          x += cos(animatedBranchAngle) * segLen;
+          y += sin(animatedBranchAngle) * segLen;
+          
+          if (bs === branchInfo.branchSegmentIdx) {
+            return { x, y, angle: animatedBranchAngle };
+          }
+        }
+      }
+      
+      return null;
+    }
+
+    // Simple Delaunay triangulation to avoid crossing lines
+    function generateDropletConnections(splatterData, centerX, centerY) {
+      const { droplets } = splatterData;
+      const connections = [];
+      
+      // For each droplet, find its nearest neighbors (avoiding crossings)
+      // Simple approach: connect to nearest 3-6 neighbors, filtering out connections that would cross
+      for (let i = 0; i < droplets.length; i++) {
+        const drop1 = droplets[i];
+        
+        // Find distances to all other droplets
+        const distances = [];
+        for (let j = 0; j < droplets.length; j++) {
+          if (i === j) continue;
+          const drop2 = droplets[j];
+          const dx = drop2.x - drop1.x;
+          const dy = drop2.y - drop1.y;
+          const dist = sqrt(dx * dx + dy * dy);
+          distances.push({ index: j, dist, dx, dy });
+        }
+        
+        // Sort by distance
+        distances.sort((a, b) => a.dist - b.dist);
+        
+        // Connect to nearest neighbors (3-6 connections per droplet)
+        const maxConnections = min(6, distances.length);
+        const neighborCount = int(random(3, maxConnections + 1));
+        
+        for (let n = 0; n < neighborCount; n++) {
+          const neighbor = distances[n];
+          const j = neighbor.index;
+          
+          // Check if connection already exists (avoid duplicates)
+          const exists = connections.some(c => 
+            (c.drop1Index === i && c.drop2Index === j) ||
+            (c.drop1Index === j && c.drop2Index === i)
+          );
+          
+          if (!exists) {
+            const midX = (drop1.x + droplets[j].x) / 2;
+            const midY = (drop1.y + droplets[j].y) / 2;
+            const distFromCenter = sqrt((midX - centerX) ** 2 + (midY - centerY) ** 2);
+            const maxDist = 500;
+            const thicknessFactor = map(constrain(distFromCenter, 0, maxDist), maxDist, 0, 0.3, 1.5);
+            
+            // Generate curved path points (for organic, meandering path)
+                // Generate curved path points (for organic, meandering path)
+            const pathPoints = generateCurvedPath(drop1.x, drop1.y, droplets[j].x, droplets[j].y, i, j);
+            
+            // Generate branches
+            const branchCount = int(random(2, 5));
+            const branches = [];
+            for (let b = 0; b < branchCount; b++) {
+              const t = random(0.2, 0.8);
+              const branchAngleOffset = random(-0.4, 0.4);
+              const branchLen = random(3, 12);
+              const branchThicknessMult = random(0.6, 1.0);
+              const hasSubBranch = random() < 0.3;
+              let subBranch = null;
+              
+              if (hasSubBranch) {
+                const subBranchAngleOffset = random([-1, 1]) * random(0.3, 0.6);
+                const subBranchLen = branchLen * random(0.3, 0.6);
+                subBranch = { angleOffset: subBranchAngleOffset, len: subBranchLen };
+              }
+              
+              branches.push({
+                t,
+                angleOffset: branchAngleOffset,
+                len: branchLen,
+                thicknessMult: branchThicknessMult,
+                subBranch
+              });
+            }
+            
+            connections.push({
+              drop1Index: i,
+              drop2Index: j,
+              thicknessFactor,
+              branches,
+              pathPoints
+            });
+          }
+        }
+      }
+      
+      splatterData.dropletConnections = connections;
+    }
+    
+    function generateCurvedPath(x1, y1, x2, y2, seed1, seed2) {
+      // Generate an organic, meandering path like through a dark forest
+      const points = [];
+      const segments = 8 + int(random(4)); // 8-12 segments for smooth curve
+      const baseAngle = atan2(y2 - y1, x2 - x1);
+      const dist = sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+      
+      // Use seeds for deterministic randomness
+      randomSeed(seed1 * 1000 + seed2);
+      
+      points.push({ x: x1, y: y1 });
+      
+      let currentX = x1;
+      let currentY = y1;
+      let currentAngle = baseAngle;
+      
+      for (let i = 1; i < segments; i++) {
+        const t = i / segments;
+        const segLen = dist / segments;
+        
+        // Add curvature variation (like winding through trees)
+        const curvature = random(-0.4, 0.4) * (1 - abs(t - 0.5) * 2); // More curve in middle
+        currentAngle += curvature;
+        
+        // Add perpendicular drift (wandering path)
+        const drift = random(-segLen * 0.3, segLen * 0.3);
+        const driftAngle = currentAngle + PI / 2;
+        
+        currentX += cos(currentAngle) * segLen + cos(driftAngle) * drift;
+        currentY += sin(currentAngle) * segLen + sin(driftAngle) * drift;
+        
+        points.push({ x: currentX, y: currentY });
+      }
+      
+      points.push({ x: x2, y: y2 });
+      
+      randomSeed(); // Reset seed
+      
+      return points;
+    }
+
+    function drawDropletConnections(connections, animatedDroplets) {
+      const baseAlpha = 15; // Very faint
+      
+      for (let conn of connections) {
+        const drop1 = animatedDroplets[conn.drop1Index];
+        const drop2 = animatedDroplets[conn.drop2Index];
+        
+        // Use animated positions
+        const x1 = drop1.animatedX;
+        const y1 = drop1.animatedY;
+        const x2 = drop2.animatedX;
+        const y2 = drop2.animatedY;
+        
+        // Draw curved path - regenerate path points based on current animated positions
+        const lineThickness = conn.thicknessFactor * 0.8;
+        stroke(0, 0, 0, baseAlpha);
+        strokeWeight(lineThickness);
+        noFill();
+        
+        // Generate new curved path based on animated positions
+        const animatedPathPoints = generateCurvedPath(x1, y1, x2, y2, conn.drop1Index, conn.drop2Index);
+        
+        if (animatedPathPoints && animatedPathPoints.length > 2) {
+          // Draw curved path through all points
+          beginShape();
+          for (let point of animatedPathPoints) {
+            vertex(point.x, point.y);
+          }
+          endShape();
+          
+          // Draw branches along the curved path
+          for (let branch of conn.branches) {
+            // Find point along path at branch.t
+            const pathIndex = int(branch.t * (animatedPathPoints.length - 1));
+            const pathPoint = animatedPathPoints[pathIndex];
+            
+            // Calculate angle at this point (tangent to path)
+            let tangentAngle;
+            if (pathIndex < animatedPathPoints.length - 1) {
+              const nextPoint = animatedPathPoints[pathIndex + 1];
+              tangentAngle = atan2(nextPoint.y - pathPoint.y, nextPoint.x - pathPoint.x);
+            } else {
+              const prevPoint = animatedPathPoints[pathIndex - 1];
+              tangentAngle = atan2(pathPoint.y - prevPoint.y, pathPoint.x - prevPoint.x);
+            }
+            
+            const branchAngle = tangentAngle + PI / 2 + branch.angleOffset;
+            const branchThickness = lineThickness * 0.4 * branch.thicknessMult;
+            const branchAlpha = baseAlpha * 0.6;
+            
+            const branchEndX = pathPoint.x + cos(branchAngle) * branch.len;
+            const branchEndY = pathPoint.y + sin(branchAngle) * branch.len;
+            
+            stroke(0, 0, 0, branchAlpha);
+            strokeWeight(branchThickness);
+            line(pathPoint.x, pathPoint.y, branchEndX, branchEndY);
+            
+            // Draw sub-branch if exists
+            if (branch.subBranch) {
+              const subBranchAngle = branchAngle + branch.subBranch.angleOffset;
+              stroke(0, 0, 0, branchAlpha * 0.5);
+              strokeWeight(branchThickness * 0.5);
+              line(branchEndX, branchEndY, 
+                   branchEndX + cos(subBranchAngle) * branch.subBranch.len, 
+                   branchEndY + sin(subBranchAngle) * branch.subBranch.len);
+            }
+          }
+        } else {
+          // Fallback to straight line if no path points
+          line(x1, y1, x2, y2);
+        }
+      }
+    }
+
+    function drawBranch(startX, startY, parentAngle, branch, parentWidth, time, branchThickness = 1, branchGlobalIdx = 0) {
+      const { segments: branchSegs, length, angleOffset, animPhase, animSpeed, hasDroplet, dropletSize, isSecondary } = branch;
+      
+      let bx = startX;
+      let by = startY;
+      let branchCurrentAngle = parentAngle + angleOffset; // Base angle, accumulates curvature
+      const segLen = isSecondary ? 3 : 4;
+      let prevBX = startX;
+      let prevBY = startY;
+
+      for (let bs = 0; bs < branchSegs.length; bs++) {
+        const seg = branchSegs[bs];
+        const t2 = seg.t;
+        
+        // Accumulate curvature to get base path angle
+        branchCurrentAngle += seg.curvature;
+        
+        // Add oscillating sway (more responsive, faster than main arms)
+        const branchBaseSway = sin(time * animSpeed * 1.5 + animPhase) * 0.2;
+        const branchTipSway = branchBaseSway * (1 + t2 * 0.6);
+        const sway = branchTipSway;
+        
+        // Final angle = base path angle + sway
+        const animatedBAngle = branchCurrentAngle + sway;
+
+        let nx = bx + cos(animatedBAngle) * segLen;
+        let ny = by + sin(animatedBAngle) * segLen;
+
+        
+        const bw = lerp(parentWidth * (isSecondary ? 0.4 : 0.5), isSecondary ? 0.3 : 0.4, t2) * branchThickness;
+        strokeWeight(bw);
+        stroke(0, 0, 0, (isSecondary ? 180 : 200) - t2 * (isSecondary ? 100 : 120));
+        line(bx, by, nx, ny);
+        
+        prevBX = bx;
+        prevBY = by;
+        bx = nx;
+        by = ny;
+      }
+
+      // Droplet at tip
+      if (hasDroplet) {
+        noStroke();
+        fill(0, 0, 0, 230);
+        const d = dropletSize;
+        ellipse(bx, by, d, d * 1.05);
+      }
+    }
+  </script>
+</body>
+</html>
