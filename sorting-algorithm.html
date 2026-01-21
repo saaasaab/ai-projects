@@ -1,0 +1,492 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Timelapse / Slideshow Editor — Standalone</title>
+
+</head>
+<body>
+  
+
+
+<script>
+
+const metrics = {
+    comparisons: 0, // <, >, <=, >=, ===
+    divisions: 0,   // /
+    checks: 0,      // if / while condition evaluations
+    insertions: 0,
+    iterations: 0
+  };
+function sortWithCeilingEquationInstrumented(deck) {
+  const ordered = [];
+ 
+
+  if (!deck || deck.length === 0) {
+    // console.log("Empty input");
+    return { ordered, metrics };
+  }
+
+  // console.log("START SORT");
+  // console.log("Input:", deck);
+
+  // 1) First item
+  ordered.push(deck[0]);
+  metrics.insertions++;
+
+  let onlyValue = deck[0];
+  let onlyValueCount = 1;
+
+  for (let i = 1; i < deck.length; i++) {
+    metrics.iterations++;
+    const x = deck[i];
+   
+
+    // Are we still in the "only one unique value" phase?
+    metrics.checks++;
+    metrics.comparisons++;
+    if (ordered.length === onlyValueCount) {
+
+      metrics.checks++;
+      metrics.comparisons++;
+      if (x === onlyValue) {
+        ordered.push(x);
+        metrics.insertions++;
+        onlyValueCount++;
+        continue;
+      }
+
+      metrics.checks++;
+      metrics.comparisons++;
+      if (x < onlyValue) {
+        ordered.unshift(x);
+      } else {
+        ordered.push(x);
+      }
+
+      metrics.insertions++;
+      onlyValue = null;
+      onlyValueCount = 0;
+      continue;
+    }
+
+    // Normal insertion phase
+    const low = ordered[0];
+    const high = ordered[ordered.length - 1];
+    // console.log(`Range: [${low}, ${high}]`, ordered);
+
+    // Fast-path ends
+    metrics.checks++;
+    metrics.comparisons++;
+    if (x <= low) {
+      ordered.unshift(x);
+      metrics.insertions++;
+      continue;
+    }
+
+    metrics.checks++;
+    metrics.comparisons++;
+    if (x >= high) {
+      ordered.push(x);
+      metrics.insertions++;
+      continue;
+    }
+
+    const cardCount = ordered.length;
+
+    // Equation
+    metrics.divisions++;
+    const rawIdx = (x - low) / (high - low) * cardCount;
+
+    const idx = Math.floor(rawIdx);
+
+    let j = idx;
+
+    ordered.splice(j, 0, x);
+    metrics.insertions++;
+  }
+
+  return { ordered, metrics };
+}
+
+function generateThreeBinArray({
+  length,
+  min = 0,
+  max = 1_000_000,
+  spread = 50_000
+}) {
+  if (length < 3) {
+    throw new Error("Length must be at least 3");
+  }
+
+  const mid = Math.floor((min + max) / 2);
+
+  const bins = {
+    low: [],
+    mid: [],
+    high: []
+  };
+
+  // Distribute elements evenly across bins
+  for (let i = 0; i < length; i++) {
+    if (i % 3 === 0) {
+      bins.low.push(min + (i % spread));
+    } else if (i % 3 === 1) {
+      bins.mid.push(mid + (i % spread));
+    } else {
+      bins.high.push(max - (i % spread));
+    }
+  }
+
+  // Interleave bins to maximize disorder
+  const result = [];
+  const maxBinLength = Math.max(
+    bins.low.length,
+    bins.mid.length,
+    bins.high.length
+  );
+
+  for (let i = 0; i < maxBinLength; i++) {
+    if (bins.low[i] !== undefined) result.push(bins.low[i]);
+    if (bins.high[i] !== undefined) result.push(bins.high[i]);
+    if (bins.mid[i] !== undefined) result.push(bins.mid[i]);
+  }
+
+  return result.slice(0, length);
+}
+
+
+const generateWorstCase = (n) => {
+  return Array.from({ length: n }, (_, i) => n - i);
+}
+
+
+
+const worstCase =generateWorstCase(21000)
+
+
+// generateThreeBinArray({
+//   length: 21000,
+//   min: 0,
+//   max: 1_000_000,
+//   spread: 100_000
+// });
+
+const example = [
+0,1000000,1,999999,2,999998,3,999997,4,999996,5,999995,6
+]
+
+function isSorted(arr) {
+  for (let i = 1; i < arr.length; i++) {
+    if (arr[i] < arr[i - 1]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function quicksortInstrumented(arr) {
+  const quicksortMetrics = {
+    comparisons: 0,
+    divisions: 0,
+    checks: 0,
+    insertions: 0, // Using this for assignments
+    iterations: 0
+  };
+
+  // Comparator function similar to V8 TypedArray sort
+  // Returns number: negative if a < b, 0 if a == b, positive if a > b
+  function compare(a, b) {
+    quicksortMetrics.comparisons++;
+    const v = a - b;
+    // If v is NaN, return 0 (handled by subtraction, but keeping pattern)
+    if (isNaN(v)) return 0;
+    return v;
+  }
+
+  // Merges two sorted runs [from, middle) and [middle, to)
+  // from "source" into "target"
+  function merge(source, from, middle, to, target, compareFn) {
+    let left = from;
+    let right = middle;
+
+    quicksortMetrics.iterations++;
+    for (let targetIndex = from; targetIndex < to; targetIndex++) {
+      quicksortMetrics.iterations++;
+      quicksortMetrics.checks++;
+      
+      if (left < middle && right >= to) {
+        // If the left run has elements, but the right does not, we take from the left.
+        target[targetIndex] = source[left++];
+        quicksortMetrics.insertions++;
+      } else if (left < middle) {
+        // If both have elements, we need to compare.
+        quicksortMetrics.checks++;
+        const leftElement = source[left];
+        const rightElement = source[right];
+        const cmp = compareFn(leftElement, rightElement);
+        
+        quicksortMetrics.checks++;
+        if (cmp <= 0) {
+          target[targetIndex] = leftElement;
+          quicksortMetrics.insertions++;
+          left++;
+        } else {
+          target[targetIndex] = rightElement;
+          quicksortMetrics.insertions++;
+          right++;
+        }
+      } else {
+        // No elements on the left, but the right does, so we take from the right.
+        target[targetIndex] = source[right++];
+        quicksortMetrics.insertions++;
+      }
+    }
+  }
+
+  // Merge sort implementation following V8 TypedArray pattern
+  function mergeSort(source, from, to, target, compareFn) {
+    quicksortMetrics.checks++;
+    if (to - from <= 1) {
+      return;
+    }
+
+    // Calculate middle point
+    quicksortMetrics.divisions++;
+    const middle = from + Math.floor((to - from) / 2);
+
+    // On the next recursion step source becomes target and vice versa.
+    // This saves the copy of the relevant range from the original
+    // array into a work array on each recursion step.
+    quicksortMetrics.checks++;
+    if (middle - from > 1) {
+      mergeSort(target, from, middle, source, compareFn);
+    }
+    quicksortMetrics.checks++;
+    if (to - middle > 1) {
+      mergeSort(target, middle, to, source, compareFn);
+    }
+
+    merge(source, from, middle, to, target, compareFn);
+  }
+
+  // Arrays of length 1 or less are considered sorted.
+  if (arr.length < 2) {
+    return { ordered: [...arr], metrics: quicksortMetrics };
+  }
+
+  // Prepare the two work arrays. All numbers are stored in both arrays.
+  // The result is then written back from work1.
+  const work1 = [...arr];
+  const work2 = [...arr];
+
+  // Perform merge sort: work2 is source, work1 is target initially
+  mergeSort(work2, 0, arr.length, work1, compare);
+
+  // work1 contains the sorted numbers
+  return { ordered: work1, metrics: quicksortMetrics };
+}
+
+// Detect groups based on large jumps between consecutive elements
+function detectGroups(arr, jumpThresholdPercent = 0.25) {
+  if (arr.length <= 1) {
+    return [arr];
+  }
+
+  const min = Math.min(...arr);
+  const max = Math.max(...arr);
+  const range = max - min;
+  
+  // If range is 0, all elements are the same
+  if (range === 0) {
+    return [arr];
+  }
+  
+  const jumpThreshold = range * jumpThresholdPercent;
+
+  const groups = [];
+  let currentGroup = [arr[0]];
+  let largeJumpCount = 0;
+
+  for (let i = 1; i < arr.length; i++) {
+    const jump = Math.abs(arr[i] - arr[i - 1]);
+    
+    if (jump > jumpThreshold) {
+      // Large jump detected - start a new group
+      largeJumpCount++;
+      groups.push(currentGroup);
+      currentGroup = [arr[i]];
+    } else {
+      // Continue current group
+      currentGroup.push(arr[i]);
+    }
+  }
+
+  // Add the last group
+  if (currentGroup.length > 0) {
+    groups.push(currentGroup);
+  }
+
+  // Only return groups if we found large jumps, otherwise return original array as single group
+  if (largeJumpCount > 0 && groups.length > 1) {
+    return groups;
+  } else {
+    return [arr];
+  }
+}
+
+// Enhanced sort with group detection and recursive sorting
+function sortWithGroups(deck, depth = 0, detectGroupsFlag = true) {
+  // First pass - do initial sort
+  const firstPassResult = sortWithCeilingEquationInstrumented(deck);
+  let sorted = firstPassResult.ordered;
+
+  // Check if already sorted
+  if (isSorted(sorted)) {
+    return { ordered: sorted, metrics: firstPassResult.metrics };
+  }
+
+  // Only detect groups on the first call (not in recursive calls)
+  if (!detectGroupsFlag) {
+    // For recursive calls, keep sorting until sorted
+    let currentArray = sorted;
+    let safetyCount = 0;
+    
+    while (!isSorted(currentArray) && safetyCount < 100) {
+      safetyCount++;
+      const result = sortWithCeilingEquationInstrumented(currentArray);
+      currentArray = result.ordered;
+      
+      if (isSorted(currentArray)) {
+        return { ordered: currentArray, metrics: firstPassResult.metrics };
+      }
+    }
+    
+    return { ordered: currentArray, metrics: firstPassResult.metrics };
+  }
+
+  // Detect groups based on large jumps (try 50% first, then 25% if no groups found)
+  let groups = detectGroups(sorted, 0.25);
+  
+
+
+  // If only one group (no large jumps), just return the first pass result
+  if (groups.length === 1) {
+    return firstPassResult;
+  }
+
+  const indent = "  ".repeat(depth);
+  console.log(`${indent}Depth ${depth}: Detected ${groups.length} groups:`, groups.map(g => `[${g[0]}..${g[g.length-1]}] (${g.length} items)`));
+
+  // Recursively sort each group (without group detection)
+  const sortedGroups = [];
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i];
+    
+    // If group is very small or already sorted, use it as-is
+    if (group.length <= 2 || isSorted(group)) {
+      sortedGroups.push(group);
+    } else {
+      // Recursively sort the group (pass false to skip group detection)
+      const groupResult = sortWithGroups(group, depth + 1, false);
+      sortedGroups.push(groupResult.ordered);
+    }
+  }
+
+  // Merge all sorted groups back together (they're already in order)
+  const merged = sortedGroups.flat();
+
+  return { ordered: merged, metrics: firstPassResult.metrics };
+}
+
+function nativeSortInstrumented(arr) {
+  // Native JavaScript sort - we can't track internal metrics, but we can time it
+  const nativeMetrics = {
+    comparisons: 0, // Not available for native sort
+    divisions: 0,
+    checks: 0,
+    insertions: 0,
+    iterations: 0
+  };
+
+  // Create a copy to avoid mutating the original
+  const sorted = [...arr];
+  
+  // Native sort with numeric comparator
+  sorted.sort((a, b) => {
+    nativeMetrics.comparisons++;
+    return a - b;
+  });
+
+  return { ordered: sorted, metrics: nativeMetrics };
+}
+
+// Timing function to measure execution time
+function timeSort(sortFunction, arr, name) {
+  const startTime = performance.now();
+  const result = sortFunction(arr);
+  const endTime = performance.now();
+  const executionTime = endTime - startTime;
+  
+  return {
+    ...result,
+    executionTime: executionTime, // in milliseconds
+    name: name
+  };
+}
+
+// Test ceiling equation sort with group detection
+console.log("=== CEILING EQUATION SORT WITH GROUPS ===");
+const ceilingStartTime = performance.now();
+let safetyCount = 0;
+let resultArray = [...worstCase];
+
+while (!isSorted(resultArray) && safetyCount < 100) {
+  safetyCount++;
+  const result = sortWithGroups(resultArray);
+  resultArray = [...result.ordered];
+
+  if (isSorted(result.ordered)) {
+    console.log("Sorted in", safetyCount, "iterations");
+    break;
+  }
+}
+const ceilingEndTime = performance.now();
+const ceilingExecutionTime = ceilingEndTime - ceilingStartTime;
+
+console.log("\nCEILING EQUATION RESULT:", resultArray);
+console.log("CEILING EQUATION METRICS:", metrics);
+console.log("CEILING EQUATION TIME:", ceilingExecutionTime.toFixed(4), "ms");
+
+// Test quicksort
+console.log("\n=== V8 SORT ===");
+const quicksortResult = timeSort(quicksortInstrumented, worstCase, "Quicksort");
+console.log("\nQUICKSORT RESULT:", quicksortResult.ordered);
+console.log("QUICKSORT METRICS:", quicksortResult.metrics);
+console.log("QUICKSORT TIME:", quicksortResult.executionTime.toFixed(4), "ms");
+
+// Test native JavaScript sort
+console.log("\n=== NATIVE JAVASCRIPT SORT ===");
+const nativeResult = timeSort(nativeSortInstrumented, worstCase, "Native Sort");
+console.log("\nNATIVE SORT RESULT:", nativeResult.ordered);
+console.log("NATIVE SORT METRICS:", nativeResult.metrics);
+console.log("NATIVE SORT TIME:", nativeResult.executionTime.toFixed(4), "ms");
+
+// Verify all produce sorted arrays
+console.log("\n=== VERIFICATION ===");
+console.log("Ceiling equation is sorted:", isSorted(resultArray));
+console.log("Quicksort is sorted:", isSorted(quicksortResult.ordered));
+console.log("Native sort is sorted:", isSorted(nativeResult.ordered));
+
+// Summary comparison
+console.log("\n=== PERFORMANCE SUMMARY ===");
+console.log("Ceiling Equation:", ceilingExecutionTime.toFixed(4), "ms");
+console.log("Quicksort:", quicksortResult.executionTime.toFixed(4), "ms");
+console.log("Native Sort:", nativeResult.executionTime.toFixed(4), "ms");
+
+</script>
+</body>
+</html>
