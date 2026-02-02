@@ -138,7 +138,7 @@
     }
 
     .grid-block{
-      margin: 10px 0 18px 0;
+      margin: 10px 0 40px 0;
     }
 
     .grid-row{
@@ -146,7 +146,7 @@
       grid-template-columns: repeat(var(--cols), var(--cell));
       grid-auto-rows: var(--cell);
       gap: var(--gap);
-      margin: 0 0 10px 0;
+      margin: 0 0 4px 0;
       width: max-content;
     }
 
@@ -200,6 +200,7 @@
         padding: 0.5in;
       }
       .sentence{ margin-top: 18px; }
+      .paper .grid-block:last-of-type{ margin-bottom: 0; }
       button{ display:none; }
     }
   </style>
@@ -208,28 +209,29 @@
   <header>
     <h1>Story → Letter Grid (with Copy Boxes)</h1>
     <div class="controls">
-      <textarea id="storyInput" placeholder="Paste or type the story here...">Oliver is a boy who likes to ride dirt bikes.
+      <textarea id="storyInput" placeholder="Paste or type the story here...">
+Oliver is a boy who likes to ride dirt bikes.
 He wears a helmet to keep his head safe.
 When he rides, the bike makes a loud sound and moves fast over dirt and bumps.
-Oliver feels happy and calm when he rides.</textarea>
+Oliver feels happy and calm when he rides. 
+What does he do when he crashes? He gets back up again. 
+That's right. It's VERY hard, but it makes you a strong person.
+      
+      </textarea>
 
       <div class="row">
         <div class="settings">
           <label>
-            Max columns
-            <input id="maxCols" type="number" min="8" max="60" value="26" />
-          </label>
-          <label>
             Cell size (px)
-            <input id="cellSize" type="number" min="16" max="60" value="26" />
+            <input id="cellSize" type="number" min="16" max="60" value="32" />
           </label>
           <label>
             Writing height (px)
-            <input id="writeHeight" type="number" min="18" max="80" value="28" />
+            <input id="writeHeight" type="number" min="18" max="80" value="36" />
           </label>
           <label>
             Border (px)
-            <input id="borderSize" type="number" min="1" max="5" value="2" />
+            <input id="borderSize" type="number" min="0.1" max="5" value="1" />
           </label>
         </div>
 
@@ -239,7 +241,7 @@ Oliver feels happy and calm when he rides.</textarea>
           <button id="clearBtn" class="secondary">Clear</button>
         </div>
         <div class="hint">
-          Tip: Use <b>Print</b> to save as PDF. Lines wrap automatically every “Max columns” letters.
+          Tip: Use <b>Print</b> to save as PDF. Columns fill the page width based on cell size.
         </div>
       </div>
     </div>
@@ -259,10 +261,25 @@ Oliver feels happy and calm when he rides.</textarea>
       document.documentElement.style.setProperty("--border", `${borderSize}px`);
     }
 
-    function chunkArray(arr, size) {
-      const out = [];
-      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-      return out;
+    /** Chunk characters into rows of up to maxCols, breaking only at spaces so words stay together. */
+    function chunkByWords(chars, maxCols) {
+      const rows = [];
+      let start = 0;
+      while (start < chars.length) {
+        let end = Math.min(start + maxCols, chars.length);
+        let rowChars = chars.slice(start, end);
+        // If we cut in the middle of a word, end at the last space in this row instead
+        if (end < chars.length && rowChars[rowChars.length - 1] !== " " && chars[end] !== " ") {
+          const lastSpace = rowChars.lastIndexOf(" ");
+          if (lastSpace !== -1) {
+            rowChars = rowChars.slice(0, lastSpace + 1);
+            end = start + rowChars.length;
+          }
+        }
+        rows.push(rowChars);
+        start = end;
+      }
+      return rows;
     }
 
     function normalizeLineEndings(text) {
@@ -289,7 +306,7 @@ Oliver feels happy and calm when he rides.</textarea>
       container.className = "grid-block";
 
       const chars = Array.from(sentence); // handles unicode safely
-      const rows = chunkArray(chars, maxCols);
+      const rows = chunkByWords(chars, maxCols);
 
       rows.forEach((rowChars) => {
         const cols = rowChars.length;
@@ -325,18 +342,26 @@ Oliver feels happy and calm when he rides.</textarea>
       return container;
     }
 
+    /** How many columns fit in the paper content area (full page width). */
+    function getMaxColsFromPageWidth(cellSize, container) {
+      const style = getComputedStyle(container);
+      const paddingX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const availableWidth = container.clientWidth - paddingX;
+      return Math.max(1, Math.floor(availableWidth / cellSize));
+    }
+
     function generate() {
       const text = $("storyInput").value;
-      const maxCols = clamp(parseInt($("maxCols").value, 10) || 26, 8, 60);
       const cellSize = clamp(parseInt($("cellSize").value, 10) || 26, 16, 60);
       const writeHeight = clamp(parseInt($("writeHeight").value, 10) || 28, 18, 80);
       const borderSize = clamp(parseInt($("borderSize").value, 10) || 2, 1, 5);
 
-      setCSSVars({ maxCols, cellSize, writeHeight, borderSize });
-
       const sentences = splitSentences(text);
       const out = $("output");
       out.innerHTML = "";
+
+      const maxCols = getMaxColsFromPageWidth(cellSize, out);
+      setCSSVars({ maxCols, cellSize, writeHeight, borderSize });
 
       if (sentences.length === 0) {
         out.innerHTML = "<p style='color:#6b7280;margin:0'>Paste a story above, then click Generate.</p>";
@@ -358,6 +383,7 @@ Oliver feels happy and calm when he rides.</textarea>
     $("generateBtn").addEventListener("click", generate);
     $("printBtn").addEventListener("click", () => window.print());
     $("clearBtn").addEventListener("click", () => { $("storyInput").value = ""; generate(); });
+    window.addEventListener("resize", generate);
 
     // Auto-generate on load
     generate();
