@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Story Letter Grid Generator</title>
+  <style>
+    :root{
+      --cell: 26px;            /* size of each letter cell */
+      --cell2: 28px;           /* size of each writing cell */
+      --gap: 0px;
+      --border: 2px;
+      --pad: 24px;
+      --max-cols: 26;          /* letters per row before wrapping */
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body{
+      font-family: var(--font);
+      margin: 0;
+      background: #f6f7f8;
+      color: #111;
+    }
+
+    header{
+      padding: 18px var(--pad);
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    header h1{
+      margin: 0 0 10px 0;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .controls{
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .row{
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .row.two{
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    textarea{
+      width: 100%;
+      min-height: 110px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      font-size: 14px;
+      line-height: 1.35;
+      resize: vertical;
+      box-sizing: border-box;
+      background: #fff;
+    }
+
+    .settings{
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      align-items: end;
+    }
+
+    label{
+      display: grid;
+      gap: 6px;
+      font-size: 12px;
+      color: #374151;
+    }
+
+    input[type="number"]{
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      box-sizing: border-box;
+      background: #fff;
+    }
+
+    .buttons{
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    button{
+      appearance: none;
+      border: 1px solid #111;
+      background: #111;
+      color: #fff;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    button.secondary{
+      background: #fff;
+      color: #111;
+    }
+
+    button:active{ transform: translateY(1px); }
+
+    main{
+      padding: var(--pad);
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .paper{
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 22px 22px 30px 22px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    }
+
+    .sentence{
+      margin: 14px 0 6px 0;
+      font-weight: 800;
+      font-style: italic;
+      font-size: 20px;
+      line-height: 1.2;
+    }
+
+    .grid-block{
+      margin: 10px 0 18px 0;
+    }
+
+    .grid-row{
+      display: grid;
+      grid-template-columns: repeat(var(--cols), var(--cell));
+      grid-auto-rows: var(--cell);
+      gap: var(--gap);
+      margin: 0 0 10px 0;
+      width: max-content;
+    }
+
+    .cell{
+      width: var(--cell);
+      height: var(--cell);
+      border: var(--border) solid #111;
+      box-sizing: border-box;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+      font-weight: 700;
+      user-select: none;
+    }
+
+    .write-row{
+      display: grid;
+      grid-template-columns: repeat(var(--cols), var(--cell));
+      grid-auto-rows: var(--cell2);
+      gap: var(--gap);
+      width: max-content;
+    }
+
+    .write-cell{
+      width: var(--cell);
+      height: var(--cell2);
+      border: var(--border) solid #111;
+      box-sizing: border-box;
+      background: #fff;
+    }
+
+    .spacer{
+      height: 6px;
+    }
+
+    .hint{
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 6px;
+    }
+
+    /* Print styles */
+    @media print{
+      header, .hint{ display: none !important; }
+      body{ background: #fff; }
+      main{ padding: 0; max-width: none; margin: 0; }
+      .paper{
+        border: none;
+        box-shadow: none;
+        border-radius: 0;
+        padding: 0.5in;
+      }
+      .sentence{ margin-top: 18px; }
+      button{ display:none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Story → Letter Grid (with Copy Boxes)</h1>
+    <div class="controls">
+      <textarea id="storyInput" placeholder="Paste or type the story here...">Oliver is a boy who likes to ride dirt bikes.
+He wears a helmet to keep his head safe.
+When he rides, the bike makes a loud sound and moves fast over dirt and bumps.
+Oliver feels happy and calm when he rides.</textarea>
+
+      <div class="row">
+        <div class="settings">
+          <label>
+            Max columns
+            <input id="maxCols" type="number" min="8" max="60" value="26" />
+          </label>
+          <label>
+            Cell size (px)
+            <input id="cellSize" type="number" min="16" max="60" value="26" />
+          </label>
+          <label>
+            Writing height (px)
+            <input id="writeHeight" type="number" min="18" max="80" value="28" />
+          </label>
+          <label>
+            Border (px)
+            <input id="borderSize" type="number" min="1" max="5" value="2" />
+          </label>
+        </div>
+
+        <div class="buttons">
+          <button id="generateBtn">Generate Grid</button>
+          <button id="printBtn" class="secondary">Print</button>
+          <button id="clearBtn" class="secondary">Clear</button>
+        </div>
+        <div class="hint">
+          Tip: Use <b>Print</b> to save as PDF. Lines wrap automatically every “Max columns” letters.
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="paper" id="output"></div>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function setCSSVars({ maxCols, cellSize, writeHeight, borderSize }) {
+      document.documentElement.style.setProperty("--max-cols", String(maxCols));
+      document.documentElement.style.setProperty("--cell", `${cellSize}px`);
+      document.documentElement.style.setProperty("--cell2", `${writeHeight}px`);
+      document.documentElement.style.setProperty("--border", `${borderSize}px`);
+    }
+
+    function chunkArray(arr, size) {
+      const out = [];
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+      return out;
+    }
+
+    function normalizeLineEndings(text) {
+      return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    }
+
+    function splitSentences(text) {
+      // Prefer newlines as sentence boundaries (what you pasted).
+      // If a single paragraph is used, try to split on ". " / "? " / "! "
+      const cleaned = normalizeLineEndings(text).trim();
+      if (!cleaned) return [];
+
+      const lines = cleaned.split("\n").map(s => s.trim()).filter(Boolean);
+      if (lines.length > 1) return lines;
+
+      // Fallback: split by punctuation followed by space (keeps punctuation)
+      const fallback = cleaned.match(/[^.!?]+[.!?]+(\s+|$)/g);
+      if (fallback && fallback.length) return fallback.map(s => s.trim());
+      return [cleaned];
+    }
+
+    function buildGridForSentence(sentence, maxCols) {
+      const container = document.createElement("div");
+      container.className = "grid-block";
+
+      const chars = Array.from(sentence); // handles unicode safely
+      const rows = chunkArray(chars, maxCols);
+
+      rows.forEach((rowChars) => {
+        const cols = rowChars.length;
+
+        // letter row
+        const letterRow = document.createElement("div");
+        letterRow.className = "grid-row";
+        letterRow.style.setProperty("--cols", cols);
+
+        rowChars.forEach((ch) => {
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          cell.textContent = ch === " " ? "" : ch; // show blank for spaces
+          letterRow.appendChild(cell);
+        });
+
+        // writing row
+        const writeRow = document.createElement("div");
+        writeRow.className = "write-row";
+        writeRow.style.setProperty("--cols", cols);
+
+        rowChars.forEach(() => {
+          const w = document.createElement("div");
+          w.className = "write-cell";
+          writeRow.appendChild(w);
+        });
+
+        container.appendChild(letterRow);
+        container.appendChild(writeRow);
+        container.appendChild(document.createElement("div")).className = "spacer";
+      });
+
+      return container;
+    }
+
+    function generate() {
+      const text = $("storyInput").value;
+      const maxCols = clamp(parseInt($("maxCols").value, 10) || 26, 8, 60);
+      const cellSize = clamp(parseInt($("cellSize").value, 10) || 26, 16, 60);
+      const writeHeight = clamp(parseInt($("writeHeight").value, 10) || 28, 18, 80);
+      const borderSize = clamp(parseInt($("borderSize").value, 10) || 2, 1, 5);
+
+      setCSSVars({ maxCols, cellSize, writeHeight, borderSize });
+
+      const sentences = splitSentences(text);
+      const out = $("output");
+      out.innerHTML = "";
+
+      if (sentences.length === 0) {
+        out.innerHTML = "<p style='color:#6b7280;margin:0'>Paste a story above, then click Generate.</p>";
+        return;
+      }
+
+      sentences.forEach((sentence) => {
+        const s = document.createElement("div");
+        s.className = "sentence";
+        s.textContent = sentence;
+
+        out.appendChild(s);
+        out.appendChild(buildGridForSentence(sentence, maxCols));
+      });
+    }
+
+    function clamp(n, lo, hi){ return Math.max(lo, Math.min(hi, n)); }
+
+    $("generateBtn").addEventListener("click", generate);
+    $("printBtn").addEventListener("click", () => window.print());
+    $("clearBtn").addEventListener("click", () => { $("storyInput").value = ""; generate(); });
+
+    // Auto-generate on load
+    generate();
+  </script>
+</body>
+</html>

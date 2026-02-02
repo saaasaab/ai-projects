@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Text → Word-Color Pixels</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 20px; line-height: 1.35; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+    .card { border: 1px solid rgba(127,127,127,.35); border-radius: 12px; padding: 14px; min-width: 320px; flex: 1; }
+    textarea, input[type="text"] { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 10px; border: 1px solid rgba(127,127,127,.35); }
+    textarea { min-height: 110px; resize: vertical; }
+    button { padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(127,127,127,.35); cursor: pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .small { font-size: 12px; opacity: .85; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    canvas { border: 1px solid rgba(127,127,127,.35); border-radius: 12px; image-rendering: pixelated; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .pill { display:inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(127,127,127,.35); }
+    .warn { color: #b26a00; }
+    .ok { color: #2a8a2a; }
+  </style>
+</head>
+<body>
+  <h1>Text → Word Colors → Pixel Image</h1>
+  <p class="small">
+    Type/paste text. Each <b>word</b> maps to an <b>RGB color (0–255)</b>. Each word becomes one pixel in an output image.
+    A word dictionary file named <span class="mono">words_dictionary.json</span> (or upload one) is used to define valid words.
+  </p>
+
+  <div class="row">
+    <div class="card">
+      <h2>1) Dictionary</h2>
+
+      <div class="grid">
+        <div>
+          <label class="small">Auto-load from file (same folder):</label>
+          <div class="mono">./words_dictionary.json</div>
+          <button id="btnLoad">Load dictionary</button>
+        </div>
+        <div>
+          <label class="small">Or upload dictionary file:</label><br />
+          <input id="fileDict" type="file" accept=".json,application/json" />
+        </div>
+      </div>
+
+      <p class="small">
+        Supported formats:
+        <span class="pill mono">{ "word": true, "another": 1, ... }</span>
+        or
+        <span class="pill mono">["word","another",...]</span>
+      </p>
+
+      <div class="small">
+        Status: <span id="dictStatus" class="pill">Not loaded</span>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(127,127,127,.25); margin: 12px 0;" />
+
+      <h3>Color assignment</h3>
+      <p class="small">
+        Colors are assigned deterministically from each word (stable across runs) and cached in <span class="mono">localStorage</span>.
+        You can export the mapping after generating.
+      </p>
+      <button id="btnExportMap" disabled>Export word→RGB map JSON</button>
+      <button id="btnClearMap">Clear cached map</button>
+      <div class="small mono" id="mapInfo" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>2) Input text</h2>
+      <textarea id="inputText" placeholder="Paste text here..."></textarea>
+
+      <div style="margin-top:10px;" class="row">
+        <button id="btnGenerate" disabled>Generate image</button>
+        <button id="btnDownload" disabled>Download PNG</button>
+      </div>
+
+      <div class="small" style="margin-top:10px;">
+        Tokens: <span class="pill mono" id="tokenCount">0</span>
+        Image size: <span class="pill mono" id="imgSize">—</span>
+        Unknown words: <span class="pill mono" id="unknownCount">0</span>
+      </div>
+
+      <p class="small warn" id="unknownPreview" style="margin-top:10px; display:none;"></p>
+    </div>
+
+    <div class="card">
+      <h2>3) Output</h2>
+      <canvas id="canvas" width="1" height="1"></canvas>
+      <p class="small">
+        Preview is scaled up with <b>pixelated</b> rendering. Under the hood, it’s a 1-pixel-per-word image.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * Standalone Text → Pixel Image Encoder
+     * - Loads a dictionary of allowed words (words_dictionary.json or uploaded file)
+     * - Assigns deterministic RGB (0-255 each channel) per word
+     * - Encodes each input token as one pixel in a canvas image
+     */
+
+    // ---------- Utilities ----------
+    const $ = (id) => document.getElementById(id);
+
+    function normalizeWord(w) {
+      // Keep letters/numbers/apostrophes; lower-case.
+      // Adjust to your desired token rules.
+      return (w || "")
+        .trim()
+        .toLowerCase()
+        .replace(/^[^a-z0-9']+|[^a-z0-9']+$/g, "");
+    }
+
+    function tokenize(text) {
+      // Split on whitespace, normalize each token, drop empties.
+      return (text || "")
+        .split(/\s+/g)
+        .map(normalizeWord)
+        .filter(Boolean);
+    }
+
+    // FNV-1a 32-bit hash for deterministic mapping
+    function fnv1a32(str) {
+      let h = 0x811c9dc5;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        // h *= 16777619 (with 32-bit overflow)
+        h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+      }
+      return h >>> 0;
+    }
+
+    // Derive RGB from hash (0..255 each)
+    function rgbFromWord(word) {
+      const h = fnv1a32(word);
+      const r = (h >>> 16) & 255;
+      const g = (h >>> 8) & 255;
+      const b = (h >>> 0) & 255;
+      return [r, g, b];
+    }
+
+    function downloadBlob(filename, blob) {
+      const a = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // ---------- Dictionary loading ----------
+    let dictionary = null; // Set of words
+    const DICT_STATUS = $("dictStatus");
+
+    function setStatus(text, cls = "") {
+      DICT_STATUS.textContent = text;
+      DICT_STATUS.className = "pill " + cls;
+    }
+
+    function parseDictionaryJson(json) {
+      // Accept { "word": true/1/... } OR ["word", ...]
+      const set = new Set();
+
+      if (Array.isArray(json)) {
+        for (const w of json) {
+          const nw = normalizeWord(String(w));
+          if (nw) set.add(nw);
+        }
+        return set;
+      }
+
+      if (json && typeof json === "object") {
+        for (const k of Object.keys(json)) {
+          const nw = normalizeWord(k);
+          if (nw) set.add(nw);
+        }
+        return set;
+      }
+
+      throw new Error("Unsupported dictionary format.");
+    }
+
+    async function loadDictionaryFromUrl(url) {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to load ${url}: ${res.status}`);
+      return await res.json();
+    }
+
+    async function loadDictionary() {
+      try {
+        setStatus("Loading…");
+        const json = await loadDictionaryFromUrl("./words_dictionary.json");
+        dictionary = parseDictionaryJson(json);
+        setStatus(`Loaded (${dictionary.size.toLocaleString()} words)`, "ok");
+        onDictReady();
+      } catch (e) {
+        console.error(e);
+        dictionary = null;
+        setStatus("Load failed (see console)", "warn");
+        onDictNotReady();
+      }
+    }
+
+    async function loadDictionaryFromFile(file) {
+      try {
+        setStatus("Loading…");
+        const text = await file.text();
+        const json = JSON.parse(text);
+        dictionary = parseDictionaryJson(json);
+        setStatus(`Loaded (${dictionary.size.toLocaleString()} words)`, "ok");
+        onDictReady();
+      } catch (e) {
+        console.error(e);
+        dictionary = null;
+        setStatus("Upload parse failed (see console)", "warn");
+        onDictNotReady();
+      }
+    }
+
+    // ---------- Word → RGB map caching ----------
+    // Cache mapping so RGB stays stable even if you change hash logic later.
+    // Keyed by word. Value: [r,g,b]
+    const MAP_KEY = "word_rgb_map_v1";
+    let wordRgbMap = null;
+
+    function loadMap() {
+      try {
+        const raw = localStorage.getItem(MAP_KEY);
+        wordRgbMap = raw ? JSON.parse(raw) : {};
+      } catch {
+        wordRgbMap = {};
+      }
+      updateMapInfo();
+    }
+
+    function saveMap() {
+      localStorage.setItem(MAP_KEY, JSON.stringify(wordRgbMap));
+      updateMapInfo();
+    }
+
+    function updateMapInfo() {
+      const count = wordRgbMap ? Object.keys(wordRgbMap).length : 0;
+      $("mapInfo").textContent = `Cached mappings: ${count.toLocaleString()}`;
+      $("btnExportMap").disabled = !(count > 0);
+    }
+
+    function getOrAssignRgb(word) {
+      if (!wordRgbMap) loadMap();
+      if (wordRgbMap[word]) return wordRgbMap[word];
+
+      // Assign deterministic RGB. (If you want random-but-fixed, seed here.)
+      const rgb = rgbFromWord(word);
+
+      wordRgbMap[word] = rgb;
+      return rgb;
+    }
+
+    // ---------- Image generation ----------
+    const canvas = $("canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: false });
+
+    function computeSquareDims(n) {
+      const size = Math.ceil(Math.sqrt(Math.max(1, n)));
+      return [size, size];
+    }
+
+    function generateImageFromText(text) {
+      if (!dictionary) throw new Error("Dictionary not loaded.");
+
+      const tokens = tokenize(text);
+      $("tokenCount").textContent = tokens.length.toLocaleString();
+
+      // Track unknown words (not in dictionary)
+      const unknown = [];
+      for (const w of tokens) {
+        if (!dictionary.has(w)) unknown.push(w);
+      }
+      $("unknownCount").textContent = unknown.length.toLocaleString();
+
+      if (unknown.length > 0) {
+        const preview = Array.from(new Set(unknown)).slice(0, 30);
+        $("unknownPreview").style.display = "block";
+        $("unknownPreview").textContent =
+          `Unknown words (first ${preview.length} unique): ` + preview.join(", ") +
+          (unknown.length > preview.length ? " …" : "");
+      } else {
+        $("unknownPreview").style.display = "none";
+      }
+
+      // Decide whether to allow unknown words:
+      // Here we still encode them (they still get RGB), but we flag them above.
+      const n = tokens.length;
+      const [w, h] = computeSquareDims(n);
+      $("imgSize").textContent = `${w}×${h}`;
+
+      canvas.width = w;
+      canvas.height = h;
+
+      const img = ctx.createImageData(w, h);
+      const data = img.data;
+
+      // Fill all pixels as transparent black initially
+      for (let i = 0; i < data.length; i += 4) {
+        data[i + 0] = 0;
+        data[i + 1] = 0;
+        data[i + 2] = 0;
+        data[i + 3] = 0;
+      }
+
+      // Encode each word as one pixel, row-major
+      for (let i = 0; i < n; i++) {
+        const word = tokens[i];
+        const [r, g, b] = getOrAssignRgb(word);
+
+        const di = i * 4;
+        data[di + 0] = r;
+        data[di + 1] = g;
+        data[di + 2] = b;
+        data[di + 3] = 255; // fully opaque pixel
+      }
+
+      ctx.putImageData(img, 0, 0);
+
+      // Persist new assignments
+      saveMap();
+
+      $("btnDownload").disabled = false;
+    }
+
+    // ---------- UI wiring ----------
+    function onDictReady() {
+      $("btnGenerate").disabled = false;
+    }
+    function onDictNotReady() {
+      $("btnGenerate").disabled = true;
+      $("btnDownload").disabled = true;
+    }
+
+    $("btnLoad").addEventListener("click", loadDictionary);
+
+    $("fileDict").addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) loadDictionaryFromFile(file);
+    });
+
+    $("btnGenerate").addEventListener("click", () => {
+      try {
+        generateImageFromText($("inputText").value);
+      } catch (e) {
+        console.error(e);
+        alert(e.message || String(e));
+      }
+    });
+
+    $("btnDownload").addEventListener("click", () => {
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        downloadBlob("word_pixels.png", blob);
+      }, "image/png");
+    });
+
+    $("btnExportMap").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(wordRgbMap, null, 2)], { type: "application/json" });
+      downloadBlob("word_rgb_map.json", blob);
+    });
+
+    $("btnClearMap").addEventListener("click", () => {
+      if (!confirm("Clear cached word→RGB map?")) return;
+      localStorage.removeItem(MAP_KEY);
+      loadMap();
+      alert("Cleared.");
+    });
+
+    // Init
+    loadMap();
+    setStatus("Not loaded");
+  </script>
+</body>
+</html>
