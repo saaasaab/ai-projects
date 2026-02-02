@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Projects</title>
+  <style>
+    :root {
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --border: #2a2a2a;
+      --text: #e5e5e5;
+      --text-muted: #a3a3a3;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --pad: 24px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      margin: 0;
+    }
+
+    .page {
+      max-width: 1000px;
+      padding: var(--pad);
+      margin: 0 auto;
+    }
+
+    header {
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .project-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      padding-top: 32px;
+    }
+
+    .project-card {
+      display: block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .project-card:hover {
+      border-color: var(--accent);
+      background: #222;
+    }
+
+    .project-card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      line-height: 1.3;
+    }
+
+    .project-card .path {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      padding-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>Projects</h1>
+      <p>Standalone apps and experiments. Click any project to open it.</p>
+    </header>
+
+    <nav class="project-grid" id="projectGrid" aria-label="Project list">
+      <!-- Filled by script -->
+    </nav>
+  </div>
+
+  <script>
+    const projects = [
+      { title: "Atomic Orbitals 3D", path: "atom-viewer.html" },
+      { title: "Book Notes", path: "book-notes/index.html" },
+      { title: "City Traffic Simulator", path: "traffic-simulator.html" },
+      { title: "Dual Audio Player", path: "duel-player.html" },
+      { title: "Equation Wrap 3D (STL)", path: "revolveFunctions/revolveFunctions.html" },
+      { title: "Falling Notes → Sheet Music", path: "sheet-music-generator/index.html" },
+      { title: "Hilbert Curve → Audio Synth", path: "hilbert.html" },
+      { title: "Ink Splatter Simulator", path: "ink-blot-generator.html" },
+      { title: "JezzBall (1992-style)", path: "jezzball.html" },
+      { title: "Land Plot Generator", path: "lot-builder.html" },
+      { title: "Motion Extraction", path: "motion-extraction.html" },
+      { title: "Motion Extraction — Overlay Mode", path: "motion-extraction-more-options.html" },
+      { title: "Perler Bead Diagram", path: "perler-beads/index.html" },
+      { title: "Rodent's Revenge", path: "rodents-revenge.html" },
+      { title: "Sorting Algorithm Visualizer", path: "sorting-algorithm.html" },
+      { title: "Story Letter Grid Generator", path: "writing-helper-grid.html" },
+      { title: "Text → Word Colors → Pixel Image", path: "words-to-image/index.html" },
+      { title: "Timelapse / Slideshow Editor", path: "timelapse.html" },
+      { title: "Tilted Lane Defense", path: "stupid-mobile-shooting-game/game.html" },
+      { title: "Topology Analysis Tool", path: "topology-analysis.html" },
+      { title: "TV Tenant Directory", path: "psuedo-tv-app.html" },
+      { title: "Word Generator", path: "word-generator/generator.html" },
+    ];
+
+    const grid = document.getElementById("projectGrid");
+    projects.forEach(({ title, path }) => {
+      const a = document.createElement("a");
+      a.className = "project-card";
+      a.href = path;
+      a.setAttribute("data-path", path);
+      a.innerHTML = `<h2>${escapeHtml(title)}</h2><div class="path">${escapeHtml(path)}</div>`;
+      grid.appendChild(a);
+    });
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
