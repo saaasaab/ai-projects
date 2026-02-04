@@ -199,8 +199,16 @@
         border-radius: 0;
         padding: 0.5in;
       }
+      .sentence-group{
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .line-pair{
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
       .sentence{ margin-top: 18px; }
-      .paper .grid-block:last-of-type{ margin-bottom: 0; }
+      .paper .sentence-group:last-child .grid-block{ margin-bottom: 0; }
       button{ display:none; }
     }
   </style>
@@ -223,11 +231,11 @@ That's right. It's VERY hard, but it makes you a strong person.
         <div class="settings">
           <label>
             Cell size (px)
-            <input id="cellSize" type="number" min="16" max="60" value="32" />
+            <input id="cellSize" type="number" min="16" max="120" value="32" />
           </label>
           <label>
             Writing height (px)
-            <input id="writeHeight" type="number" min="18" max="80" value="36" />
+            <input id="writeHeight" type="number" min="18" max="120" value="36" />
           </label>
           <label>
             Border (px)
@@ -311,6 +319,9 @@ That's right. It's VERY hard, but it makes you a strong person.
       rows.forEach((rowChars) => {
         const cols = rowChars.length;
 
+        const linePair = document.createElement("div");
+        linePair.className = "line-pair";
+
         // letter row
         const letterRow = document.createElement("div");
         letterRow.className = "grid-row";
@@ -334,9 +345,12 @@ That's right. It's VERY hard, but it makes you a strong person.
           writeRow.appendChild(w);
         });
 
-        container.appendChild(letterRow);
-        container.appendChild(writeRow);
-        container.appendChild(document.createElement("div")).className = "spacer";
+        linePair.appendChild(letterRow);
+        linePair.appendChild(writeRow);
+        const spacer = document.createElement("div");
+        spacer.className = "spacer";
+        linePair.appendChild(spacer);
+        container.appendChild(linePair);
       });
 
       return container;
@@ -369,12 +383,16 @@ That's right. It's VERY hard, but it makes you a strong person.
       }
 
       sentences.forEach((sentence) => {
+        const group = document.createElement("div");
+        group.className = "sentence-group";
+
         const s = document.createElement("div");
         s.className = "sentence";
         s.textContent = sentence;
 
-        out.appendChild(s);
-        out.appendChild(buildGridForSentence(sentence, maxCols));
+        group.appendChild(s);
+        group.appendChild(buildGridForSentence(sentence, maxCols));
+        out.appendChild(group);
       });
     }
 
