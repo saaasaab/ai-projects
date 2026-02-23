@@ -214,8 +214,9 @@
 
         .layout {
             max-width: 1200px;
-            min-height: calc(100% - 100px);
-            margin: 1rem auto;
+            height: calc(100vh - 100px);
+            max-height: calc(100% - 100px);
+            overflow: hidden;
             display: grid;
             grid-template-columns: 280px 1fr;
             gap: 1rem;
@@ -389,7 +390,9 @@
             background: var(--panel);
             border: 1px solid var(--panel-2);
             border-radius: 1rem;
-            padding: 1rem
+            padding: 1rem;
+            min-height: 0;
+            overflow-y: auto
         }
 
         .toolbar {
@@ -740,11 +743,92 @@
             box-shadow: var(--ring)
         }
 
+        .modal-row textarea {
+            background: var(--panel-2);
+            border: 1px solid var(--muted);
+            color: var(--text);
+            border-radius: .6rem;
+            padding: .6rem;
+            resize: vertical;
+            min-height: 4rem;
+        }
+
+        .modal-row textarea:focus {
+            border-color: var(--brand);
+            outline: none;
+            box-shadow: var(--ring)
+        }
+
         .modal-actions {
             margin-top: 1rem;
             display: flex;
             gap: .5rem;
             justify-content: flex-end
+        }
+
+        /* Entry edit modal – stacked fields, clear labels */
+        .entry-modal {
+            padding: 1.25rem;
+        }
+
+        .entry-modal h3 {
+            margin-bottom: 1.25rem;
+        }
+
+        .entry-modal-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .entry-modal-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .entry-modal-field label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .entry-modal-field input,
+        .entry-modal-field textarea {
+            width: 100%;
+            background: var(--panel-2);
+            border: 1px solid var(--muted);
+            color: var(--text);
+            border-radius: .6rem;
+            padding: .6rem .75rem;
+            font-size: .95rem;
+            font-family: inherit;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .entry-modal-field input:focus,
+        .entry-modal-field textarea:focus {
+            border-color: var(--brand);
+            outline: none;
+            box-shadow: var(--ring);
+        }
+
+        .entry-modal-field input::placeholder,
+        .entry-modal-field textarea::placeholder {
+            color: var(--muted);
+        }
+
+        .entry-modal-field textarea {
+            resize: vertical;
+            min-height: 5rem;
+        }
+
+        .entry-modal .modal-actions {
+            margin-top: 1.25rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--panel-2);
         }
 
         .entry-list {
@@ -1393,18 +1477,25 @@
     <!-- Entry Actions Modal -->
     <div class="modal-backdrop" id="entryModalBackdrop" role="dialog" aria-modal="true"
         aria-labelledby="entryModalTitle">
-        <div class="modal">
-            <h3 id="entryModalTitle">Entry Actions</h3>
-            <div class="modal-row">
-                <div style="display: grid; gap: 0.5rem;">
-                    <div><strong>Page:</strong> <span id="entryModalPage"></span></div>
-                    <div><strong>Note:</strong> <span id="entryModalNote"></span></div>
-                    <div><strong>Quote:</strong> <span id="entryModalQuote"></span></div>
+        <div class="modal entry-modal">
+            <h3 id="entryModalTitle">Edit entry</h3>
+            <div class="entry-modal-fields">
+                <div class="entry-modal-field">
+                    <label for="entryModalPage">Page</label>
+                    <input type="text" inputmode="numeric" id="entryModalPage" placeholder="Page number" />
+                </div>
+                <div class="entry-modal-field">
+                    <label for="entryModalNote">Note</label>
+                    <textarea id="entryModalNote" rows="4" placeholder="Note"></textarea>
+                </div>
+                <div class="entry-modal-field">
+                    <label for="entryModalQuote">Quote</label>
+                    <textarea id="entryModalQuote" rows="4" placeholder="Quote"></textarea>
                 </div>
             </div>
             <div class="modal-actions">
-                <button class="btn danger" id="entryDeleteBtn">Delete</button>
                 <button class="btn" id="entryCancelBtn">Cancel</button>
+                <button class="btn primary" id="entrySaveBtn">Save</button>
             </div>
         </div>
     </div>
@@ -1412,7 +1503,13 @@
     <script>
         // Data layer
         const STORAGE_KEY = 'bookNotes.v1';
+        const ACTIVE_BOOK_KEY = STORAGE_KEY + '.activeBookId';
         const PROJECT_NAME = 'book-notes-v1';
+
+        function persistActiveBookId() {
+            if (state.activeBookId) localStorage.setItem(ACTIVE_BOOK_KEY, state.activeBookId);
+            else localStorage.removeItem(ACTIVE_BOOK_KEY);
+        }
 
         // API Configuration
         const API_CONFIG = {
@@ -1619,15 +1716,15 @@
 
             // Try to load from API first, fall back to localStorage
             loadBooksFromAPI().then(success => {
-                if (success) {
-                    // Select the first book after loading from API
-                    if (state.books && state.books.length > 0) {
-                        const sortValue = el('bookSort')?.value || 'title-asc';
-                        const sortedBooks = sortBooks(state.books, sortValue);
-                        state.activeBookId = sortedBooks[0].id;
-                    }
-                    renderAll();
+                if (success && state.books && state.books.length > 0) {
+                    const sortValue = el('bookSort')?.value || 'title-asc';
+                    const sortedBooks = sortBooks(state.books, sortValue);
+                    const savedActiveId = localStorage.getItem(ACTIVE_BOOK_KEY);
+                    const savedBookExists = savedActiveId && state.books.some(b => b.id === savedActiveId);
+                    state.activeBookId = savedBookExists ? savedActiveId : sortedBooks[0].id;
+                    persistActiveBookId();
                 }
+                renderAll();
             });
         }
         function save() {
@@ -1674,7 +1771,7 @@
                 const count = document.createElement('div'); count.className = 'count'; count.textContent = `${b.entries.length} entries`;
                 meta.append(count);
                 item.append(meta);
-                item.addEventListener('click', () => { state.activeBookId = b.id; renderAll() });
+                item.addEventListener('click', () => { state.activeBookId = b.id; persistActiveBookId(); renderAll(); });
                 bookList.append(item);
             })
 
@@ -1737,6 +1834,7 @@
                 item.append(meta);
                 item.addEventListener('click', () => {
                     state.activeBookId = b.id;
+                    persistActiveBookId();
                     renderAll();
                     toggleMobileMenu(); // Close menu after selection
                 });
@@ -1885,7 +1983,7 @@
                     if (success) {
                         // Remove from local state only after successful API deletion
                         state.books = state.books.filter(b => b.id !== id);
-                        if (state.activeBookId === id) state.activeBookId = state.books[0]?.id;
+                        if (state.activeBookId === id) { state.activeBookId = state.books[0]?.id; persistActiveBookId(); }
                         renderAll();
                     } else {
                         // If API deletion failed, show error and don't remove from local state
@@ -1943,6 +2041,7 @@
             const book = { id: uid(), title: title.trim(), author: author?.trim() || undefined, entries: [] };
             state.books.push(book);
             state.activeBookId = book.id;
+            persistActiveBookId();
 
             // Save to localStorage immediately for UI responsiveness
             save();
@@ -1985,6 +2084,7 @@
                     // Update active book if it's the current one
                     if (state.activeBookId === book.id) {
                         state.activeBookId = updatedBook.id;
+                        persistActiveBookId();
                     }
 
                     console.log('Entry added successfully via API');
@@ -2000,19 +2100,19 @@
             renderEntries();
         }
 
-        async function deleteEntry(bookId, entryId) {
-            const book = state.books.find(b => b.id === bookId); if (!book) return;
-            book.entries = book.entries.filter(e => e.id !== entryId);
+        // async function deleteEntry(bookId, entryId) {
+        //     const book = state.books.find(b => b.id === bookId); if (!book) return;
+        //     book.entries = book.entries.filter(e => e.id !== entryId);
 
-            // Save to localStorage immediately for UI responsiveness
-            save();
-            renderEntries();
+        //     // Save to localStorage immediately for UI responsiveness
+        //     save();
+        //     renderEntries();
 
-            // Open the form if no entries remain
-            if (book.entries.length === 0) {
-                setEntryFormState(true);
-            }
-        }
+        //     // Open the form if no entries remain
+        //     if (book.entries.length === 0) {
+        //         setEntryFormState(true);
+        //     }
+        // }
 
         function copyEntry(r) {
             const text = [r.page ? `p.${r.page}` : '', r.note || '', r.quote ? `"${r.quote}"` : ''].filter(Boolean).join(' — ');
@@ -2032,9 +2132,9 @@
         // Entry Modal
         const entryModal = {
             open(entry, bookId) {
-                el('entryModalPage').textContent = entry.page || 'N/A';
-                el('entryModalNote').textContent = entry.note || 'N/A';
-                el('entryModalQuote').textContent = entry.quote || 'N/A';
+                el('entryModalPage').value = entry.page !== undefined && entry.page !== '' ? String(entry.page) : '';
+                el('entryModalNote').value = entry.note || '';
+                el('entryModalQuote').value = entry.quote || '';
                 el('entryModalBackdrop').style.display = 'flex';
 
                 // Store current entry and bookId for actions
@@ -2045,6 +2145,17 @@
                 el('entryModalBackdrop').style.display = 'none';
                 entryModal.currentEntry = null;
                 entryModal.currentBookId = null;
+            },
+            save() {
+                if (!entryModal.currentEntry || !entryModal.currentBookId) return;
+                const pageVal = el('entryModalPage').value.trim();
+                entryModal.currentEntry.page = pageVal === '' ? undefined : (Number(pageVal) || undefined);
+                entryModal.currentEntry.note = el('entryModalNote').value.trim() || undefined;
+                entryModal.currentEntry.quote = el('entryModalQuote').value.trim() || undefined;
+                save();
+                renderEntries();
+                entryModal.close();
+                toast('Entry updated');
             }
         };
 
@@ -2305,6 +2416,7 @@
                 entryItem.addEventListener('click', () => {
                     // Select the book and close mobile menu
                     state.activeBookId = book.id;
+                    persistActiveBookId();
                     save();
                     renderAll();
                     toggleMobileMenu();
@@ -2375,14 +2487,15 @@
 
         // Entry modal event listeners
         el('entryCancelBtn').addEventListener('click', () => entryModal.close());
-        el('entryDeleteBtn').addEventListener('click', () => {
-            if (entryModal.currentEntry && entryModal.currentBookId) {
-                if (confirm('Are you sure you want to delete this entry?')) {
-                    deleteEntry(entryModal.currentBookId, entryModal.currentEntry.id);
-                    entryModal.close();
-                }
-            }
-        });
+        el('entrySaveBtn').addEventListener('click', () => entryModal.save());
+        // el('entryDeleteBtn').addEventListener('click', () => {
+        //     if (entryModal.currentEntry && entryModal.currentBookId) {
+        //         if (confirm('Are you sure you want to delete this entry?')) {
+        //             deleteEntry(entryModal.currentBookId, entryModal.currentEntry.id);
+        //             entryModal.close();
+        //         }
+        //     }
+        // });
 
         // Tab switching functionality
         let currentSearchTab = 'books';
@@ -2535,6 +2648,7 @@
                 entryItem.addEventListener('click', () => {
                     // Select the book and scroll to the specific entry
                     state.activeBookId = book.id;
+                    persistActiveBookId();
                     save();
                     renderAll();
 
