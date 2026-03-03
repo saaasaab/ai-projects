@@ -46,6 +46,20 @@
     #animateBtn.active {
       background: #2d6ba3;
     }
+    #mode3DBtn {
+      background: #e67e22;
+      color: #fff;
+    }
+    #mode3DBtn.active {
+      background: #d35400;
+    }
+    #recordBtn {
+      background: #e74c3c;
+      color: #fff;
+    }
+    #recordBtn.active {
+      background: #c0392b;
+    }
     #ui label {
       margin-right: 6px;
       display: inline-flex;
@@ -63,6 +77,12 @@
       <button id="generateBtn">New Splatter</button>
       <button id="clearBtn">Clear</button>
       <button id="animateBtn">Animate</button>
+      <button id="mode3DBtn">3D</button>
+      <button id="recordBtn">Record</button>
+      <select id="aspectRatioSelect" style="margin-left:6px; padding:6px 8px; border-radius:4px; border:1px solid #ddd; font-size:12px;">
+        <option value="16:9">16:9</option>
+        <option value="9:16">9:16</option>
+      </select>
     </div>
     <div>
       <label>
@@ -107,6 +127,7 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ccapture.js@1.1.0/build/CCapture.all.min.js"></script>
   <script>
     let densitySlider, spreadSlider, curvatureSlider, speedSlider, branchThicknessSlider;
     let lastSplatterCenter = { cx: undefined, cy: undefined };
@@ -114,6 +135,16 @@
     let splatterData = null;
     let animationTime = 0;
     let currentSeedData = null; // Contains: {seed: number, density, spread, curvature, speed, branchThickness}
+    let is3DMode = false;
+    let rotation3D = 0;
+    let isRecording = false;
+    let capturer = null;
+    let recordFrameCount = 0;
+    const RECORD_FPS = 30;
+    const ROTATION_SPEED = 0.01; // radians per frame
+    let originalCanvasWidth = 0;
+    let originalCanvasHeight = 0;
+    let recordingAspectRatio = '16:9'; // '16:9' or '9:16'
 
     function setup() {
       createCanvas(window.innerWidth, window.innerHeight);
@@ -215,6 +246,95 @@
         }
       };
 
+      const mode3DBtn = document.getElementById('mode3DBtn');
+      mode3DBtn.onclick = () => {
+        is3DMode = !is3DMode;
+        if (is3DMode) {
+          mode3DBtn.classList.add('active');
+          rotation3D = 0;
+        } else {
+          mode3DBtn.classList.remove('active');
+        }
+        // Redraw
+        background(245);
+        if (splatterData) {
+          const currentTime = isAnimating ? animationTime : 0;
+          drawSplatter(splatterData, currentTime);
+        }
+      };
+
+      const aspectRatioSelect = document.getElementById('aspectRatioSelect');
+      aspectRatioSelect.onchange = () => {
+        recordingAspectRatio = aspectRatioSelect.value;
+      };
+
+      const recordBtn = document.getElementById('recordBtn');
+      recordBtn.onclick = () => {
+        if (!isRecording) {
+          // Save original canvas size
+          originalCanvasWidth = width;
+          originalCanvasHeight = height;
+          
+          // Set canvas to recording aspect ratio
+          let recordWidth, recordHeight;
+          const baseSize = 1920; // Use 1920 as base for good quality
+          if (recordingAspectRatio === '16:9') {
+            recordWidth = baseSize;
+            recordHeight = baseSize * 9 / 16;
+          } else { // 9:16
+            recordWidth = baseSize * 9 / 16;
+            recordHeight = baseSize;
+          }
+          resizeCanvas(recordWidth, recordHeight);
+          
+          // Generate or regenerate splatter with new canvas center (keeps same seed if already generated)
+          generateSplatter();
+          
+          // Start recording
+          isRecording = true;
+          recordBtn.classList.add('active');
+          recordBtn.textContent = 'Recording...';
+          recordFrameCount = 0;
+          rotation3D = 0; // Reset rotation to start from beginning
+          
+          // Initialize CCapture for WebM video
+          capturer = new CCapture({
+            format: 'webm',
+            framerate: RECORD_FPS,
+            quality: 90,
+            name: 'ink-blot-animation'
+          });
+          capturer.start();
+          
+          // Ensure 3D mode is enabled and animation is running for recording
+          if (!is3DMode) {
+            is3DMode = true;
+            mode3DBtn.classList.add('active');
+          }
+          if (!isAnimating) {
+            isAnimating = true;
+            animateBtn.classList.add('active');
+            animationTime = 0;
+          }
+        } else {
+          // Stop recording
+          isRecording = false;
+          recordBtn.classList.remove('active');
+          recordBtn.textContent = 'Record';
+          capturer.stop();
+          capturer.save();
+          capturer = null;
+          
+          // Restore original canvas size
+          resizeCanvas(originalCanvasWidth, originalCanvasHeight);
+          background(245);
+          if (splatterData) {
+            const currentTime = isAnimating ? animationTime : 0;
+            drawSplatter(splatterData, currentTime);
+          }
+        }
+      };
+
       // Live updates on slider change
       densitySlider.addEventListener('input', () => {
         // Keep the same seed, just update the slider value in seed data
@@ -269,11 +389,47 @@
     }
 
     function draw() {
+      // Update 3D rotation if in 3D mode
+      if (is3DMode) {
+        rotation3D += ROTATION_SPEED;
+      }
+      
       if (isAnimating && splatterData) {
         const speed = parseFloat(speedSlider.value);
         animationTime += 0.02 * speed;
         background(245);
         drawSplatter(splatterData, animationTime);
+      } else if (is3DMode && splatterData) {
+        // Redraw in 3D mode even when not animating
+        background(245);
+        drawSplatter(splatterData, 0);
+      }
+      
+      // Capture frame for video recording
+      if (isRecording && capturer) {
+        capturer.capture(canvas.elt);
+        recordFrameCount++;
+        
+        // Auto-stop after one full rotation
+        // One full rotation = TWO_PI radians, at ROTATION_SPEED per frame
+        const framesPerRotation = TWO_PI / ROTATION_SPEED;
+        if (recordFrameCount >= framesPerRotation) {
+          isRecording = false;
+          const recordBtn = document.getElementById('recordBtn');
+          recordBtn.classList.remove('active');
+          recordBtn.textContent = 'Record';
+          capturer.stop();
+          capturer.save();
+          capturer = null;
+          
+          // Restore original canvas size
+          resizeCanvas(originalCanvasWidth, originalCanvasHeight);
+          background(245);
+          if (splatterData) {
+            const currentTime = isAnimating ? animationTime : 0;
+            drawSplatter(splatterData, currentTime);
+          }
+        }
       }
     }
 
@@ -371,9 +527,12 @@
         rays: []
       };
 
-      // Generate rays data
+      // Generate rays data in 3D spherical coordinates
       for (let i = 0; i < rayCount; i++) {
-        const angleBase = random(TWO_PI);
+        // Spherical coordinates: theta (azimuth 0-2π), phi (elevation 0-π)
+        // phi = 0 is top of sphere, phi = π is bottom, phi = π/2 is equator
+        const theta = random(TWO_PI); // Azimuth angle (around the sphere)
+        const phi = acos(random(-1, 1)); // Elevation angle (uniform distribution on sphere)
         const len = random(minLen, maxLen);
         const segments = int(len / 5);
 
@@ -386,29 +545,46 @@
         const animPhase = random(TWO_PI);
         const animAmplitude = random(0.15, 0.3);
 
-        let curvature = random(-0.15, 0.15);
+        // 3D curvature: two perpendicular angles for 3D space
+        let curvatureTheta = random(-0.4, 0.4); // Increased curvature range
+        let curvaturePhi = random(-0.4, 0.4);
         const raySegments = [];
         const branches = [];
 
-        // Build segments data
+        // Build segments data in 3D space
         for (let s = 0; s < segments; s++) {
           const t = s / segments;
-          curvature += random(-0.08, 0.08);
-          curvature = constrain(curvature, -0.25, 0.25);
+          curvatureTheta += random(-0.15, 0.15); // Increased step size
+          curvatureTheta = constrain(curvatureTheta, -0.8, 0.8); // Increased max range
+          curvaturePhi += random(-0.15, 0.15);
+          curvaturePhi = constrain(curvaturePhi, -0.8, 0.8);
           
-          // Curvature increases with distance (t) - less at beginning, more as it extends
-          // t^2 makes it ramp up faster, curvatureMultiplier controls overall intensity
-          const curvatureIntensity = pow(t, 1.2) * curvatureMultiplier;
-          const baseCurvature = curvature + random(-0.12, 0.12);
-          const segmentCurvature = baseCurvature * (0.3 + curvatureIntensity * 1.4);
+          // Curvature increases with distance (t) - make it stronger
+          const curvatureIntensity = pow(t, 1.2) * curvatureMultiplier * 2.0; // Increased multiplier
+          const baseCurvTheta = curvatureTheta + random(-0.2, 0.2); // Increased variation
+          const baseCurvPhi = curvaturePhi + random(-0.2, 0.2);
+          const segmentCurvTheta = baseCurvTheta * (0.5 + curvatureIntensity * 2.0); // Stronger curvature
+          const segmentCurvPhi = baseCurvPhi * (0.5 + curvatureIntensity * 2.0);
           
+          // Calculate current 3D direction in spherical coordinates
+          const currentTheta = theta + segmentCurvTheta;
+          const currentPhi = phi + segmentCurvPhi;
+          
+          // Convert to 3D direction vector
+          const dirX = sin(currentPhi) * cos(currentTheta);
+          const dirY = sin(currentPhi) * sin(currentTheta);
+          const dirZ = cos(currentPhi);
+          
+          // Store 3D direction and position
           raySegments.push({
             t,
-            curvature: segmentCurvature,
+            curvatureTheta: segmentCurvTheta,
+            curvaturePhi: segmentCurvPhi,
+            dirX, dirY, dirZ, // 3D direction vector
             widthVar: 0.9 + random(0, 0.2)
           });
 
-          // Branches
+          // Branches in 3D space
           const branchChance = 0.35;
           if (random() < branchChance && s > segments * 0.15) {
             const branchLen = random(10, 50);
@@ -417,18 +593,35 @@
             const branchAnimPhase = random(TWO_PI);
             const branchAnimSpeed = random(0.7, 1.5);
             
-            let bCurvature = random(-0.2, 0.2);
+            let bCurvatureTheta = random(-0.4, 0.4); // Increased
+            let bCurvaturePhi = random(-0.4, 0.4);
             const branchSegments = [];
             for (let bs = 0; bs < branchSeg; bs++) {
               const t2 = bs / branchSeg;
-              bCurvature += random(-0.1, 0.1);
-              bCurvature = constrain(bCurvature, -0.3, 0.3);
-              // Branch curvature also increases with distance
-              const branchCurvatureIntensity = pow(t2, 1.2) * curvatureMultiplier;
-              const branchBaseCurv = bCurvature + random(-0.15, 0.15);
+              bCurvatureTheta += random(-0.15, 0.15); // Increased
+              bCurvatureTheta = constrain(bCurvatureTheta, -0.6, 0.6);
+              bCurvaturePhi += random(-0.15, 0.15);
+              bCurvaturePhi = constrain(bCurvaturePhi, -0.6, 0.6);
+              
+              const branchCurvatureIntensity = pow(t2, 1.2) * curvatureMultiplier * 1.5; // Increased
+              const branchBaseCurvTheta = bCurvatureTheta + random(-0.2, 0.2);
+              const branchBaseCurvPhi = bCurvaturePhi + random(-0.2, 0.2);
+              const branchCurvTheta = branchBaseCurvTheta * (0.6 + branchCurvatureIntensity * 1.5);
+              const branchCurvPhi = branchBaseCurvPhi * (0.6 + branchCurvatureIntensity * 1.5);
+              
+              const branchTheta = currentTheta + branchAngleOffset + branchCurvTheta;
+              const branchPhi = currentPhi + branchCurvPhi;
+              const branchDirX3D = sin(branchPhi) * cos(branchTheta);
+              const branchDirY3D = sin(branchPhi) * sin(branchTheta);
+              const branchDirZ3D = cos(branchPhi);
+              
               branchSegments.push({
                 t: t2,
-                curvature: branchBaseCurv * (0.4 + branchCurvatureIntensity * 1.2)
+                curvatureTheta: branchCurvTheta,
+                curvaturePhi: branchCurvPhi,
+                dirX: branchDirX3D,
+                dirY: branchDirY3D,
+                dirZ: branchDirZ3D
               });
             }
             
@@ -452,18 +645,35 @@
             const branchAnimPhase = random(TWO_PI);
             const branchAnimSpeed = random(0.8, 1.6);
             
-            let bCurvature = random(-0.25, 0.25);
+            let bCurvatureTheta = random(-0.25, 0.25);
+            let bCurvaturePhi = random(-0.25, 0.25);
             const branchSegments = [];
             for (let bs = 0; bs < branchSeg; bs++) {
               const t2 = bs / branchSeg;
-              bCurvature += random(-0.12, 0.12);
-              bCurvature = constrain(bCurvature, -0.35, 0.35);
-              // Secondary branch curvature also increases with distance
+              bCurvatureTheta += random(-0.12, 0.12);
+              bCurvatureTheta = constrain(bCurvatureTheta, -0.35, 0.35);
+              bCurvaturePhi += random(-0.12, 0.12);
+              bCurvaturePhi = constrain(bCurvaturePhi, -0.35, 0.35);
+              
               const branchCurvatureIntensity = pow(t2, 1.2) * curvatureMultiplier;
-              const branchBaseCurv = bCurvature + random(-0.18, 0.18);
+              const branchBaseCurvTheta = bCurvatureTheta + random(-0.18, 0.18);
+              const branchBaseCurvPhi = bCurvaturePhi + random(-0.18, 0.18);
+              const branchCurvTheta = branchBaseCurvTheta * (0.4 + branchCurvatureIntensity * 1.2);
+              const branchCurvPhi = branchBaseCurvPhi * (0.4 + branchCurvatureIntensity * 1.2);
+              
+              const branchTheta = currentTheta + branchAngleOffset + branchCurvTheta;
+              const branchPhi = currentPhi + branchCurvPhi;
+              const branchDirX3D = sin(branchPhi) * cos(branchTheta);
+              const branchDirY3D = sin(branchPhi) * sin(branchTheta);
+              const branchDirZ3D = cos(branchPhi);
+              
               branchSegments.push({
                 t: t2,
-                curvature: branchBaseCurv * (0.4 + branchCurvatureIntensity * 1.2)
+                curvatureTheta: branchCurvTheta,
+                curvaturePhi: branchCurvPhi,
+                dirX: branchDirX3D,
+                dirY: branchDirY3D,
+                dirZ: branchDirZ3D
               });
             }
             
@@ -481,7 +691,7 @@
         }
 
         splatterData.rays.push({
-          angleBase,
+          theta, phi, // Spherical coordinates for initial direction
           length: len,
           segments: raySegments,
           branches,
@@ -503,60 +713,118 @@
       splatterData.dropletConnections = []; // Store connections for deterministic drawing
       
       for (let i = 0; i < dropletCount; i++) {
-        let x, y, size, branchInfo = null;
+        let x, y, z, size, branchInfo = null;
         
-        // High probability (0.7) to spawn near a branch, low (0.3) to spawn randomly
+        // High probability (0.7) to spawn near a branch, low (0.3) to spawn randomly in 3D space
         if (branchPoints.length > 0 && random() < 0.7) {
-          // Spawn near a branch
+          // Spawn near a branch in 3D space
           const branchPoint = random(branchPoints);
           branchInfo = branchPoint;
           
           // Distance from branch - minimum distance to avoid being ON the branch
-          const minDist = 8; // Minimum distance from branch (must be outside)
-          const maxDist = 45; // Maximum distance from branch
+          // Use distribution that favors closer distances (denser near branch)
+          const minDist = 8; // Minimum distance (must be outside branch)
+          const maxDist = 45;
           
-          // Probability distribution: very low probability very close, higher probability further out
-          // Use a distribution that favors medium distances
-          const distT = pow(random(0.3, 1.0), 1.5); // Squared distribution favors larger distances
+          // Distribution: higher probability for closer distances (inverse of original)
+          // Use 1 - pow to favor closer distances
+          const distT = 1 - pow(random(0, 0.7), 2.0); // Favor closer distances (0.3 to 1.0 range, squared)
           const dist = lerp(minDist, maxDist, distT);
-          const distRatio = (dist - minDist) / (maxDist - minDist); // 0 = close (but outside), 1 = far
+          const distRatio = (dist - minDist) / (maxDist - minDist); // 0 = close, 1 = far
           
-          // Perpendicular offset from branch (mostly perpendicular, slight forward/back)
-          const offsetAngle = branchPoint.angle + PI / 2 + random(-0.2, 0.2);
-          const offsetDist = random(-dist * 0.6, dist * 0.6);
+          // Get branch direction
+          const dirX = branchPoint.dirX;
+          const dirY = branchPoint.dirY;
+          const dirZ = branchPoint.dirZ;
           
-          // Position droplet - mostly perpendicular to branch direction
-          const offsetX = cos(offsetAngle) * dist + cos(branchPoint.angle) * random(-dist * 0.3, dist * 0.3);
-          const offsetY = sin(offsetAngle) * dist + sin(branchPoint.angle) * random(-dist * 0.3, dist * 0.3);
-          x = branchPoint.x + offsetX;
-          y = branchPoint.y + offsetY;
+          // Create perpendicular plane to branch direction
+          // First, find a vector not parallel to branch direction (use a fixed reference)
+          let refX = 1, refY = 0, refZ = 0;
+          // If branch direction is close to X-axis, use Y-axis as reference
+          if (abs(dirX) > 0.9) {
+            refX = 0; refY = 1; refZ = 0;
+          }
           
-          // Store branch info for animation (store the full branch point info)
+          // Cross product: ref × dir to get first perpendicular vector
+          let perp1X = refY * dirZ - refZ * dirY;
+          let perp1Y = refZ * dirX - refX * dirZ;
+          let perp1Z = refX * dirY - refY * dirX;
+          let perp1Len = sqrt(perp1X * perp1X + perp1Y * perp1Y + perp1Z * perp1Z);
+          
+          // Normalize first perpendicular
+          if (perp1Len > 0.001) {
+            perp1X /= perp1Len;
+            perp1Y /= perp1Len;
+            perp1Z /= perp1Len;
+          } else {
+            // Fallback: use Y-axis
+            perp1X = 0; perp1Y = 1; perp1Z = 0;
+          }
+          
+          // Second perpendicular: dir × perp1 (completes the perpendicular plane)
+          let perp2X = dirY * perp1Z - dirZ * perp1Y;
+          let perp2Y = dirZ * perp1X - dirX * perp1Z;
+          let perp2Z = dirX * perp1Y - dirY * perp1X;
+          let perp2Len = sqrt(perp2X * perp2X + perp2Y * perp2Y + perp2Z * perp2Z);
+          
+          // Normalize second perpendicular
+          if (perp2Len > 0.001) {
+            perp2X /= perp2Len;
+            perp2Y /= perp2Len;
+            perp2Z /= perp2Len;
+          } else {
+            // Fallback: use Z-axis
+            perp2X = 0; perp2Y = 0; perp2Z = 1;
+          }
+          
+          // Random angle around branch direction (on the perpendicular plane)
+          const rotAngle = random(TWO_PI);
+          const cosAngle = cos(rotAngle);
+          const sinAngle = sin(rotAngle);
+          
+          // Position on perpendicular plane (mostly perpendicular, slight variation along branch)
+          const perpX = perp1X * cosAngle + perp2X * sinAngle;
+          const perpY = perp1Y * cosAngle + perp2Y * sinAngle;
+          const perpZ = perp1Z * cosAngle + perp2Z * sinAngle;
+          
+          // Small variation along branch direction (like original 2D: slight forward/back)
+          const alongBranchVar = random(-dist * 0.3, dist * 0.3);
+          
+          // Position droplet: branchPoint + perpendicular offset + small along-branch offset
+          x = branchPoint.x + perpX * dist + dirX * alongBranchVar;
+          y = branchPoint.y + perpY * dist + dirY * alongBranchVar;
+          z = branchPoint.z + perpZ * dist + dirZ * alongBranchVar;
+          
           branchInfo = {
-            ...branchPoint, // Copy all branch point properties
-            offsetX: offsetX,
-            offsetY: offsetY
+            ...branchPoint,
+            offsetX: x - branchPoint.x,
+            offsetY: y - branchPoint.y,
+            offsetZ: z - branchPoint.z
           };
           
-          // Larger dots closer (inverse relationship with distance, but not too close)
           const maxSize = 3.5;
           const minSize = 0.8;
           size = lerp(maxSize, minSize, distRatio) * random(0.8, 1.2);
         } else {
-          // Spawn randomly in open area (smaller dots)
-          const r = random(20, maxLen + 120);
-          const angle = random(TWO_PI);
-          const jitter = random(-15, 15);
-          x = cx + cos(angle) * (r + jitter);
-          y = cy + sin(angle) * (r + jitter * 0.4);
-          size = random(0.5, 2); // Smaller dots in open areas
+          // Spawn randomly in 3D space around the sphere
+          const sphereRadius = random(30, maxLen + 100);
+          // Uniform distribution on sphere surface using spherical coordinates
+          const dropTheta = random(TWO_PI);
+          const dropPhi = acos(random(-1, 1));
+          
+          x = cx + sin(dropPhi) * cos(dropTheta) * sphereRadius;
+          y = cy + sin(dropPhi) * sin(dropTheta) * sphereRadius;
+          z = cos(dropPhi) * sphereRadius;
+          
+          size = random(0.5, 2);
         }
         
         const alpha = random(80, 220);
         const sizeVariation = random(0.7, 1.4);
+        
         splatterData.droplets.push({ 
-          x, y, size, alpha, sizeVariation,
-          branchInfo // Store branch info for animation
+          x, y, z, size, alpha, sizeVariation,
+          branchInfo
         });
       }
       
@@ -571,6 +839,42 @@
       drawSplatter(splatterData, 0);
     }
 
+    // Transform 3D coordinates with rotation around y-axis and perspective projection
+    function transform3D(x, y, z, centerX, centerY) {
+      if (!is3DMode) return { x, y, z: 0, scale: 1 };
+      
+      // Convert to coordinate system centered at splatter center
+      const relX = x - centerX;
+      const relY = y - centerY;
+      
+      // Rotate around y-axis (horizontal axis through center)
+      // Rotation matrix around y-axis:
+      // x' = x*cos - z*sin
+      // y' = y
+      // z' = x*sin + z*cos
+      const cosR = cos(rotation3D);
+      const sinR = sin(rotation3D);
+      
+      const rotatedX = relX * cosR - z * sinR;
+      const rotatedY = relY;
+      const rotatedZ = relX * sinR + z * cosR;
+      
+      // Perspective projection: project 3D to 2D
+      const perspective = 1200; // Perspective distance (larger = less perspective distortion)
+      const scale = perspective / (perspective + rotatedZ);
+      
+      // Apply perspective scaling
+      const projectedX = rotatedX * scale;
+      const projectedY = rotatedY * scale;
+      
+      // Convert back to screen coordinates
+      return {
+        x: centerX + projectedX,
+        y: centerY + projectedY,
+        z: rotatedZ,
+        scale: scale
+      };
+    }
 
     function drawSplatter(data, time) {
       const { cx, cy, mainBlotRadius, droplets, rays } = data;
@@ -584,224 +888,365 @@
       // Draw central splatter that bulges toward branches
       drawCentralSplatter(data, cx, cy, time);
 
-      // Draw rays with animation
+      // Draw rays with animation in 3D space
       let branchGlobalIdx = 0;
       for (let rayIdx = 0; rayIdx < rays.length; rayIdx++) {
         const ray = rays[rayIdx];
-        const { angleBase, length, segments: raySegments, branches, baseWidth, endWidth, widthVariation, animSpeed, animPhase, animAmplitude } = ray;
+        const { theta, phi, length, segments: raySegments, branches, baseWidth, endWidth, widthVariation, animSpeed, animPhase, animAmplitude } = ray;
         const segCount = raySegments.length;
         
-        let x = cx;
-        let y = cy;
-        let currentAngle = angleBase; // Base angle, will accumulate curvature
-        let prevX = cx;
-        let prevY = cy;
+        // Start at center in 3D space
+        let x3D = 0;
+        let y3D = 0;
+        let z3D = 0;
+        const segLength = length / segCount;
 
         for (let s = 0; s < segCount; s++) {
           const seg = raySegments[s];
           const t = seg.t;
           
-          // Accumulate curvature to get the base path angle
-          currentAngle += seg.curvature;
+          // Get 3D direction from segment (with animation sway)
+          let dirX = seg.dirX;
+          let dirY = seg.dirY;
+          let dirZ = seg.dirZ;
           
-          // Add oscillating sway on top of the base path (doesn't accumulate)
-          // Base sway at root
+          // Add oscillating sway in 3D (perpendicular to direction)
           const baseSway = sin(time * animSpeed + animPhase) * animAmplitude * 0.3;
-          // Position-dependent sway increases with distance from center
           const positionSway = sin(time * animSpeed * 0.7 + animPhase + t * 3) * animAmplitude * (0.2 + t * 0.8);
-          // Combined sway oscillates around the base path
           const sway = baseSway + positionSway;
           
-          // Final angle = base path angle + sway (sway oscillates, doesn't accumulate)
-          const animatedAngle = currentAngle + sway;
+          // Create perpendicular vectors for sway (in 3D)
+          // Use cross product to get perpendicular direction
+          const perpX = dirY;
+          const perpY = -dirX;
+          const perpZ = 0;
+          const perpLen = sqrt(perpX * perpX + perpY * perpY + perpZ * perpZ);
+          if (perpLen > 0.001) {
+            dirX += (perpX / perpLen) * sway * 0.3;
+            dirY += (perpY / perpLen) * sway * 0.3;
+          }
+          
+          // Normalize direction
+          const dirLen = sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
+          if (dirLen > 0.001) {
+            dirX /= dirLen;
+            dirY /= dirLen;
+            dirZ /= dirLen;
+          }
 
-          let nextX = x + cos(animatedAngle) * 5;
-          let nextY = y + sin(animatedAngle) * 5;
-
+          // Calculate next position in 3D space
+          const nextX3D = x3D + dirX * segLength;
+          const nextY3D = y3D + dirY * segLength;
+          const nextZ3D = z3D + dirZ * segLength;
 
           // Parent branches grow MORE relative to child branches (1.25x multiplier)
           const parentThickness = branchThickness * 1.25;
           const w = lerp(baseWidth * widthVariation, endWidth, t) * seg.widthVar * parentThickness;
-          stroke(0, 0, 0, 220 - t * 120);
-          strokeWeight(w);
-          line(x, y, nextX, nextY);
+          
+          // Transform 3D coordinates to screen space
+          const t1 = transform3D(cx + x3D, cy + y3D, z3D, cx, cy);
+          const t2 = transform3D(cx + nextX3D, cy + nextY3D, nextZ3D, cx, cy);
+          const scale3D = (t1.scale || 1) * (t2.scale || 1);
+          const alphaScale = is3DMode ? scale3D : 1;
+          
+          stroke(0, 0, 0, (220 - t * 120) * alphaScale);
+          strokeWeight(w * (t1.scale || 1));
+          line(t1.x, t1.y, t2.x, t2.y);
 
           // Draw branches from this segment
           for (let branch of branches) {
             if (branch.segmentIndex === s) {
-              drawBranch(x, y, animatedAngle, branch, w, time, branchThickness, branchGlobalIdx); // Use animated angle so branch starts from visible position
+              drawBranch3D(x3D, y3D, z3D, dirX, dirY, dirZ, branch, w, time, branchThickness, branchGlobalIdx, cx, cy);
               branchGlobalIdx++;
             }
           }
 
-          prevX = x;
-          prevY = y;
-          x = nextX;
-          y = nextY;
+          x3D = nextX3D;
+          y3D = nextY3D;
+          z3D = nextZ3D;
         }
       }
 
-      // Calculate animated droplet positions first (for connections)
+      // Calculate animated droplet positions first (for connections) in 3D space
       const animatedDroplets = droplets.map(drop => {
         let drawX = drop.x;
         let drawY = drop.y;
+        let drawZ = drop.z || 0;
         
         // Animate droplet if it's linked to a branch
         if (drop.branchInfo) {
-          // Calculate the animated branch position at current time
-          const animBranchPos = calculateAnimatedBranchPosition(drop.branchInfo, time, data, cx, cy);
+          // Calculate the animated branch position at current time in 3D
+          const animBranchPos = calculateAnimatedBranchPosition3D(drop.branchInfo, time, data, cx, cy);
           
           if (animBranchPos) {
-            // Rotate the offset to match the animated branch angle
-            const angleDiff = animBranchPos.angle - drop.branchInfo.angle;
-            const cosDiff = cos(angleDiff);
-            const sinDiff = sin(angleDiff);
+            // Use 3D offset directly (offset already in 3D space)
+            drawX = animBranchPos.x + (drop.branchInfo.offsetX || 0);
+            drawY = animBranchPos.y + (drop.branchInfo.offsetY || 0);
+            drawZ = animBranchPos.z + (drop.branchInfo.offsetZ || 0);
             
-            // Rotate the offset vector to match branch rotation
-            const rotatedOffsetX = drop.branchInfo.offsetX * cosDiff - drop.branchInfo.offsetY * sinDiff;
-            const rotatedOffsetY = drop.branchInfo.offsetX * sinDiff + drop.branchInfo.offsetY * cosDiff;
-            
-            // Position droplet relative to animated branch position
-            drawX = animBranchPos.x + rotatedOffsetX;
-            drawY = animBranchPos.y + rotatedOffsetY;
-            
-            // Add slight flow in branch direction
+            // Add slight flow in branch direction (3D)
             const flowSpeed = 0.12;
             const flowDist = time * flowSpeed;
-            drawX += cos(animBranchPos.angle) * flowDist;
-            drawY += sin(animBranchPos.angle) * flowDist;
+            drawX += animBranchPos.dirX * flowDist;
+            drawY += animBranchPos.dirY * flowDist;
+            drawZ += animBranchPos.dirZ * flowDist;
           }
         }
         
-        return { ...drop, animatedX: drawX, animatedY: drawY };
+        return { ...drop, animatedX: drawX, animatedY: drawY, animatedZ: drawZ };
       });
 
       // Draw droplet connections (Voronoi-like network) using animated positions
-      drawDropletConnections(data.dropletConnections || [], animatedDroplets);
+      drawDropletConnections(data.dropletConnections || [], animatedDroplets, cx, cy);
 
-      // Draw droplets (animated if linked to branch)
-      for (let animatedDrop of animatedDroplets) {
+      // Draw droplets (animated if linked to branch) - sort by z-depth for proper rendering
+      const sortedDroplets = [...animatedDroplets].sort((a, b) => {
+        // Sort by z-depth (back to front for proper rendering)
+        if (!is3DMode) return 0;
+        const tA = transform3D(a.animatedX, a.animatedY, a.animatedZ || a.z || 0, cx, cy);
+        const tB = transform3D(b.animatedX, b.animatedY, b.animatedZ || b.z || 0, cx, cy);
+        return (tB.z || 0) - (tA.z || 0); // Back to front
+      });
+      
+      for (let animatedDrop of sortedDroplets) {
+        const tDrop = transform3D(animatedDrop.animatedX, animatedDrop.animatedY, animatedDrop.animatedZ || animatedDrop.z || 0, cx, cy);
+        const scaleDrop = tDrop.scale || 1;
         noStroke();
-        fill(0, 0, 0, animatedDrop.alpha);
-        ellipse(animatedDrop.animatedX, animatedDrop.animatedY, animatedDrop.size, animatedDrop.size * animatedDrop.sizeVariation);
+        fill(0, 0, 0, animatedDrop.alpha * scaleDrop);
+        ellipse(tDrop.x, tDrop.y, animatedDrop.size * scaleDrop, animatedDrop.size * animatedDrop.sizeVariation * scaleDrop);
       }
     }
 
     function drawCentralSplatter(data, cx, cy, time) {
       const { rays, mainBlotRadius } = data;
       
-      // Collect branch attachment points (where branches connect to center/rays)
+      // Collect branch attachment points in 3D space (where branches connect to center/rays)
       const attachmentPoints = [];
       
-      // For each ray, get the first few segment positions (near the center)
+      // For each ray, get the first few segment positions in 3D (near the center)
       for (let rayIdx = 0; rayIdx < rays.length; rayIdx++) {
         const ray = rays[rayIdx];
-        let x = cx;
-        let y = cy;
-        let currentAngle = ray.angleBase;
+        const { theta, phi, length, segments: raySegments } = ray;
+        const segLength = length / raySegments.length;
+        
+        let x3D = 0;
+        let y3D = 0;
+        let z3D = 0;
         
         // Get position at first few segments to create bulges (closer to center)
-        for (let s = 0; s < min(6, ray.segments.length); s++) {
-          const seg = ray.segments[s];
+        for (let s = 0; s < min(6, raySegments.length); s++) {
+          const seg = raySegments[s];
           const t = seg.t;
-          currentAngle += seg.curvature;
           
-          // Add sway animation (same logic as drawSplatter - sway doesn't accumulate)
+          let dirX = seg.dirX;
+          let dirY = seg.dirY;
+          let dirZ = seg.dirZ;
+          
+          // Add sway animation
           const baseSway = sin(time * ray.animSpeed + ray.animPhase) * ray.animAmplitude * 0.3;
           const positionSway = sin(time * ray.animSpeed * 0.7 + ray.animPhase + t * 3) * ray.animAmplitude * (0.2 + t * 0.8);
           const sway = baseSway + positionSway;
-          const animatedAngle = currentAngle + sway;
           
-          x += cos(animatedAngle) * 5;
-          y += sin(animatedAngle) * 5;
+          const perpX = dirY;
+          const perpY = -dirX;
+          const perpZ = 0;
+          const perpLen = sqrt(perpX * perpX + perpY * perpY + perpZ * perpZ);
+          if (perpLen > 0.001) {
+            dirX += (perpX / perpLen) * sway * 0.3;
+            dirY += (perpY / perpLen) * sway * 0.3;
+          }
+          
+          const dirLen = sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
+          if (dirLen > 0.001) {
+            dirX /= dirLen;
+            dirY /= dirLen;
+            dirZ /= dirLen;
+          }
+          
+          x3D += dirX * segLength;
+          y3D += dirY * segLength;
+          z3D += dirZ * segLength;
           
           // Only use points close to center for bulging
-          const distFromCenter = sqrt((x - cx) ** 2 + (y - cy) ** 2);
+          const distFromCenter = sqrt(x3D * x3D + y3D * y3D + z3D * z3D);
           if (distFromCenter < mainBlotRadius * 2 && (s === 0 || s === 2 || s === 4)) {
-            attachmentPoints.push({ x, y, dist: distFromCenter, angle: animatedAngle });
+            attachmentPoints.push({ 
+              x: cx + x3D, y: cy + y3D, z: z3D,
+              x3D, y3D, z3D, // Store 3D position relative to center
+              dist: distFromCenter
+            });
           }
         }
         
-        // Also get branch attachment points
+        // Also get branch attachment points in 3D
         for (let branch of ray.branches) {
           if (branch.segmentIndex < 6) {
-            // Calculate position at branch attachment (same logic as main ray)
-            let bx = cx;
-            let by = cy;
-            let branchBaseAngle = ray.angleBase;
+            // Calculate position at branch attachment in 3D
+            let bx3D = 0;
+            let by3D = 0;
+            let bz3D = 0;
             
             for (let s = 0; s <= branch.segmentIndex; s++) {
-              const seg = ray.segments[s];
+              const seg = raySegments[s];
               const t = seg.t;
-              branchBaseAngle += seg.curvature;
               
-              // Add sway animation (same logic as drawSplatter - sway doesn't accumulate)
+              let dirX = seg.dirX;
+              let dirY = seg.dirY;
+              let dirZ = seg.dirZ;
+              
               const baseSway = sin(time * ray.animSpeed + ray.animPhase) * ray.animAmplitude * 0.3;
               const positionSway = sin(time * ray.animSpeed * 0.7 + ray.animPhase + t * 3) * ray.animAmplitude * (0.2 + t * 0.8);
               const sway = baseSway + positionSway;
-              const animatedAngle = branchBaseAngle + sway;
               
-              bx += cos(animatedAngle) * 5;
-              by += sin(animatedAngle) * 5;
+              const perpX = dirY;
+              const perpY = -dirX;
+              const perpLen = sqrt(perpX * perpX + perpY * perpY);
+              if (perpLen > 0.001) {
+                dirX += (perpX / perpLen) * sway * 0.3;
+                dirY += (perpY / perpLen) * sway * 0.3;
+              }
+              
+              const dirLen = sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
+              if (dirLen > 0.001) {
+                dirX /= dirLen;
+                dirY /= dirLen;
+                dirZ /= dirLen;
+              }
+              
+              bx3D += dirX * segLength;
+              by3D += dirY * segLength;
+              bz3D += dirZ * segLength;
             }
             
-            const distFromCenter = sqrt((bx - cx) ** 2 + (by - cy) ** 2);
+            const distFromCenter = sqrt(bx3D * bx3D + by3D * by3D + bz3D * bz3D);
             if (distFromCenter < mainBlotRadius * 2) {
-              // Calculate final animated angle at attachment point
-              const finalSeg = ray.segments[branch.segmentIndex];
-              const finalT = finalSeg.t;
-              const finalBaseSway = sin(time * ray.animSpeed + ray.animPhase) * ray.animAmplitude * 0.3;
-              const finalPositionSway = sin(time * ray.animSpeed * 0.7 + ray.animPhase + finalT * 3) * ray.animAmplitude * (0.2 + finalT * 0.8);
-              const finalSway = finalBaseSway + finalPositionSway;
-              const finalAnimatedAngle = branchBaseAngle + finalSway;
-              attachmentPoints.push({ x: bx, y: by, dist: distFromCenter, angle: finalAnimatedAngle });
+              attachmentPoints.push({ 
+                x: cx + bx3D, y: cy + by3D, z: bz3D,
+                x3D: bx3D, y3D: by3D, z3D: bz3D,
+                dist: distFromCenter
+              });
             }
           }
         }
       }
       
-      // Draw organic splatter shape with bulges
+      // Draw 3D sphere with bulges toward attachment points
       noStroke();
       fill(0, 0, 0, 240);
       
-      // Create a shape using beginShape/endShape with control points
-      beginShape();
+      // Generate outline points of the 3D sphere from current viewing angle
+      // For each angle around the center (in screen space), find the farthest point on the sphere
+      const numPoints = 50;
+      const outlinePoints = [];
       
-      // Generate points around the center, bulging toward attachment points
-      const numPoints = 40;
-      for (let i = 0; i < numPoints; i++) {
-        const angle = (i / numPoints) * TWO_PI;
-        let radius = mainBlotRadius;
+      // Pre-generate sphere points for efficiency
+      const numLat = 40;
+      const numLon = 40;
+      const spherePoints = [];
+      
+      for (let lat = 0; lat <= numLat; lat++) {
+        const phi = (lat / numLat) * PI; // 0 to PI
+        const sinPhi = sin(phi);
+        const cosPhi = cos(phi);
         
-        // Find nearby attachment points to create bulges
-        for (let att of attachmentPoints) {
-          const attAngle = atan2(att.y - cy, att.x - cx);
-          let angleDiff = angle - attAngle;
-          // Normalize angle difference to -PI to PI
-          while (angleDiff > PI) angleDiff -= TWO_PI;
-          while (angleDiff < -PI) angleDiff += TWO_PI;
-          const normalizedAngleDiff = abs(angleDiff) / PI; // 0 to 1
+        for (let lon = 0; lon <= numLon; lon++) {
+          const theta = (lon / numLon) * TWO_PI; // 0 to 2PI
           
-          // Create bulge if attachment point is in this direction
-          if (normalizedAngleDiff < 0.6) {
-            const bulgeStrength = pow(1 - (normalizedAngleDiff / 0.6), 1.5); // Smooth falloff
-            const bulgeSize = map(att.dist, 0, mainBlotRadius * 1.5, mainBlotRadius * 1.0, mainBlotRadius * 0.4);
-            radius = max(radius, mainBlotRadius + bulgeSize * bulgeStrength);
+          // Base sphere radius
+          let radius = mainBlotRadius;
+          
+          // Calculate 3D direction from center
+          const dirX = sinPhi * cos(theta);
+          const dirY = sinPhi * sin(theta);
+          const dirZ = cosPhi;
+          
+          // Bulge toward attachment points
+          for (let att of attachmentPoints) {
+            // Calculate direction to attachment point (normalized)
+            const attDist3D = sqrt(att.x3D * att.x3D + att.y3D * att.y3D + att.z3D * att.z3D);
+            if (attDist3D > 0.001) {
+              const attDirX = att.x3D / attDist3D;
+              const attDirY = att.y3D / attDist3D;
+              const attDirZ = att.z3D / attDist3D;
+              
+              // Dot product to find angle between directions
+              const dot = dirX * attDirX + dirY * attDirY + dirZ * attDirZ;
+              const angleDiff = acos(constrain(dot, -1, 1));
+              
+              // Create bulge if attachment point is in this direction
+              if (angleDiff < PI / 3) { // Within 60 degrees
+                const bulgeStrength = pow(1 - (angleDiff / (PI / 3)), 1.5); // Smooth falloff
+                const bulgeSize = map(att.dist, 0, mainBlotRadius * 1.5, mainBlotRadius * 0.8, mainBlotRadius * 0.3);
+                radius = max(radius, mainBlotRadius + bulgeSize * bulgeStrength);
+              }
+            }
+          }
+          
+          // Add organic variation
+          const variationSeed = floor((theta * 1000 + phi * 1000) % 1000);
+          randomSeed(variationSeed);
+          const variation = 0.92 + random(0, 0.16);
+          randomSeed();
+          radius *= variation;
+          
+          // Calculate 3D position (centered at origin)
+          const x3D = dirX * radius;
+          const y3D = dirY * radius;
+          const z3D = dirZ * radius;
+          
+          // Transform to screen space and store
+          const t = transform3D(cx + x3D, cy + y3D, z3D, cx, cy);
+          spherePoints.push({ x: t.x, y: t.y, x3D, y3D, z3D });
+        }
+      }
+      
+      // For each screen angle, find the farthest point
+      for (let i = 0; i < numPoints; i++) {
+        const screenAngle = (i / numPoints) * TWO_PI;
+        const screenDirX = cos(screenAngle);
+        const screenDirY = sin(screenAngle);
+        
+        let maxDist = -Infinity;
+        let bestPoint = null;
+        
+        for (let point of spherePoints) {
+          const dx = point.x - cx;
+          const dy = point.y - cy;
+          const dist = sqrt(dx * dx + dy * dy);
+          
+          if (dist > 0.001) {
+            // Check if point is in the right direction
+            const pointAngle = atan2(dy, dx);
+            let angleDiff = screenAngle - pointAngle;
+            while (angleDiff > PI) angleDiff -= TWO_PI;
+            while (angleDiff < -PI) angleDiff += TWO_PI;
+            
+            // Use dot product to find projection distance in screen angle direction
+            const projDist = dx * screenDirX + dy * screenDirY;
+            
+            if (abs(angleDiff) < PI / numPoints * 3 && projDist > maxDist) {
+              maxDist = projDist;
+              bestPoint = { x: point.x, y: point.y };
+            }
           }
         }
         
-        // Add some organic variation (deterministic based on angle and seed)
-        const variationSeed = floor((angle * 1000 + cx + cy) % 1000);
-        randomSeed(variationSeed);
-        const variation = 0.88 + random(0, 0.24);
-        randomSeed(); // Reset
-        radius *= variation;
-        
-        const x = cx + cos(angle) * radius;
-        const y = cy + sin(angle) * radius;
-        vertex(x, y);
+        if (bestPoint) {
+          outlinePoints.push(bestPoint);
+        } else {
+          // Fallback
+          outlinePoints.push({
+            x: cx + cos(screenAngle) * mainBlotRadius,
+            y: cy + sin(screenAngle) * mainBlotRadius
+          });
+        }
       }
       
+      // Draw filled shape using outline points
+      beginShape();
+      for (let point of outlinePoints) {
+        vertex(point.x, point.y);
+      }
       endShape(CLOSE);
     }
 
@@ -809,54 +1254,64 @@
       const { rays } = splatterData;
       const branchPoints = [];
       
-      // Collect points along all branches (rays and sub-branches)
-      // Store enough info to recalculate animated position
+      // Collect points along all branches (rays and sub-branches) in 3D space
       for (let rayIdx = 0; rayIdx < rays.length; rayIdx++) {
         const ray = rays[rayIdx];
-        let x = cx;
-        let y = cy;
-        let currentAngle = ray.angleBase;
+        const { theta, phi, length, segments: raySegments } = ray;
+        const segLength = length / raySegments.length;
         
-        // Collect points along main ray
-        for (let s = 0; s < ray.segments.length; s++) {
-          currentAngle += ray.segments[s].curvature;
-          x += cos(currentAngle) * 5;
-          y += sin(currentAngle) * 5;
+        let x3D = 0;
+        let y3D = 0;
+        let z3D = 0;
+        
+        // Collect points along main ray in 3D
+        for (let s = 0; s < raySegments.length; s++) {
+          const seg = raySegments[s];
+          const dirX = seg.dirX;
+          const dirY = seg.dirY;
+          const dirZ = seg.dirZ;
+          
+          x3D += dirX * segLength;
+          y3D += dirY * segLength;
+          z3D += dirZ * segLength;
           
           // Add point along ray (sample every few segments)
           if (s % 2 === 0) {
             branchPoints.push({
-              x, y, 
-              angle: currentAngle,
+              x: cx + x3D, y: cy + y3D, z: z3D,
+              dirX, dirY, dirZ, // 3D direction
               animSpeed: ray.animSpeed,
               animPhase: ray.animPhase,
               animAmplitude: ray.animAmplitude,
               type: 'ray',
               rayIdx: rayIdx,
               segmentIdx: s,
-              t: ray.segments[s].t
+              t: seg.t
             });
           }
           
-          // Add branch points
+          // Add branch points in 3D
           for (let branchIdx = 0; branchIdx < ray.branches.length; branchIdx++) {
             const branch = ray.branches[branchIdx];
             if (branch.segmentIndex === s) {
-              let bx = x;
-              let by = y;
-              let branchAngle = currentAngle + branch.angleOffset;
+              let bx3D = x3D;
+              let by3D = y3D;
+              let bz3D = z3D;
+              const branchSegLen = branch.isSecondary ? 3 : 4;
               
               for (let bs = 0; bs < branch.segments.length; bs++) {
-                branchAngle += branch.segments[bs].curvature;
-                const segLen = branch.isSecondary ? 3 : 4;
-                bx += cos(branchAngle) * segLen;
-                by += sin(branchAngle) * segLen;
+                const branchSeg = branch.segments[bs];
+                bx3D += branchSeg.dirX * branchSegLen;
+                by3D += branchSeg.dirY * branchSegLen;
+                bz3D += branchSeg.dirZ * branchSegLen;
                 
                 // Add point along branch
                 if (bs % 2 === 0 || bs === branch.segments.length - 1) {
                   branchPoints.push({
-                    x: bx, y: by,
-                    angle: branchAngle,
+                    x: cx + bx3D, y: cy + by3D, z: bz3D,
+                    dirX: branchSeg.dirX,
+                    dirY: branchSeg.dirY,
+                    dirZ: branchSeg.dirZ,
                     animSpeed: branch.animSpeed,
                     animPhase: branch.animPhase,
                     animAmplitude: 0.2,
@@ -865,7 +1320,7 @@
                     branchIdx: branchIdx,
                     segmentIdx: s,
                     branchSegmentIdx: bs,
-                    t: branch.segments[bs].t,
+                    t: branchSeg.t,
                     isSecondary: branch.isSecondary
                   });
                 }
@@ -878,83 +1333,137 @@
       return branchPoints;
     }
     
-    function calculateAnimatedBranchPosition(branchInfo, time, splatterData, cx, cy) {
+    function calculateAnimatedBranchPosition3D(branchInfo, time, splatterData, cx, cy) {
       if (!branchInfo) return null;
       
       const { rays } = splatterData;
       
       if (branchInfo.type === 'ray') {
-        // Calculate animated ray position (matching drawSplatter logic)
+        // Calculate animated ray position in 3D (matching drawSplatter logic)
         const ray = rays[branchInfo.rayIdx];
-        let x = cx;
-        let y = cy;
-        let currentAngle = ray.angleBase;
+        const { theta, phi, length, segments: raySegments } = ray;
+        const segLength = length / raySegments.length;
         
-        // Build up to target segment - each segment uses its animated angle
+        let x3D = 0;
+        let y3D = 0;
+        let z3D = 0;
+        
         for (let s = 0; s <= branchInfo.segmentIdx; s++) {
-          const seg = ray.segments[s];
+          const seg = raySegments[s];
           const t = seg.t;
-          currentAngle += seg.curvature;
           
-          // Add sway animation at each segment (same logic as drawSplatter)
+          let dirX = seg.dirX;
+          let dirY = seg.dirY;
+          let dirZ = seg.dirZ;
+          
+          // Add sway animation
           const baseSway = sin(time * ray.animSpeed + ray.animPhase) * ray.animAmplitude * 0.3;
           const positionSway = sin(time * ray.animSpeed * 0.7 + ray.animPhase + t * 3) * ray.animAmplitude * (0.2 + t * 0.8);
           const sway = baseSway + positionSway;
-          const animatedAngle = currentAngle + sway;
           
-          x += cos(animatedAngle) * 5;
-          y += sin(animatedAngle) * 5;
+          const perpX = dirY;
+          const perpY = -dirX;
+          const perpZ = 0;
+          const perpLen = sqrt(perpX * perpX + perpY * perpY + perpZ * perpZ);
+          if (perpLen > 0.001) {
+            dirX += (perpX / perpLen) * sway * 0.3;
+            dirY += (perpY / perpLen) * sway * 0.3;
+          }
+          
+          const dirLen = sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
+          if (dirLen > 0.001) {
+            dirX /= dirLen;
+            dirY /= dirLen;
+            dirZ /= dirLen;
+          }
+          
+          x3D += dirX * segLength;
+          y3D += dirY * segLength;
+          z3D += dirZ * segLength;
           
           if (s === branchInfo.segmentIdx) {
-            return { x, y, angle: animatedAngle };
+            return { x: cx + x3D, y: cy + y3D, z: z3D, dirX, dirY, dirZ };
           }
         }
       } else if (branchInfo.type === 'branch') {
-        // Calculate animated branch position
+        // Calculate animated branch position in 3D
         const ray = rays[branchInfo.rayIdx];
         const branch = ray.branches[branchInfo.branchIdx];
+        const { theta, phi, length, segments: raySegments } = ray;
+        const segLength = length / raySegments.length;
         
-        // First get to parent segment (with animated position)
-        let x = cx;
-        let y = cy;
-        let currentAngle = ray.angleBase;
+        // First get to parent segment in 3D
+        let x3D = 0;
+        let y3D = 0;
+        let z3D = 0;
         
-        // Traverse ray segments up to branch attachment point
         for (let s = 0; s <= branchInfo.segmentIdx; s++) {
-          const seg = ray.segments[s];
+          const seg = raySegments[s];
           const t = seg.t;
-          currentAngle += seg.curvature;
+          let dirX = seg.dirX;
+          let dirY = seg.dirY;
+          let dirZ = seg.dirZ;
           
-          // Add ray sway at this segment (same as drawSplatter)
           const baseSway = sin(time * ray.animSpeed + ray.animPhase) * ray.animAmplitude * 0.3;
           const positionSway = sin(time * ray.animSpeed * 0.7 + ray.animPhase + t * 3) * ray.animAmplitude * (0.2 + t * 0.8);
           const sway = baseSway + positionSway;
-          const animatedRayAngle = currentAngle + sway;
           
-          x += cos(animatedRayAngle) * 5;
-          y += sin(animatedRayAngle) * 5;
+          const perpX = dirY;
+          const perpY = -dirX;
+          const perpLen = sqrt(perpX * perpX + perpY * perpY);
+          if (perpLen > 0.001) {
+            dirX += (perpX / perpLen) * sway * 0.3;
+            dirY += (perpY / perpLen) * sway * 0.3;
+          }
+          
+          const dirLen = sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
+          if (dirLen > 0.001) {
+            dirX /= dirLen;
+            dirY /= dirLen;
+            dirZ /= dirLen;
+          }
+          
+          x3D += dirX * segLength;
+          y3D += dirY * segLength;
+          z3D += dirZ * segLength;
         }
         
-        // Now traverse the branch from attachment point
-        let branchAngle = currentAngle + branch.angleOffset;
-        const segLen = branchInfo.isSecondary ? 3 : 4;
+        // Now traverse the branch in 3D
+        const branchSegLen = branchInfo.isSecondary ? 3 : 4;
         
         for (let bs = 0; bs <= branchInfo.branchSegmentIdx; bs++) {
           const branchSeg = branch.segments[bs];
           const t2 = branchSeg.t;
-          branchAngle += branchSeg.curvature;
           
-          // Add branch sway (same as drawBranch)
+          let dirX = branchSeg.dirX;
+          let dirY = branchSeg.dirY;
+          let dirZ = branchSeg.dirZ;
+          
           const branchBaseSway = sin(time * branch.animSpeed * 1.5 + branch.animPhase) * 0.2;
           const branchTipSway = branchBaseSway * (1 + t2 * 0.6);
-          const branchSway = branchTipSway;
-          const animatedBranchAngle = branchAngle + branchSway;
+          const sway = branchTipSway;
           
-          x += cos(animatedBranchAngle) * segLen;
-          y += sin(animatedBranchAngle) * segLen;
+          const perpX = dirY;
+          const perpY = -dirX;
+          const perpLen = sqrt(perpX * perpX + perpY * perpY);
+          if (perpLen > 0.001) {
+            dirX += (perpX / perpLen) * sway * 0.3;
+            dirY += (perpY / perpLen) * sway * 0.3;
+          }
+          
+          const dirLen = sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
+          if (dirLen > 0.001) {
+            dirX /= dirLen;
+            dirY /= dirLen;
+            dirZ /= dirLen;
+          }
+          
+          x3D += dirX * branchSegLen;
+          y3D += dirY * branchSegLen;
+          z3D += dirZ * branchSegLen;
           
           if (bs === branchInfo.branchSegmentIdx) {
-            return { x, y, angle: animatedBranchAngle };
+            return { x: cx + x3D, y: cy + y3D, z: z3D, dirX, dirY, dirZ };
           }
         }
       }
@@ -967,23 +1476,25 @@
       const { droplets } = splatterData;
       const connections = [];
       
-      // For each droplet, find its nearest neighbors (avoiding crossings)
-      // Simple approach: connect to nearest 3-6 neighbors, filtering out connections that would cross
+      // For each droplet, find its nearest neighbors in 3D space
+      // Simple approach: connect to nearest 3-6 neighbors based on 3D Euclidean distance
       for (let i = 0; i < droplets.length; i++) {
         const drop1 = droplets[i];
         
-        // Find distances to all other droplets
+        // Find distances to all other droplets in 3D space
         const distances = [];
         for (let j = 0; j < droplets.length; j++) {
           if (i === j) continue;
           const drop2 = droplets[j];
           const dx = drop2.x - drop1.x;
           const dy = drop2.y - drop1.y;
-          const dist = sqrt(dx * dx + dy * dy);
-          distances.push({ index: j, dist, dx, dy });
+          const dz = (drop2.z || 0) - (drop1.z || 0);
+          // Calculate 3D Euclidean distance
+          const dist = sqrt(dx * dx + dy * dy + dz * dz);
+          distances.push({ index: j, dist, dx, dy, dz });
         }
         
-        // Sort by distance
+        // Sort by 3D distance
         distances.sort((a, b) => a.dist - b.dist);
         
         // Connect to nearest neighbors (3-6 connections per droplet)
@@ -1001,15 +1512,17 @@
           );
           
           if (!exists) {
+            // Calculate midpoint in 3D space
             const midX = (drop1.x + droplets[j].x) / 2;
             const midY = (drop1.y + droplets[j].y) / 2;
-            const distFromCenter = sqrt((midX - centerX) ** 2 + (midY - centerY) ** 2);
+            const midZ = ((drop1.z || 0) + (droplets[j].z || 0)) / 2;
+            // Distance from center in 3D
+            const distFromCenter = sqrt((midX - centerX) ** 2 + (midY - centerY) ** 2 + midZ ** 2);
             const maxDist = 500;
             const thicknessFactor = map(constrain(distFromCenter, 0, maxDist), maxDist, 0, 0.3, 1.5);
             
-            // Generate curved path points (for organic, meandering path)
-                // Generate curved path points (for organic, meandering path)
-            const pathPoints = generateCurvedPath(drop1.x, drop1.y, droplets[j].x, droplets[j].y, i, j);
+            // Generate curved path points in 3D space (for organic, meandering path)
+            const pathPoints = generateCurvedPath3D(drop1.x, drop1.y, drop1.z || 0, droplets[j].x, droplets[j].y, droplets[j].z || 0, i, j);
             
             // Generate branches
             const branchCount = int(random(2, 5));
@@ -1051,48 +1564,101 @@
       splatterData.dropletConnections = connections;
     }
     
-    function generateCurvedPath(x1, y1, x2, y2, seed1, seed2) {
-      // Generate an organic, meandering path like through a dark forest
+    function generateCurvedPath3D(x1, y1, z1, x2, y2, z2, seed1, seed2) {
+      // Generate an organic, meandering path in 3D space
       const points = [];
       const segments = 8 + int(random(4)); // 8-12 segments for smooth curve
-      const baseAngle = atan2(y2 - y1, x2 - x1);
-      const dist = sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+      
+      // Calculate 3D distance and direction
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const dz = z2 - z1;
+      const dist = sqrt(dx * dx + dy * dy + dz * dz);
+      
+      if (dist < 0.001) {
+        // Points are too close, return simple path
+        return [{ x: x1, y: y1, z: z1 }, { x: x2, y: y2, z: z2 }];
+      }
+      
+      // Normalize direction vector
+      const dirX = dx / dist;
+      const dirY = dy / dist;
+      const dirZ = dz / dist;
       
       // Use seeds for deterministic randomness
       randomSeed(seed1 * 1000 + seed2);
       
-      points.push({ x: x1, y: y1 });
+      points.push({ x: x1, y: y1, z: z1 });
       
       let currentX = x1;
       let currentY = y1;
-      let currentAngle = baseAngle;
+      let currentZ = z1;
+      const segLen = dist / segments;
+      
+      // Create perpendicular vectors for curvature (perpendicular to direction)
+      let perp1X = 1, perp1Y = 0, perp1Z = 0;
+      if (abs(dirX) > 0.9) {
+        perp1X = 0; perp1Y = 1; perp1Z = 0;
+      }
+      
+      // Cross product: perp1 × dir
+      let cross1X = perp1Y * dirZ - perp1Z * dirY;
+      let cross1Y = perp1Z * dirX - perp1X * dirZ;
+      let cross1Z = perp1X * dirY - perp1Y * dirX;
+      let cross1Len = sqrt(cross1X * cross1X + cross1Y * cross1Y + cross1Z * cross1Z);
+      if (cross1Len > 0.001) {
+        cross1X /= cross1Len;
+        cross1Y /= cross1Len;
+        cross1Z /= cross1Len;
+      } else {
+        cross1X = 0; cross1Y = 1; cross1Z = 0;
+      }
+      
+      // Second perpendicular: dir × cross1
+      let cross2X = dirY * cross1Z - dirZ * cross1Y;
+      let cross2Y = dirZ * cross1X - dirX * cross1Z;
+      let cross2Z = dirX * cross1Y - dirY * cross1X;
+      let cross2Len = sqrt(cross2X * cross2X + cross2Y * cross2Y + cross2Z * cross2Z);
+      if (cross2Len > 0.001) {
+        cross2X /= cross2Len;
+        cross2Y /= cross2Len;
+        cross2Z /= cross2Len;
+      } else {
+        cross2X = 0; cross2Y = 0; cross2Z = 1;
+      }
       
       for (let i = 1; i < segments; i++) {
         const t = i / segments;
-        const segLen = dist / segments;
         
-        // Add curvature variation (like winding through trees)
-        const curvature = random(-0.4, 0.4) * (1 - abs(t - 0.5) * 2); // More curve in middle
-        currentAngle += curvature;
+        // Add curvature variation in perpendicular plane (more curve in middle)
+        const curvature = random(-0.4, 0.4) * (1 - abs(t - 0.5) * 2);
+        const curvatureAngle = random(TWO_PI);
+        const curvX = (cross1X * cos(curvatureAngle) + cross2X * sin(curvatureAngle)) * curvature;
+        const curvY = (cross1Y * cos(curvatureAngle) + cross2Y * sin(curvatureAngle)) * curvature;
+        const curvZ = (cross1Z * cos(curvatureAngle) + cross2Z * sin(curvatureAngle)) * curvature;
         
         // Add perpendicular drift (wandering path)
         const drift = random(-segLen * 0.3, segLen * 0.3);
-        const driftAngle = currentAngle + PI / 2;
+        const driftAngle = random(TWO_PI);
+        const driftX = (cross1X * cos(driftAngle) + cross2X * sin(driftAngle)) * drift;
+        const driftY = (cross1Y * cos(driftAngle) + cross2Y * sin(driftAngle)) * drift;
+        const driftZ = (cross1Z * cos(driftAngle) + cross2Z * sin(driftAngle)) * drift;
         
-        currentX += cos(currentAngle) * segLen + cos(driftAngle) * drift;
-        currentY += sin(currentAngle) * segLen + sin(driftAngle) * drift;
+        currentX += dirX * segLen + curvX * segLen + driftX;
+        currentY += dirY * segLen + curvY * segLen + driftY;
+        currentZ += dirZ * segLen + curvZ * segLen + driftZ;
         
-        points.push({ x: currentX, y: currentY });
+        points.push({ x: currentX, y: currentY, z: currentZ });
       }
       
-      points.push({ x: x2, y: y2 });
+      points.push({ x: x2, y: y2, z: z2 });
       
       randomSeed(); // Reset seed
       
       return points;
     }
 
-    function drawDropletConnections(connections, animatedDroplets) {
+    function drawDropletConnections(connections, animatedDroplets, cx, cy) {
       const baseAlpha = 15; // Very faint
       
       for (let conn of connections) {
@@ -1105,49 +1671,60 @@
         const x2 = drop2.animatedX;
         const y2 = drop2.animatedY;
         
-        // Draw curved path - regenerate path points based on current animated positions
+        // Transform to 3D (use z from droplets)
+        const z1 = drop1.z || 0;
+        const z2 = drop2.z || 0;
+        const t1 = transform3D(x1, y1, z1, cx, cy);
+        const t2 = transform3D(x2, y2, z2, cx, cy);
+        const scale3D = (t1.scale || 1) * (t2.scale || 1);
+        
+        // Use stored 3D path points (already in 3D space)
         const lineThickness = conn.thicknessFactor * 0.8;
-        stroke(0, 0, 0, baseAlpha);
-        strokeWeight(lineThickness);
+        stroke(0, 0, 0, baseAlpha * scale3D);
+        strokeWeight(lineThickness * (t1.scale || 1));
         noFill();
         
-        // Generate new curved path based on animated positions
-        const animatedPathPoints = generateCurvedPath(x1, y1, x2, y2, conn.drop1Index, conn.drop2Index);
+        // Use the stored 3D path points (generated during connection creation)
+        const pathPoints3D = conn.pathPoints || [];
         
-        if (animatedPathPoints && animatedPathPoints.length > 2) {
-          // Draw curved path through all points
+        if (pathPoints3D && pathPoints3D.length > 2) {
+          // Draw curved path through all points (transform each 3D point to screen space)
           beginShape();
-          for (let point of animatedPathPoints) {
-            vertex(point.x, point.y);
+          for (let point3D of pathPoints3D) {
+            const tPoint3D = transform3D(point3D.x, point3D.y, point3D.z, cx, cy);
+            vertex(tPoint3D.x, tPoint3D.y);
           }
           endShape();
           
           // Draw branches along the curved path
           for (let branch of conn.branches) {
             // Find point along path at branch.t
-            const pathIndex = int(branch.t * (animatedPathPoints.length - 1));
-            const pathPoint = animatedPathPoints[pathIndex];
+            const pathIndex = int(branch.t * (pathPoints3D.length - 1));
+            const pathPoint3D = pathPoints3D[pathIndex];
+            const tPathPoint = transform3D(pathPoint3D.x, pathPoint3D.y, pathPoint3D.z, cx, cy);
             
-            // Calculate angle at this point (tangent to path)
+            // Calculate angle at this point (tangent to path) - use transformed points
             let tangentAngle;
-            if (pathIndex < animatedPathPoints.length - 1) {
-              const nextPoint = animatedPathPoints[pathIndex + 1];
-              tangentAngle = atan2(nextPoint.y - pathPoint.y, nextPoint.x - pathPoint.x);
+            if (pathIndex < pathPoints3D.length - 1) {
+              const nextPoint3D = pathPoints3D[pathIndex + 1];
+              const tNextPoint = transform3D(nextPoint3D.x, nextPoint3D.y, nextPoint3D.z, cx, cy);
+              tangentAngle = atan2(tNextPoint.y - tPathPoint.y, tNextPoint.x - tPathPoint.x);
             } else {
-              const prevPoint = animatedPathPoints[pathIndex - 1];
-              tangentAngle = atan2(pathPoint.y - prevPoint.y, pathPoint.x - prevPoint.x);
+              const prevPoint3D = pathPoints3D[pathIndex - 1];
+              const tPrevPoint = transform3D(prevPoint3D.x, prevPoint3D.y, prevPoint3D.z, cx, cy);
+              tangentAngle = atan2(tPathPoint.y - tPrevPoint.y, tPathPoint.x - tPrevPoint.x);
             }
             
             const branchAngle = tangentAngle + PI / 2 + branch.angleOffset;
-            const branchThickness = lineThickness * 0.4 * branch.thicknessMult;
-            const branchAlpha = baseAlpha * 0.6;
+            const branchThickness = lineThickness * 0.4 * branch.thicknessMult * (tPathPoint.scale || 1);
+            const branchAlpha = baseAlpha * 0.6 * (tPathPoint.scale || 1);
             
-            const branchEndX = pathPoint.x + cos(branchAngle) * branch.len;
-            const branchEndY = pathPoint.y + sin(branchAngle) * branch.len;
+            const branchEndX = tPathPoint.x + cos(branchAngle) * branch.len * (tPathPoint.scale || 1);
+            const branchEndY = tPathPoint.y + sin(branchAngle) * branch.len * (tPathPoint.scale || 1);
             
             stroke(0, 0, 0, branchAlpha);
             strokeWeight(branchThickness);
-            line(pathPoint.x, pathPoint.y, branchEndX, branchEndY);
+            line(tPathPoint.x, tPathPoint.y, branchEndX, branchEndY);
             
             // Draw sub-branch if exists
             if (branch.subBranch) {
@@ -1155,63 +1732,85 @@
               stroke(0, 0, 0, branchAlpha * 0.5);
               strokeWeight(branchThickness * 0.5);
               line(branchEndX, branchEndY, 
-                   branchEndX + cos(subBranchAngle) * branch.subBranch.len, 
-                   branchEndY + sin(subBranchAngle) * branch.subBranch.len);
+                   branchEndX + cos(subBranchAngle) * branch.subBranch.len * (tPathPoint.scale || 1), 
+                   branchEndY + sin(subBranchAngle) * branch.subBranch.len * (tPathPoint.scale || 1));
             }
           }
         } else {
           // Fallback to straight line if no path points
-          line(x1, y1, x2, y2);
+          line(t1.x, t1.y, t2.x, t2.y);
         }
       }
     }
 
-    function drawBranch(startX, startY, parentAngle, branch, parentWidth, time, branchThickness = 1, branchGlobalIdx = 0) {
-      const { segments: branchSegs, length, angleOffset, animPhase, animSpeed, hasDroplet, dropletSize, isSecondary } = branch;
+    function drawBranch3D(startX3D, startY3D, startZ3D, parentDirX, parentDirY, parentDirZ, branch, parentWidth, time, branchThickness = 1, branchGlobalIdx = 0, cx, cy) {
+      const { segments: branchSegs, length, animPhase, animSpeed, hasDroplet, dropletSize, isSecondary } = branch;
       
-      let bx = startX;
-      let by = startY;
-      let branchCurrentAngle = parentAngle + angleOffset; // Base angle, accumulates curvature
+      let bx3D = startX3D;
+      let by3D = startY3D;
+      let bz3D = startZ3D;
       const segLen = isSecondary ? 3 : 4;
-      let prevBX = startX;
-      let prevBY = startY;
 
       for (let bs = 0; bs < branchSegs.length; bs++) {
         const seg = branchSegs[bs];
-        const t2 = seg.t;
+        const segT = seg.t;
         
-        // Accumulate curvature to get base path angle
-        branchCurrentAngle += seg.curvature;
+        // Get 3D direction from branch segment
+        let dirX = seg.dirX;
+        let dirY = seg.dirY;
+        let dirZ = seg.dirZ;
         
-        // Add oscillating sway (more responsive, faster than main arms)
+        // Add oscillating sway in 3D
         const branchBaseSway = sin(time * animSpeed * 1.5 + animPhase) * 0.2;
-        const branchTipSway = branchBaseSway * (1 + t2 * 0.6);
+        const branchTipSway = branchBaseSway * (1 + segT * 0.6);
         const sway = branchTipSway;
         
-        // Final angle = base path angle + sway
-        const animatedBAngle = branchCurrentAngle + sway;
-
-        let nx = bx + cos(animatedBAngle) * segLen;
-        let ny = by + sin(animatedBAngle) * segLen;
-
+        // Apply sway perpendicular to direction
+        const perpX = dirY;
+        const perpY = -dirX;
+        const perpZ = 0;
+        const perpLen = sqrt(perpX * perpX + perpY * perpY + perpZ * perpZ);
+        if (perpLen > 0.001) {
+          dirX += (perpX / perpLen) * sway * 0.3;
+          dirY += (perpY / perpLen) * sway * 0.3;
+        }
         
-        const bw = lerp(parentWidth * (isSecondary ? 0.4 : 0.5), isSecondary ? 0.3 : 0.4, t2) * branchThickness;
+        // Normalize direction
+        const dirLen = sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
+        if (dirLen > 0.001) {
+          dirX /= dirLen;
+          dirY /= dirLen;
+          dirZ /= dirLen;
+        }
+
+        // Calculate next position in 3D space
+        const nx3D = bx3D + dirX * segLen;
+        const ny3D = by3D + dirY * segLen;
+        const nz3D = bz3D + dirZ * segLen;
+        
+        // Transform to screen space
+        const t1 = transform3D(cx + bx3D, cy + by3D, bz3D, cx, cy);
+        const t2Transformed = transform3D(cx + nx3D, cy + ny3D, nz3D, cx, cy);
+        const scale3D = (t1.scale || 1) * (t2Transformed.scale || 1);
+        
+        const bw = lerp(parentWidth * (isSecondary ? 0.4 : 0.5), isSecondary ? 0.3 : 0.4, segT) * branchThickness * (t1.scale || 1);
         strokeWeight(bw);
-        stroke(0, 0, 0, (isSecondary ? 180 : 200) - t2 * (isSecondary ? 100 : 120));
-        line(bx, by, nx, ny);
+        stroke(0, 0, 0, ((isSecondary ? 180 : 200) - segT * (isSecondary ? 100 : 120)) * scale3D);
+        line(t1.x, t1.y, t2Transformed.x, t2Transformed.y);
         
-        prevBX = bx;
-        prevBY = by;
-        bx = nx;
-        by = ny;
+        bx3D = nx3D;
+        by3D = ny3D;
+        bz3D = nz3D;
       }
 
       // Droplet at tip
       if (hasDroplet) {
+        const tDrop = transform3D(cx + bx3D, cy + by3D, bz3D, cx, cy);
+        const scaleDrop = tDrop.scale || 1;
         noStroke();
-        fill(0, 0, 0, 230);
-        const d = dropletSize;
-        ellipse(bx, by, d, d * 1.05);
+        fill(0, 0, 0, 230 * scaleDrop);
+        const d = dropletSize * scaleDrop;
+        ellipse(tDrop.x, tDrop.y, d, d * 1.05);
       }
     }
   </script>

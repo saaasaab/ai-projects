@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dithered Word Wave – p5.js</title>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    #controls {
+      position: fixed;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: rgba(0,0,0,0.7);
+      padding: 8px 12px;
+      border-radius: 999px;
+      backdrop-filter: blur(10px);
+      z-index: 10;
+    }
+    #wordInput {
+      background: #111;
+      border: 1px solid #444;
+      border-radius: 999px;
+      padding: 4px 10px;
+      color: #fff;
+      min-width: 220px;
+    }
+    #applyBtn {
+      background: #fff;
+      border-radius: 999px;
+      border: none;
+      padding: 5px 14px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+<div id="controls">
+  <input id="wordInput" type="text" value="PLURIBUS" />
+  <button id="applyBtn">Apply</button>
+</div>
+
+<script>
+let pg;                    // offscreen buffer for text
+let phrase = "PLURIBUS";
+let textParticles = [];
+let bgParticles = [];
+let textCenter;
+
+class Dot {
+  constructor(x, y, inText) {
+    this.home = createVector(x, y);
+    this.pos = createVector(random(width), random(height)); // start scattered
+    this.vel = p5.Vector.random2D().mult(random(0.2, 0.8));
+    this.inText = inText;
+    this.size = inText ? random(1.8, 3.5) : random(1, 2.4);
+    this.phase = random(TWO_PI); // per-particle offset for waves
+  }
+
+  update() {
+    let t = millis() * 0.001;
+
+    // spring back toward home position
+    let springK = this.inText ? 0.12 : 0.03;
+    let damping = 0.82;
+
+    let toHome = p5.Vector.sub(this.home, this.pos);
+    this.vel.add(toHome.mult(springK));
+    this.vel.mult(damping);
+    this.pos.add(this.vel);
+
+    // subtle drift for background particles
+    if (!this.inText) {
+      this.pos.y += cos(t * 0.7 + this.phase) * 0.25;
+      this.pos.x += sin(t * 0.4 + this.phase) * 0.25;
+
+      // wrap edges
+      if (this.pos.x < 0) this.pos.x += width;
+      if (this.pos.x > width) this.pos.x -= width;
+      if (this.pos.y < 0) this.pos.y += height;
+      if (this.pos.y > height) this.pos.y -= height;
+    }
+  }
+
+  draw() {
+    let t = millis() * 0.001;
+
+    // wave coming from the center, pushing dots around tangentially
+    let center = textCenter || createVector(width / 2, height / 2);
+    let basePos = this.pos.copy();
+    let toCenter = p5.Vector.sub(basePos, center);
+    let dist = toCenter.mag();
+
+    // circular “ring” waves + slight radial push
+    let wave =
+      Math.sin(dist * 0.035 - t * 4 + this.phase) * 0.9 +
+      Math.sin(dist * 0.01 + t * 1.5 + this.phase * 1.3) * 0.4;
+
+    let amp = this.inText ? 7 : 4;
+
+    // tangential offset (around center) to get the fingerprint-like curves
+    let tangent = createVector(-toCenter.y, toCenter.x);
+    if (tangent.magSq() > 0.0001) tangent.normalize().mult(wave * amp);
+
+    // small radial “breathing” for text dots
+    if (this.inText) {
+      let radial = toCenter.copy();
+      if (radial.magSq() > 0.0001) radial.normalize().mult(Math.sin(t * 2 + this.phase) * 2.2);
+      basePos.add(radial);
+    }
+
+    let renderPos = p5.Vector.add(basePos, tangent);
+
+    if (this.inText) {
+      stroke(255);
+      strokeWeight(this.size);
+      point(renderPos.x, renderPos.y);
+    } else {
+      // background dither, slightly dimmer
+      let alpha = map(Math.sin(t * 0.8 + this.phase), -1, 1, 40, 130);
+      stroke(255, alpha);
+      strokeWeight(this.size);
+      point(renderPos.x, renderPos.y);
+    }
+  }
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  pixelDensity(1);
+
+  pg = createGraphics(width, height);
+  pg.pixelDensity(1);
+
+  textFont('Helvetica');
+  pg.textFont('Helvetica');
+
+  setupUI();
+  rebuildText(phrase);
+}
+
+function setupUI() {
+  const input = document.getElementById("wordInput");
+  const btn = document.getElementById("applyBtn");
+
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      phrase = input.value.trim() || "PLURIBUS";
+      rebuildText(phrase);
+    }
+  });
+
+  btn.addEventListener("click", () => {
+    phrase = input.value.trim() || "PLURIBUS";
+    rebuildText(phrase);
+  });
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  pg = createGraphics(width, height);
+  pg.pixelDensity(1);
+  pg.textFont('Helvetica');
+  rebuildText(phrase);
+}
+
+function rebuildText(word) {
+  textParticles = [];
+
+  pg.clear();
+  pg.background(0);
+  pg.fill(255);
+  pg.noStroke();
+  pg.textAlign(CENTER, CENTER);
+
+  // auto-size the text
+  let maxW = width * 0.8;
+  let maxH = height * 0.5;
+  let baseSize = min(maxW / (max(word.length, 3) * 0.6), maxH);
+  if (baseSize < 24) baseSize = 24;
+
+  // shrink a bit for very long phrases
+  if (word.length > 12) baseSize *= 12 / word.length;
+
+  pg.textSize(baseSize);
+  pg.text(word.toUpperCase(), width / 2, height / 2);
+
+  pg.loadPixels();
+
+  let step = 5;          // spacing between samples (smaller = more dots)
+  let threshold = 40;    // brightness threshold
+
+  let sumX = 0, sumY = 0, count = 0;
+
+  for (let y = 0; y < pg.height; y += step) {
+    for (let x = 0; x < pg.width; x += step) {
+      let idx = (y * pg.width + x) * 4;
+      let bright = pg.pixels[idx]; // R channel is enough (white text)
+
+      if (bright > threshold) {
+        let d = new Dot(x, y, true);
+        textParticles.push(d);
+        sumX += x;
+        sumY += y;
+        count++;
+      }
+    }
+  }
+
+  // center of mass of the letters for wave origin
+  if (count > 0) {
+    textCenter = createVector(sumX / count, sumY / count);
+  } else {
+    textCenter = createVector(width / 2, height / 2);
+  }
+
+  // background particles in vertical "columns"
+  bgParticles = [];
+  let cols = 80;
+  for (let i = 0; i < cols; i++) {
+    let x = (i + 0.5) * width / cols;
+    let columnCount = floor(random(12, 28));
+    for (let j = 0; j < columnCount; j++) {
+      let y = random(height);
+      let d = new Dot(x, y, false);
+      d.home.set(x, y);
+      bgParticles.push(d);
+    }
+  }
+}
+
+function draw() {
+  background(0);
+
+  // update & draw background first
+  for (let p of bgParticles) {
+    p.update();
+    p.draw();
+  }
+
+  // then the text dots on top
+  for (let p of textParticles) {
+    p.update();
+    p.draw();
+  }
+}
+</script>
+</body>
+</html>
