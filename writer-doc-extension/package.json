@@ -1,0 +1,16 @@
+{
+  "name": "semantic-writing-layer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome extension: semantic entity layer for Google Docs (C:/L:/… references, panel, local storage).",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.326",
+    "esbuild": "^0.25.5",
+    "sass": "^1.89.2",
+    "typescript": "^5.8.3"
+  }
+}

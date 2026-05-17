@@ -1,0 +1,112 @@
+{
+  "name": "semantic-writing-layer",
+  "displayName": "Semantic Writing Layer",
+  "description": "Semantic entity references for fiction writers (C:, L:, R:, …) with local story bible storage.",
+  "version": "0.1.0",
+  "publisher": "semantic-writing",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:markdown",
+    "onLanguage:plaintext",
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "semanticWriting.openStoryBible",
+        "title": "Semantic Writing: Open Story Bible"
+      },
+      {
+        "command": "semanticWriting.renameEntity",
+        "title": "Semantic Writing: Rename Entity in Workspace"
+      },
+      {
+        "command": "semanticWriting.insertReference",
+        "title": "Semantic Writing: Insert Entity Reference"
+      },
+      {
+        "command": "semanticWriting.openStoryBibleFile",
+        "title": "Semantic Writing: Open Story Bible File"
+      }
+    ],
+    "configurationDefaults": {
+      "[markdown]": {
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off",
+        "editor.suggest.showWords": false
+      },
+      "[plaintext]": {
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off",
+        "editor.suggest.showWords": false
+      }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "semanticWriting.storyBible",
+          "name": "Story Bible",
+          "type": "webview"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Semantic Writing Layer",
+      "properties": {
+        "semanticWriting.chipStyle": {
+          "type": "string",
+          "enum": [
+            "subtle",
+            "vivid"
+          ],
+          "default": "subtle",
+          "description": "Visual style for inline entity chips in the editor."
+        },
+        "semanticWriting.referenceSyntax": {
+          "type": "string",
+          "enum": [
+            "bracket",
+            "plain"
+          ],
+          "default": "bracket",
+          "description": "How references are stored in the manuscript. Bracket: [[C:Name]]. Plain: C:Name."
+        },
+        "semanticWriting.storyBiblePath": {
+          "type": "string",
+          "default": ".semantic-writing/story-bible.json",
+          "description": "Path (relative to workspace folder) for the Story Bible JSON file."
+        },
+        "semanticWriting.autoRegisterReferences": {
+          "type": "boolean",
+          "default": true,
+          "description": "When enabled, typed references like C:Clara or [[L:LOC]] are added to the Story Bible automatically."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "yarn compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.8.3"
+  }
+}

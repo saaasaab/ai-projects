@@ -1,0 +1,170 @@
+.swl-fab {
+  position: fixed;
+  z-index: 2147483646;
+  bottom: 24px;
+  right: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  background: #1a73e8;
+  color: #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.35);
+}
+
+.swl-aside {
+  position: fixed;
+  z-index: 2147483645;
+  top: 0;
+  right: 0;
+  width: min(360px, 100vw);
+  height: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  padding-top: 16px;
+  background: Field;
+  color: FieldText;
+  border-left: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+  box-shadow: -4px 0 24px rgb(0 0 0 / 0.12);
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  overflow: auto;
+  font-family: "Google Sans", Roboto, system-ui, sans-serif;
+  font-size: 13px;
+}
+
+.swl-aside.swl-open {
+  transform: translateX(0);
+}
+
+.swl-aside h1 {
+  font-size: 15px;
+  font-weight: 600;
+  padding: 0 0 8px;
+}
+
+.swl-muted {
+  opacity: 0.78;
+  line-height: 1.4;
+  font-size: 12px;
+}
+
+.swl-field {
+  display: block;
+  font-weight: 500;
+  padding-top: 10px;
+}
+
+.swl-input,
+.swl-select,
+.swl-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  background: Field;
+  color: FieldText;
+  font: inherit;
+}
+
+.swl-textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.swl-btn {
+  font: inherit;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  background: ButtonFace;
+  color: ButtonText;
+  cursor: pointer;
+}
+
+.swl-btn-primary {
+  background: #1a73e8;
+  color: #fff;
+  border-color: #1a73e8;
+}
+
+.swl-btn-danger {
+  color: #c5221f;
+  border-color: #c5221f;
+  background: Field;
+}
+
+.swl-btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, #c5221f 10%, Field);
+}
+
+.swl-btn-danger:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.swl-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 10px;
+}
+
+.swl-list {
+  list-style: none;
+  padding: 0;
+  padding-top: 10px;
+}
+
+.swl-list li {
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+  cursor: pointer;
+}
+
+.swl-list li:hover {
+  background: color-mix(in srgb, CanvasText 6%, transparent);
+}
+
+.swl-pill {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: color-mix(in srgb, CanvasText 10%, transparent);
+}
+
+.swl-debug {
+  padding-top: 12px;
+}
+
+.swl-debug summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.swl-debug-hint {
+  padding-top: 6px;
+}
+
+.swl-log-pre {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: 160px;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+  background: color-mix(in srgb, CanvasText 4%, Field);
+  color: FieldText;
+  font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
