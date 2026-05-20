@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["ES2017", "DOM"],
+    "skipLibCheck": true,
+    "strict": true,
+    "moduleResolution": "node",
+    "noEmit": true
+  },
+  "include": ["src/ui.ts", "src/preview.ts", "src/sampling.ts", "src/geometry.ts", "src/types.ts"]
+}

@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["ES2017"],
+    "skipLibCheck": true,
+    "strict": true,
+    "moduleResolution": "node",
+    "noEmit": true,
+    "typeRoots": ["./node_modules/@figma"]
+  },
+  "include": ["src/code.ts", "src/figma-geometry.ts", "src/geometry.ts", "src/types.ts"]
+}

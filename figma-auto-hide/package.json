@@ -1,0 +1,15 @@
+{
+  "name": "figma-autocover",
+  "version": "1.0.0",
+  "description": "Figma plugin that covers content with color-sampled strips",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -b",
+    "watch": "node build.mjs && esbuild src/code.ts --bundle --outfile=dist/code.js --target=es2017 --watch"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.100.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  }
+}
