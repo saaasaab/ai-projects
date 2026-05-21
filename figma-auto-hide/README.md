@@ -13,7 +13,7 @@ yarn build
 ## Run in Figma
 
 1. **Plugins → Development → Import plugin from manifest…**
-2. Choose `figma-auto-hide/manifest.json`
+2. Choose `figma-auto-hide/manifest.json` (run `yarn build` first so `dist/` exists)
 3. Build after code changes: `yarn build` (or `yarn watch`)
 
 ## Usage

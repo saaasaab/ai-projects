@@ -1,5 +1,10 @@
 import type { Bounds, Orientation, SampleEdge, SamplePoint, Strip } from "./types";
 
+/** Wide masks → columns side by side (`horizontal`). Tall masks → rows stacked (`vertical`). */
+export function suggestOrientation(bounds: Bounds): Orientation {
+  return bounds.width >= bounds.height ? "horizontal" : "vertical";
+}
+
 export function rectsIntersect(a: Bounds, b: Bounds): boolean {
   return (
     a.x < b.x + b.width &&
@@ -13,7 +18,8 @@ export function generateStrips(maskBounds: Bounds, orientation: Orientation, str
   const count = Math.max(1, Math.min(100, Math.round(stripCount)));
   const strips: Strip[] = [];
 
-  if (orientation === "vertical") {
+  // horizontal = columns side by side; vertical = rows stacked
+  if (orientation === "horizontal") {
     const stripWidth = maskBounds.width / count;
     for (let i = 0; i < count; i++) {
       const width = i === count - 1 ? maskBounds.width - stripWidth * i : stripWidth;
@@ -59,45 +65,25 @@ export function figmaToPixel(
   };
 }
 
+/** Opposite edge pair for the current layout (columns → top/bottom, rows → left/right). */
 export function getSamplePointsForStrip(
   strip: Strip,
   maskBounds: Bounds,
   orientation: Orientation,
-  sampleEdge: SampleEdge,
   sampleOffset: number
 ): SamplePoint[] {
   const centerX = strip.x + strip.width / 2;
   const centerY = strip.y + strip.height / 2;
 
-  if (orientation === "vertical") {
-    const top: SamplePoint = {
-      figmaX: centerX,
-      figmaY: maskBounds.y - sampleOffset,
-      edge: "top",
-    };
-    const bottom: SamplePoint = {
-      figmaX: centerX,
-      figmaY: maskBounds.y + maskBounds.height + sampleOffset,
-      edge: "bottom",
-    };
-
-    if (sampleEdge === "auto") return [top, bottom];
-    if (sampleEdge === "bottom") return [bottom];
-    return [top];
+  if (orientation === "horizontal") {
+    return [
+      { figmaX: centerX, figmaY: maskBounds.y - sampleOffset, edge: "top" },
+      { figmaX: centerX, figmaY: maskBounds.y + maskBounds.height + sampleOffset, edge: "bottom" },
+    ];
   }
 
-  const left: SamplePoint = {
-    figmaX: maskBounds.x - sampleOffset,
-    figmaY: centerY,
-    edge: "left",
-  };
-  const right: SamplePoint = {
-    figmaX: maskBounds.x + maskBounds.width + sampleOffset,
-    figmaY: centerY,
-    edge: "right",
-  };
-
-  if (sampleEdge === "auto") return [left, right];
-  if (sampleEdge === "right") return [right];
-  return [left];
+  return [
+    { figmaX: maskBounds.x - sampleOffset, figmaY: centerY, edge: "left" },
+    { figmaX: maskBounds.x + maskBounds.width + sampleOffset, figmaY: centerY, edge: "right" },
+  ];
 }

@@ -8,5 +8,5 @@
     "noEmit": true,
     "typeRoots": ["./node_modules/@figma"]
   },
-  "include": ["src/code.ts", "src/figma-geometry.ts", "src/geometry.ts", "src/types.ts"]
+  "include": ["src/code.ts", "src/figma-geometry.ts", "src/geometry.ts", "src/types.ts", "src/globals.d.ts"]
 }

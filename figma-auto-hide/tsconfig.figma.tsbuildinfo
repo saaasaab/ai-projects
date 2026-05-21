@@ -1,1 +1,1 @@
-{"root":["./src/code.ts","./src/figma-geometry.ts","./src/geometry.ts","./src/types.ts"],"version":"5.9.3"}
+{"root":["./src/code.ts","./src/figma-geometry.ts","./src/geometry.ts","./src/types.ts","./src/globals.d.ts"],"version":"5.9.3"}

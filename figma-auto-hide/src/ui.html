@@ -8,217 +8,553 @@
         box-sizing: border-box;
       }
 
+      html,
       body {
         margin: 0;
-        padding: 12px;
-        font: 11px/1.4 "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        height: 100%;
+      }
+
+      body {
+        padding: 16px;
+        font: 12px/1.4 "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
         color: var(--figma-color-text, #333);
         background: var(--figma-color-bg, #fff);
-      }
-
-      h1 {
-        margin: 0 0 12px;
-        font-size: 13px;
-        font-weight: 600;
-      }
-
-      fieldset {
-        border: none;
-        margin: 0 0 12px;
-        padding: 0;
-      }
-
-      legend {
-        font-weight: 600;
-        margin-bottom: 6px;
-      }
-
-      label {
         display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-bottom: 6px;
-      }
-
-      .row {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        margin-bottom: 8px;
-      }
-
-      .row label {
-        flex: 1;
-        margin: 0;
         flex-direction: column;
-        align-items: stretch;
+        overflow: hidden;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+        flex-shrink: 0;
+      }
+
+      .topbar h1 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      .help-btn {
+        flex-shrink: 0;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        border: 1px solid var(--figma-color-border, #e5e5e5);
+        border-radius: 6px;
+        background: var(--figma-color-bg, #fff);
+        color: var(--figma-color-text-secondary, #666);
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .help-btn--sm {
+        width: 18px;
+        height: 18px;
+        font-size: 11px;
+        border-radius: 5px;
+      }
+
+      .help-btn:hover {
+        background: var(--figma-color-bg-hover, #f5f5f5);
+        color: var(--figma-color-text, #333);
+      }
+
+      .mask-status {
+        margin: 0 0 12px;
+        font-size: 11px;
+        line-height: 1.4;
+        color: var(--figma-color-text-secondary, #666);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex-shrink: 0;
+      }
+
+      .mask-status--ready {
+        color: var(--figma-color-text, #333);
+      }
+
+      .mask-status--error {
+        color: var(--figma-color-text-danger, #f24822);
+      }
+
+      .form-scroll {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        margin: 0 -4px;
+        padding: 0 4px;
+      }
+
+      #form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: min-content;
+        padding-bottom: 4px;
+      }
+
+      .panel {
+        background: var(--figma-color-bg-secondary, #f5f5f5);
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .layout-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+      }
+
+      .field-col {
+        display: flex;
+        flex-direction: column;
         gap: 4px;
+        min-width: 0;
+      }
+
+      .field-col--grow {
+        flex: 1;
+      }
+
+      .field-col--narrow {
+        flex: 0 0 52px;
+      }
+
+      .field-head {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .field-label {
+        font-size: 10px;
+        font-weight: 500;
+        color: var(--figma-color-text-secondary, #888);
+      }
+
+      .sampling-note {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .sampling-blurb {
+        margin: 0;
+        font-size: 10px;
+        line-height: 1.4;
+        color: var(--figma-color-text-secondary, #888);
       }
 
       input[type="number"],
       select {
-        width: 100%;
-        padding: 6px 8px;
+        padding: 7px 8px;
         border: 1px solid var(--figma-color-border, #e5e5e5);
-        border-radius: 4px;
+        border-radius: 6px;
         font: inherit;
         background: var(--figma-color-bg, #fff);
         color: inherit;
       }
 
-      input[type="checkbox"] {
-        margin: 0;
+      .check-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
       }
 
-      button {
+      .check-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        cursor: pointer;
+      }
+
+      .check-row input {
+        width: 14px;
+        height: 14px;
+        margin: 1px 0 0;
+        flex-shrink: 0;
+      }
+
+      .check-copy {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .check-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--figma-color-text, #333);
+      }
+
+      .check-hint {
+        display: block;
+        font-size: 10px;
+        line-height: 1.35;
+        color: var(--figma-color-text-secondary, #888);
+        margin-top: 1px;
+      }
+
+      .form-footer {
+        flex-shrink: 0;
+        padding-top: 12px;
+      }
+
+      button[type="submit"] {
         width: 100%;
-        padding: 8px 12px;
+        padding: 11px 16px;
         border: none;
-        border-radius: 6px;
+        border-radius: 8px;
         background: var(--figma-color-bg-brand, #18a0fb);
         color: #fff;
         font: inherit;
+        font-size: 12px;
         font-weight: 600;
         cursor: pointer;
       }
 
-      button:disabled {
-        opacity: 0.5;
+      button[type="submit"]:disabled {
+        opacity: 0.45;
         cursor: default;
       }
 
-      button:hover:not(:disabled) {
+      button[type="submit"]:hover:not(:disabled) {
         filter: brightness(0.95);
       }
 
-      .status {
-        margin: 8px 0 0;
-        color: var(--figma-color-text-secondary, #666);
-        min-height: 2.8em;
+      .help-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        z-index: 10;
+        padding: 16px;
       }
 
-      .status.error {
-        color: var(--figma-color-text-danger, #f24822);
-      }
-
-      .hint {
-        color: var(--figma-color-text-secondary, #666);
-        font-size: 10px;
-        margin-top: 4px;
-      }
-
-      .preview {
-        position: relative;
-        width: 100%;
-        height: 140px;
-        margin: 0 0 12px;
-        border-radius: 6px;
-        overflow: hidden;
-        background: var(--figma-color-bg-secondary, #f0f0f0);
-        border: 1px solid var(--figma-color-border, #e5e5e5);
-      }
-
-      .preview canvas {
-        width: 100%;
-        height: 100%;
+      .help-backdrop--open {
         display: block;
       }
 
-      .preview--empty canvas {
-        display: none;
+      .help-dialog {
+        height: 100%;
+        overflow: auto;
+        background: var(--figma-color-bg, #fff);
+        border-radius: 8px;
+        padding: 16px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
       }
 
-      .preview-label {
-        position: absolute;
-        inset: 0;
+      .help-dialog-header {
         display: flex;
         align-items: center;
-        justify-content: center;
-        padding: 12px;
-        text-align: center;
-        color: var(--figma-color-text-secondary, #666);
-        font-size: 10px;
-        pointer-events: none;
+        justify-content: space-between;
+        margin-bottom: 12px;
       }
 
-      .preview:not(.preview--empty) .preview-label {
-        top: auto;
-        bottom: 0;
-        left: 0;
-        right: 0;
+      .help-dialog-header h2 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .help-close {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--figma-color-text-secondary, #666);
+        font-size: 18px;
+        cursor: pointer;
+      }
+
+      .help-close:hover {
+        background: var(--figma-color-bg-hover, #f0f0f0);
+      }
+
+      .help-intro {
+        margin: 0 0 14px;
+        font-size: 11px;
+        color: var(--figma-color-text-secondary, #666);
+        line-height: 1.45;
+      }
+
+      .help-step {
+        margin-bottom: 12px;
+      }
+
+      .help-step:last-child {
+        margin-bottom: 0;
+      }
+
+      .help-step-title {
+        font-weight: 600;
+        font-size: 11px;
+        margin-bottom: 4px;
+      }
+
+      .help-step-text {
+        font-size: 11px;
+        color: var(--figma-color-text-secondary, #666);
+        line-height: 1.45;
+        margin: 0;
+      }
+
+      .help-diagrams {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .help-diagram {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .help-diagram-label {
+        font-size: 10px;
+        font-weight: 600;
+        text-align: center;
+        margin-bottom: 6px;
+        color: var(--figma-color-text, #333);
+      }
+
+      .help-mask {
+        display: flex;
+        gap: 2px;
+        height: 64px;
+        padding: 4px;
+        border: 1px dashed var(--figma-color-border, #ccc);
+        border-radius: 4px;
+        background: var(--figma-color-bg-secondary, #f0f0f0);
+      }
+
+      .help-mask--columns {
+        flex-direction: row;
+      }
+
+      .help-mask--rows {
+        flex-direction: column;
+      }
+
+      .help-strip {
+        flex: 1;
+        border-radius: 2px;
+        min-width: 0;
+        min-height: 0;
+      }
+
+      .help-diagram-caption {
+        margin: 5px 0 0;
+        font-size: 9px;
+        text-align: center;
+        color: var(--figma-color-text-secondary, #888);
+      }
+
+      .offset-visual {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        height: 64px;
+      }
+
+      .offset-band {
+        flex-shrink: 0;
+        border-radius: 2px;
+        background: repeating-linear-gradient(
+          90deg,
+          #b0b0b0 0,
+          #b0b0b0 4px,
+          #9a9a9a 4px,
+          #9a9a9a 8px
+        );
+      }
+
+      .offset-band--sm {
+        height: 6px;
+      }
+
+      .offset-band--lg {
+        height: 14px;
+      }
+
+      .offset-core {
+        flex: 1;
+        border: 1px dashed var(--figma-color-border, #ccc);
+        border-radius: 3px;
+        background: #a8a8a8;
+      }
+
+      .sample-visual {
+        position: relative;
+        height: 64px;
+        border: 1px dashed var(--figma-color-border, #ccc);
+        border-radius: 4px;
+        background: var(--figma-color-bg-secondary, #f0f0f0);
+        padding: 10px 12px;
+        box-sizing: border-box;
+      }
+
+      .sample-visual--tb .sample-zone {
+        position: absolute;
+        left: 8px;
+        right: 8px;
+        height: 8px;
+        border-radius: 2px;
+        background: #b0b0b0;
+      }
+
+      .sample-visual--tb .sample-zone--near {
+        background: #9a9a9a;
+      }
+
+      .sample-visual--tb .sample-zone--top {
+        top: 2px;
+      }
+
+      .sample-visual--tb .sample-zone--bottom {
+        bottom: 2px;
+      }
+
+      .sample-visual--tb .help-mask {
+        height: 100%;
+        border-style: solid;
+        border-color: #888;
+        background: transparent;
+      }
+
+      .sample-visual--lr {
+        display: flex;
+        align-items: stretch;
+        gap: 3px;
+        padding: 8px 4px;
+      }
+
+      .sample-visual--lr .sample-zone {
+        width: 8px;
+        flex-shrink: 0;
+        border-radius: 2px;
+        background: #b0b0b0;
+      }
+
+      .sample-visual--lr .sample-zone--near {
+        background: #9a9a9a;
+      }
+
+      .sample-visual--lr .help-mask {
+        flex: 1;
         height: auto;
-        padding: 4px 8px;
-        justify-content: flex-start;
-        background: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
-        color: #fff;
+        border-style: solid;
+        border-color: #888;
+        background: transparent;
       }
     </style>
   </head>
   <body>
-    <h1>AutoCover</h1>
-    <p class="hint">
-      Draw a rectangle over text or numbers, select only that rectangle, then run AutoCover.
-    </p>
-
-    <div id="preview" class="preview preview--empty">
-      <canvas id="preview-canvas" width="280" height="140"></canvas>
-      <p id="preview-label" class="preview-label">Select your mask rectangle</p>
+    <div class="topbar">
+      <h1>AutoCover</h1>
+      <button type="button" id="help-open" class="help-btn" aria-label="How to use" title="How to use">?</button>
     </div>
 
-    <form id="form">
-      <fieldset>
-        <legend>Layout</legend>
-        <div class="row">
-          <label>
-            Orientation
-            <select name="orientation">
-              <option value="vertical" selected>Vertical strips</option>
-              <option value="horizontal">Horizontal strips</option>
-            </select>
-          </label>
-          <label>
-            Strips
-            <input type="number" name="stripCount" min="1" max="100" value="4" />
-          </label>
+    <p id="mask-status" class="mask-status">Select one rectangle over the area to hide.</p>
+
+    <div class="form-scroll">
+      <form id="form">
+        <div class="panel">
+          <div class="layout-row">
+            <div class="field-col field-col--grow">
+              <div class="field-head">
+                <span class="field-label">Direction</span>
+                <button type="button" id="direction-info" class="help-btn help-btn--sm" aria-label="Direction help">?</button>
+              </div>
+              <select name="orientation" aria-label="Strip direction">
+                <option value="horizontal" selected>Side by side</option>
+                <option value="vertical">Stacked</option>
+              </select>
+            </div>
+            <div class="field-col field-col--narrow">
+              <div class="field-head">
+                <span class="field-label">Strips</span>
+                <button type="button" id="strips-info" class="help-btn help-btn--sm" aria-label="Strips help">?</button>
+              </div>
+              <input type="number" name="stripCount" min="1" max="100" value="10" aria-label="Number of strips" />
+            </div>
+            <div class="field-col field-col--narrow">
+              <div class="field-head">
+                <span class="field-label">Offset</span>
+                <button type="button" id="offset-info" class="help-btn help-btn--sm" aria-label="Offset help">?</button>
+              </div>
+              <input
+                type="number"
+                name="sampleOffset"
+                min="0"
+                max="50"
+                value="2"
+                aria-label="Sample offset in pixels"
+              />
+            </div>
+          </div>
+
+          <div class="sampling-note">
+            <div class="field-head">
+              <span class="field-label">Sampling</span>
+              <button type="button" id="sampling-info" class="help-btn help-btn--sm" aria-label="Sampling help">?</button>
+            </div>
+            <p id="sampling-desc" class="sampling-blurb">Colors from top &amp; bottom edges of each strip.</p>
+          </div>
+
+          <div class="check-list">
+            <label class="check-row">
+              <input type="checkbox" name="useGradient" checked />
+              <span class="check-copy">
+                <span class="check-label">Gradient between edges</span>
+                <span class="check-hint">Blend both sampled edge colors on each strip</span>
+              </span>
+            </label>
+            <label class="check-row">
+              <input type="checkbox" name="smoothing" />
+              <span class="check-copy">
+                <span class="check-label">Smooth sample</span>
+                <span class="check-hint">Average nearby pixels when reading color</span>
+              </span>
+            </label>
+            <label class="check-row">
+              <input type="checkbox" name="removeMask" checked />
+              <span class="check-copy">
+                <span class="check-label">Hide mask after applying</span>
+                <span class="check-hint">Hide your original mask rectangle</span>
+              </span>
+            </label>
+          </div>
         </div>
-      </fieldset>
+      </form>
+    </div>
 
-      <fieldset>
-        <legend>Sampling</legend>
-        <div class="row">
-          <label>
-            Sample edge
-            <select name="sampleEdge">
-              <option value="top" selected>Top</option>
-              <option value="bottom">Bottom</option>
-              <option value="left">Left</option>
-              <option value="right">Right</option>
-              <option value="auto">Auto (lower contrast)</option>
-            </select>
-          </label>
-          <label>
-            Offset (px)
-            <input type="number" name="sampleOffset" min="0" max="50" value="2" />
-          </label>
+    <div class="form-footer">
+      <button type="submit" id="run" form="form" disabled>AutoCover</button>
+    </div>
+
+    <div id="help-backdrop" class="help-backdrop" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div class="help-dialog">
+        <div class="help-dialog-header">
+          <h2 id="help-title">How to use</h2>
+          <button type="button" id="help-close" class="help-close" aria-label="Close">×</button>
         </div>
-        <label>
-          <input type="checkbox" name="smoothing" />
-          Blur / smoothing (average nearby pixels)
-        </label>
-      </fieldset>
-
-      <fieldset>
-        <legend>After apply</legend>
-        <label>
-          <input type="checkbox" name="removeMask" checked />
-          Hide original mask rectangle
-        </label>
-      </fieldset>
-
-      <button type="submit" id="run">AutoCover</button>
-    </form>
-
-    <p id="status" class="status">Ready.</p>
+        <div id="help-body"></div>
+      </div>
+    </div>
 
     <script src="../dist/ui.js"></script>
   </body>

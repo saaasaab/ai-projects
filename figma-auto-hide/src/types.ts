@@ -1,6 +1,8 @@
 export type Orientation = "vertical" | "horizontal";
 
-export type SampleEdge = "top" | "bottom" | "left" | "right" | "auto";
+export type SampleEdge = "top" | "bottom" | "left" | "right";
+
+export type GradientAxis = "vertical" | "horizontal";
 
 export interface Bounds {
   x: number;
@@ -25,13 +27,20 @@ export interface RGB {
 
 export interface StripColor {
   index: number;
+  /** Solid fallback; gradient used when present. */
   color: RGB;
+  gradient?: {
+    start: RGB;
+    end: RGB;
+    axis: GradientAxis;
+  };
 }
 
 export interface PluginOptions {
   orientation: Orientation;
   stripCount: number;
-  sampleEdge: SampleEdge;
+  /** When true, blend opposite edge colors as a gradient; otherwise average to solid. */
+  useGradient: boolean;
   sampleOffset: number;
   smoothing: boolean;
   removeMask: boolean;
@@ -70,22 +79,32 @@ export interface RunMessage {
   type: "run";
   orientation?: Orientation;
   stripCount?: number;
-  sampleEdge?: SampleEdge;
+  useGradient?: boolean;
   sampleOffset?: number;
   smoothing?: boolean;
   removeMask?: boolean;
 }
 
-export type UiToMainMessage = RunMessage | SampleResponsePayload | { type: "cancel" };
+export type UiToMainMessage = RunMessage | SampleResponsePayload | { type: "cancel" } | { type: "ui-ready" };
 
 export interface MaskPreviewPayload {
   type: "mask-preview";
   status: "ok" | "none" | "error";
   message?: string;
+  maskId?: string;
   maskName?: string;
-  maskBounds?: Bounds;
-  sourceBounds?: Bounds;
-  pngBytes?: number[];
+  maskWidth?: number;
+  maskHeight?: number;
+  suggestedOrientation?: Orientation;
 }
 
-export type MainToUiMessage = SampleRequestPayload | MaskPreviewPayload | { type: "error"; message: string };
+export interface ApplyDonePayload {
+  type: "apply-done";
+  message?: string;
+}
+
+export type MainToUiMessage =
+  | SampleRequestPayload
+  | MaskPreviewPayload
+  | ApplyDonePayload
+  | { type: "error"; message: string };

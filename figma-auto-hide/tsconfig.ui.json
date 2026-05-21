@@ -7,5 +7,5 @@
     "moduleResolution": "node",
     "noEmit": true
   },
-  "include": ["src/ui.ts", "src/preview.ts", "src/sampling.ts", "src/geometry.ts", "src/types.ts"]
+  "include": ["src/ui.ts", "src/sampling.ts", "src/geometry.ts", "src/types.ts"]
 }

@@ -1,5 +1,5 @@
 import { figmaToPixel } from "./geometry";
-import type { Bounds, RGB, SampleEdge, SamplePoint, Strip } from "./types";
+import type { Bounds, GradientAxis, Orientation, RGB, SampleEdge, SamplePoint, Strip } from "./types";
 
 const SMOOTHING_RADIUS = 2;
 const AUTO_VARIANCE_SAMPLES = 5;
@@ -67,11 +67,45 @@ export function sampleAtPixel(
   return { r: r / count, g: g / count, b: b / count };
 }
 
+export function averageRgb(a: RGB, b: RGB): RGB {
+  return {
+    r: (a.r + b.r) / 2,
+    g: (a.g + b.g) / 2,
+    b: (a.b + b.b) / 2,
+  };
+}
+
 export function formatRgb(color: RGB): string {
   const r = Math.round(color.r * 255);
   const g = Math.round(color.g * 255);
   const b = Math.round(color.b * 255);
   return `rgb(${r}, ${g}, ${b})`;
+}
+
+/** Sample top+bottom for column strips, or left+right for row strips. */
+export function sampleOppositeEdges(
+  imageData: ImageData,
+  sourceBounds: Bounds,
+  imageWidth: number,
+  imageHeight: number,
+  strip: Strip,
+  orientation: Orientation,
+  sampleOffset: number,
+  smoothing: boolean
+): { start: RGB; end: RGB; axis: GradientAxis } {
+  if (orientation === "horizontal") {
+    return {
+      start: sampleAlongEdge(imageData, sourceBounds, imageWidth, imageHeight, strip, "top", sampleOffset, smoothing),
+      end: sampleAlongEdge(imageData, sourceBounds, imageWidth, imageHeight, strip, "bottom", sampleOffset, smoothing),
+      axis: "vertical",
+    };
+  }
+
+  return {
+    start: sampleAlongEdge(imageData, sourceBounds, imageWidth, imageHeight, strip, "left", sampleOffset, smoothing),
+    end: sampleAlongEdge(imageData, sourceBounds, imageWidth, imageHeight, strip, "right", sampleOffset, smoothing),
+    axis: "horizontal",
+  };
 }
 
 export function sampleAboveBelow(

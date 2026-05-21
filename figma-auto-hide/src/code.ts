@@ -1,24 +1,35 @@
-import { boundsFromNode, stripToParentCoords } from "./figma-geometry";
-import { generateStrips, rectsIntersect } from "./geometry";
-import type {
-  PluginOptions,
-  SampleResponsePayload,
-  Strip,
-  StripColor,
-  UiToMainMessage,
-} from "./types";
+import {
+  boundsFromNode,
+  fillsForStripColor,
+  maskLocalBounds,
+  stripRelativeTransform,
+  type CoverParent,
+} from "./figma-geometry";
+import type { Bounds } from "./types";
+import { generateStrips, rectsIntersect, suggestOrientation } from "./geometry";
+import type { PluginOptions, SampleResponsePayload, StripColor, UiToMainMessage } from "./types";
 
-figma.showUI(__html__, { width: 320, height: 560, themeColors: true });
+let pendingApply: {
+  maskId: string;
+  sourceId: string;
+  pageId: string;
+  options: PluginOptions;
+} | null = null;
 
-let pendingApply: { maskId: string; sourceId: string; options: PluginOptions } | null = null;
-let previewTimer: ReturnType<typeof setTimeout> | undefined;
+figma.showUI(__html__, { width: 300, height: 440, themeColors: true });
 
-function isRectangle(node: BaseNode): node is RectangleNode {
-  return node.type === "RECTANGLE";
-}
+type MaskNode = SceneNode & LayoutMixin;
 
 function isSceneNode(node: BaseNode): node is SceneNode {
   return node.type !== "PAGE" && node.type !== "DOCUMENT";
+}
+
+function isMaskNode(node: BaseNode): node is MaskNode {
+  return isSceneNode(node) && "width" in node && "height" in node;
+}
+
+function isCoverParent(node: BaseNode): node is CoverParent {
+  return node.type === "PAGE" || isSceneNode(node);
 }
 
 function canExport(node: SceneNode): boolean {
@@ -34,105 +45,178 @@ function isDescendantOf(node: BaseNode, ancestor: BaseNode): boolean {
   return false;
 }
 
-function buildPaintOrder(root: BaseNode): Map<string, number> {
-  const order = new Map<string, number>();
-  let index = 0;
+function getSelectedMask(): MaskNode | null {
+  const selection = figma.currentPage.selection;
+  if (selection.length !== 1) return null;
+  return isMaskNode(selection[0]) ? selection[0] : null;
+}
 
-  function walk(node: BaseNode): void {
-    if (!("children" in node)) return;
-    for (const child of node.children) {
-      if (isSceneNode(child)) {
-        order.set(child.id, index++);
-      }
-      walk(child);
+function findExportableIntersecting(
+  node: BaseNode,
+  maskBounds: Bounds,
+  mask: MaskNode
+): SceneNode | null {
+  if (!isSceneNode(node) || node.id === mask.id) return null;
+  if (isDescendantOf(mask, node)) return null;
+
+  if (canExport(node) && node.visible) {
+    const bounds = boundsFromNode(node);
+    if (bounds && rectsIntersect(maskBounds, bounds)) return node;
+  }
+
+  if ("children" in node) {
+    for (let i = node.children.length - 1; i >= 0; i--) {
+      const hit = findExportableIntersecting(node.children[i], maskBounds, mask);
+      if (hit) return hit;
     }
   }
 
-  walk(root);
-  return order;
+  return null;
 }
 
-function findSourceUnderMask(mask: RectangleNode): SceneNode | null {
+function findSourceUnderMask(mask: MaskNode): SceneNode | null {
   const maskBounds = boundsFromNode(mask);
   if (!maskBounds) return null;
 
-  const paintOrder = buildPaintOrder(figma.currentPage);
-  const maskOrder = paintOrder.get(mask.id);
-  if (maskOrder === undefined) return null;
-
-  let best: SceneNode | null = null;
-  let bestOrder = -1;
-
-  for (const node of figma.currentPage.findAll((n): n is SceneNode => isSceneNode(n))) {
-    if (node.id === mask.id) continue;
-    if (isDescendantOf(node, mask) || isDescendantOf(mask, node)) continue;
-    if (!canExport(node) || !node.visible) continue;
-
-    const nodeOrder = paintOrder.get(node.id);
-    if (nodeOrder === undefined || nodeOrder >= maskOrder) continue;
-
-    const nodeBounds = boundsFromNode(node);
-    if (!nodeBounds || !rectsIntersect(maskBounds, nodeBounds)) continue;
-
-    if (nodeOrder > bestOrder) {
-      bestOrder = nodeOrder;
-      best = node;
+  const parent = mask.parent;
+  if (parent && "children" in parent) {
+    const maskIndex = parent.children.indexOf(mask);
+    for (let i = maskIndex - 1; i >= 0; i--) {
+      const hit = findExportableIntersecting(parent.children[i], maskBounds, mask);
+      if (hit) return hit;
     }
   }
 
-  return best;
+  let ancestor: BaseNode | null = mask.parent;
+  while (ancestor && ancestor.type !== "PAGE" && ancestor.type !== "DOCUMENT") {
+    const ancestorParent = ancestor.parent;
+    if (ancestorParent && "children" in ancestorParent) {
+      const ancestorIndex = ancestorParent.children.indexOf(ancestor);
+      for (let i = ancestorIndex - 1; i >= 0; i--) {
+        const hit = findExportableIntersecting(ancestorParent.children[i], maskBounds, mask);
+        if (hit) return hit;
+      }
+    }
+    ancestor = ancestorParent;
+  }
+
+  return null;
 }
 
-function resolveSelection(): { mask: RectangleNode; source: SceneNode } | string {
-  const rectangles = figma.currentPage.selection.filter(isRectangle);
+function resolveSelection(): { mask: MaskNode; source: SceneNode } | string {
+  const mask = getSelectedMask();
 
-  if (rectangles.length === 0) {
-    return "Select the rectangle drawn over the area you want to cover.";
+  if (!mask) {
+    const count = figma.currentPage.selection.length;
+    if (count === 0) return "Select one rectangle or frame over the area to cover.";
+    if (count > 1) return "Select only one layer.";
+    return "Selected layer cannot be used. Try a rectangle or frame.";
   }
 
-  if (rectangles.length > 1) {
-    return "Select only one rectangle.";
-  }
-
-  const mask = rectangles[0];
   const source = findSourceUnderMask(mask);
 
   if (!source) {
-    return "No layer found under the rectangle. Place it over an image or exportable frame.";
+    return "No layer found under the selection. Place it over an image or exportable frame.";
   }
 
   return { mask, source };
 }
 
-function createCoverGroup(
-  mask: RectangleNode,
-  source: SceneNode,
-  strips: Strip[],
-  colors: StripColor[],
-  options: PluginOptions
-): void {
-  const parent = mask.parent;
-  if (!parent || !("appendChild" in parent)) {
-    figma.notify("Mask must be inside a frame or group.", { error: true });
+function logSelection(): void {
+  const selection = [...figma.currentPage.selection];
+
+  console.log("[AutoCover] selection changed", {
+    count: selection.length,
+    nodes: selection.map((node) => ({
+      id: node.id,
+      name: node.name,
+      type: node.type,
+      width: "width" in node ? node.width : undefined,
+      height: "height" in node ? node.height : undefined,
+      isMaskCandidate: isMaskNode(node),
+    })),
+  });
+}
+
+function sendMaskPreview(): void {
+  logSelection();
+
+  const mask = getSelectedMask();
+
+  if (!mask) {
+    const count = figma.currentPage.selection.length;
+    console.log("[AutoCover] no valid mask", {
+      count,
+      reason:
+        count === 0
+          ? "nothing selected"
+          : count > 1
+            ? "multiple layers selected"
+            : "selected layer is not a rectangle/frame",
+    });
+    figma.ui.postMessage({
+      type: "mask-preview",
+      status: "none",
+      message:
+        count === 0
+          ? "Select your rectangle"
+          : count > 1
+            ? "Select only one layer"
+            : "Select a rectangle or frame",
+    });
     return;
   }
 
-  const colorByIndex = new Map(colors.map((c) => [c.index, c.color]));
+  console.log("[AutoCover] mask selected", {
+    id: mask.id,
+    name: mask.name,
+    type: mask.type,
+    width: mask.width,
+    height: mask.height,
+    x: mask.x,
+    y: mask.y,
+  });
+
+  const maskBounds = boundsFromNode(mask);
+
+  figma.ui.postMessage({
+    type: "mask-preview",
+    status: "ok",
+    maskId: mask.id,
+    maskName: mask.name,
+    maskWidth: maskBounds?.width ?? mask.width,
+    maskHeight: maskBounds?.height ?? mask.height,
+    suggestedOrientation: maskBounds ? suggestOrientation(maskBounds) : undefined,
+  });
+}
+
+function createCoverStrips(
+  mask: MaskNode,
+  source: SceneNode,
+  colors: StripColor[],
+  options: PluginOptions
+): GroupNode | null {
+  const parent = mask.parent;
+  if (!parent || !isCoverParent(parent) || !("appendChild" in parent)) {
+    figma.notify("Mask must be on the page or inside a frame or group.", { error: true });
+    return null;
+  }
+
+  const colorByIndex = new Map(colors.map((c) => [c.index, c]));
+  const localStrips = generateStrips(maskLocalBounds(mask), options.orientation, options.stripCount);
   const rects: RectangleNode[] = [];
   const maskIndex = parent.children.indexOf(mask);
   const sourceIndex = parent.children.indexOf(source);
 
-  for (const strip of strips) {
-    const color = colorByIndex.get(strip.index);
-    if (!color) continue;
+  for (const strip of localStrips) {
+    const stripColor = colorByIndex.get(strip.index);
+    if (!stripColor) continue;
 
-    const coords = stripToParentCoords(strip, mask);
     const rect = figma.createRectangle();
     rect.name = `AutoCover Strip ${strip.index + 1}`;
-    rect.resize(coords.width, coords.height);
-    rect.x = coords.x;
-    rect.y = coords.y;
-    rect.fills = [{ type: "SOLID", color }];
+    rect.resize(strip.width, strip.height);
+    rect.relativeTransform = stripRelativeTransform(mask, strip);
+    rect.fills = fillsForStripColor(stripColor);
     rect.strokes = [];
     parent.appendChild(rect);
     rects.push(rect);
@@ -140,14 +224,12 @@ function createCoverGroup(
 
   if (rects.length === 0) {
     figma.notify("No strips were created.", { error: true });
-    return;
+    return null;
   }
 
   const group = figma.group(rects, parent);
   group.name = "AutoCover";
-
-  const insertAbove = Math.max(maskIndex, sourceIndex);
-  parent.insertChild(insertAbove + 1, group);
+  parent.insertChild(Math.max(maskIndex, sourceIndex) + 1, group);
 
   if (options.removeMask) {
     mask.visible = false;
@@ -156,85 +238,10 @@ function createCoverGroup(
   figma.currentPage.selection = [group];
   figma.viewport.scrollAndZoomIntoView([group]);
   figma.notify(`Created ${rects.length} cover strips.`);
+  return group;
 }
 
-async function sendMaskPreview(): Promise<void> {
-  const rectangles = figma.currentPage.selection.filter(isRectangle);
-
-  if (rectangles.length === 0) {
-    figma.ui.postMessage({
-      type: "mask-preview",
-      status: "none",
-      message: "Select your mask rectangle",
-    });
-    return;
-  }
-
-  if (rectangles.length > 1) {
-    figma.ui.postMessage({
-      type: "mask-preview",
-      status: "none",
-      message: "Select only one rectangle",
-    });
-    return;
-  }
-
-  const mask = rectangles[0];
-  const source = findSourceUnderMask(mask);
-
-  if (!source) {
-    figma.ui.postMessage({
-      type: "mask-preview",
-      status: "error",
-      message: "No layer found under the rectangle",
-    });
-    return;
-  }
-
-  const maskBounds = boundsFromNode(mask);
-  const sourceBounds = boundsFromNode(source);
-
-  if (!maskBounds || !sourceBounds) {
-    figma.ui.postMessage({
-      type: "mask-preview",
-      status: "error",
-      message: "Could not read layer bounds",
-    });
-    return;
-  }
-
-  try {
-    const bytes = await source.exportAsync({
-      format: "PNG",
-      constraint: { type: "WIDTH", value: 280 },
-    });
-
-    figma.ui.postMessage({
-      type: "mask-preview",
-      status: "ok",
-      maskName: mask.name,
-      maskBounds,
-      sourceBounds,
-      pngBytes: Array.from(bytes),
-    });
-  } catch {
-    figma.ui.postMessage({
-      type: "mask-preview",
-      status: "error",
-      message: "Could not load preview",
-    });
-  }
-}
-
-function scheduleMaskPreview(): void {
-  if (previewTimer) clearTimeout(previewTimer);
-  previewTimer = setTimeout(() => {
-    sendMaskPreview();
-  }, 200);
-}
-
-figma.on("selectionchange", scheduleMaskPreview);
-scheduleMaskPreview();
+figma.on("selectionchange", sendMaskPreview);
 
 async function runAutoCover(options: PluginOptions): Promise<void> {
   const resolved = resolveSelection();
@@ -256,7 +263,12 @@ async function runAutoCover(options: PluginOptions): Promise<void> {
   }
 
   const strips = generateStrips(maskBounds, options.orientation, options.stripCount);
-  pendingApply = { maskId: mask.id, sourceId: source.id, options };
+  pendingApply = {
+    maskId: mask.id,
+    sourceId: source.id,
+    pageId: figma.currentPage.id,
+    options,
+  };
 
   try {
     const bytes = await source.exportAsync({ format: "PNG" });
@@ -277,11 +289,16 @@ async function runAutoCover(options: PluginOptions): Promise<void> {
 }
 
 figma.ui.onmessage = async (msg: UiToMainMessage) => {
+  if (msg.type === "ui-ready") {
+    sendMaskPreview();
+    return;
+  }
+
   if (msg.type === "run") {
     const options: PluginOptions = {
-      orientation: msg.orientation ?? "vertical",
-      stripCount: Math.max(1, Math.min(100, msg.stripCount ?? 4)),
-      sampleEdge: msg.sampleEdge ?? "top",
+      orientation: msg.orientation ?? "horizontal",
+      stripCount: Math.max(1, Math.min(100, msg.stripCount ?? 10)),
+      useGradient: msg.useGradient !== false,
       sampleOffset: msg.sampleOffset ?? 2,
       smoothing: msg.smoothing ?? false,
       removeMask: msg.removeMask ?? true,
@@ -292,43 +309,53 @@ figma.ui.onmessage = async (msg: UiToMainMessage) => {
 
   if (msg.type === "sample-response") {
     const response = msg as SampleResponsePayload;
-    if (response.error) {
-      figma.notify(response.error, { error: true });
+
+    try {
+      if (response.error) {
+        figma.notify(response.error, { error: true });
+        pendingApply = null;
+        return;
+      }
+
+      if (!pendingApply) {
+        figma.notify("Session expired. Click AutoCover again.", { error: true });
+        return;
+      }
+
+      const page = await figma.getNodeByIdAsync(pendingApply.pageId);
+      if (page?.type === "PAGE") {
+        await figma.setCurrentPageAsync(page);
+      }
+
+      const maskNode = await figma.getNodeByIdAsync(pendingApply.maskId);
+      if (!maskNode || !isMaskNode(maskNode)) {
+        figma.notify("Mask layer was deleted. Run AutoCover again.", { error: true });
+        pendingApply = null;
+        return;
+      }
+
+      const storedSource = await figma.getNodeByIdAsync(pendingApply.sourceId);
+      const source =
+        storedSource && isSceneNode(storedSource) && canExport(storedSource)
+          ? storedSource
+          : findSourceUnderMask(maskNode);
+
+      if (!source) {
+        figma.notify("Could not find source layer.", { error: true });
+        pendingApply = null;
+        return;
+      }
+
+      const options = pendingApply.options;
+      createCoverStrips(maskNode, source, response.colors, options);
       pendingApply = null;
-      return;
-    }
-
-    if (!pendingApply) {
-      figma.notify("Session expired. Click AutoCover again.", { error: true });
-      return;
-    }
-
-    const mask = figma.getNodeById(pendingApply.maskId);
-    if (!mask || !isRectangle(mask)) {
-      figma.notify("Mask rectangle was deleted. Run AutoCover again.", { error: true });
+      figma.ui.postMessage({ type: "apply-done", message: "Cover strips created." });
+      sendMaskPreview();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create cover strips";
+      console.error("[AutoCover] sample-response failed", err);
+      figma.notify(message, { error: true });
       pendingApply = null;
-      return;
     }
-
-    const storedSource = figma.getNodeById(pendingApply.sourceId);
-    const source =
-      storedSource && isSceneNode(storedSource) && canExport(storedSource)
-        ? storedSource
-        : findSourceUnderMask(mask);
-
-    if (!source) {
-      figma.notify("Could not find source layer.", { error: true });
-      pendingApply = null;
-      return;
-    }
-
-    const maskBounds = boundsFromNode(mask);
-    if (!maskBounds) return;
-
-    const options = pendingApply.options;
-    const strips = generateStrips(maskBounds, options.orientation, options.stripCount);
-    createCoverGroup(mask, source, strips, response.colors, options);
-    pendingApply = null;
-    scheduleMaskPreview();
   }
 };
