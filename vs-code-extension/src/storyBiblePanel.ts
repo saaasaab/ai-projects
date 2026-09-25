@@ -1,7 +1,13 @@
 import * as vscode from "vscode";
 import { EntityStore } from "./entityStorage";
 import { renameEntityAcrossWorkspace } from "./rename";
-import { ENTITY_DEFS, ENTITY_TYPES, entityPrefix, type EntityType } from "./types";
+import {
+  ENTITY_DEFS,
+  ENTITY_TYPES,
+  entityPrefix,
+  isBraceSyntaxType,
+  type EntityType,
+} from "./types";
 
 export class StoryBiblePanelProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "semanticWriting.storyBible";
@@ -97,7 +103,7 @@ export class StoryBiblePanelProvider implements vscode.WebviewViewProvider {
   private getHtml(
     entities: Awaited<ReturnType<EntityStore["listEntities"]>>
   ): string {
-    const typeOptions = ENTITY_TYPES.map(
+    const typeOptions = ENTITY_TYPES.filter((t) => !isBraceSyntaxType(t)).map(
       (t) =>
         `<option value="${t}">${escapeHtml(ENTITY_DEFS[t].label)} (${entityPrefix(t)}:)</option>`
     ).join("");
@@ -193,7 +199,7 @@ export class StoryBiblePanelProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
   <h1>Story bible</h1>
-  <p class="muted">Type <code>C:</code> <code>L:</code> <code>R:</code> <code>I:</code> <code>E:</code> <code>O:</code> in your manuscript for autocomplete. Entities are stored locally in this workspace.</p>
+  <p class="muted">Type <code>C:</code> <code>L:</code> … for autocomplete. Use <code>N:</code> for inline notes <code>N:{like this}</code> (saved separately, not in the Story Bible).</p>
 
   <label for="type">Type</label>
   <select id="type">${typeOptions}</select>

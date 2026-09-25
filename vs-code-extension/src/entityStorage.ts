@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { ensureEntitiesRoot, entityReadmeUri, writeEntityReadme } from "./entityReadme";
 import type { Entity, EntityDatabase, EntityType } from "./types";
+import { isBraceSyntaxType, shouldAutoRegister } from "./types";
 
 const STORAGE_KEY = "semanticWriting.entities.v1";
 export const DEFAULT_STORY_BIBLE_PATH = ".semantic-writing/story-bible.json";
@@ -159,6 +160,9 @@ export class EntityStore implements vscode.Disposable {
 
   /** Create a Story Bible entry when a manuscript reference has no matching entity. */
   async ensureEntityFromReference(type: EntityType, displayName: string): Promise<Entity> {
+    if (!shouldAutoRegister(type)) {
+      throw new Error("This reference type is not auto-registered in the Story Bible.");
+    }
     const existing = await this.findByReference(type, displayName);
     if (existing) {
       await this.ensureEntityReadme(existing);
@@ -180,6 +184,7 @@ export class EntityStore implements vscode.Disposable {
   /** Backfill readme files for entities that only exist in story-bible.json. */
   async ensureReadmesForAllEntities(): Promise<void> {
     for (const entity of await this.listEntitiesRaw()) {
+      if (isBraceSyntaxType(entity.type)) continue;
       await this.ensureEntityReadme(entity);
     }
   }
@@ -215,6 +220,9 @@ export class EntityStore implements vscode.Disposable {
   }
 
   async createEntity(type: EntityType, displayName: string, notes = ""): Promise<Entity> {
+    if (isBraceSyntaxType(type)) {
+      throw new Error("Notes use N:{your text} in the manuscript — they are not stored in the Story Bible.");
+    }
     const trimmed = displayName.trim();
     if (!trimmed) throw new Error("Display name is required.");
     const now = new Date().toISOString();

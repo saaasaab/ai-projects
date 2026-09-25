@@ -1,12 +1,14 @@
 import * as vscode from "vscode";
 import { isEntityReadmeUri, openEntityReadme, parseEntityReadme } from "./entityReadme";
 import type { EntityStore } from "./entityStorage";
+import type { NotesStore } from "./notesStorage";
 import { findReferenceSpans } from "./referenceSyntax";
-import { entityPrefix } from "./types";
+import { entityPrefix, isBraceSyntaxType } from "./types";
 
 export function registerReferenceNavigation(
   context: vscode.ExtensionContext,
-  store: EntityStore
+  store: EntityStore,
+  notesStore: NotesStore
 ): void {
   context.subscriptions.push(
     vscode.window.onDidChangeTextEditorSelection(async (e) => {
@@ -21,6 +23,11 @@ export function registerReferenceNavigation(
       const spans = findReferenceSpans(editor.document.getText());
       const span = spans.find((s) => offset >= s.start && offset < s.end);
       if (!span) return;
+
+      if (isBraceSyntaxType(span.type)) {
+        await notesStore.openNoteAt(span.displayName, editor.document.uri, span.start);
+        return;
+      }
 
       const token = `${entityPrefix(span.type)}:${span.displayName}`;
       let entity = await store.findByReference(span.type, span.displayName);

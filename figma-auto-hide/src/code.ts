@@ -125,7 +125,7 @@ function resolveSelection(): { mask: MaskNode; source: SceneNode } | string {
 function logSelection(): void {
   const selection = [...figma.currentPage.selection];
 
-  console.log("[AutoCover] selection changed", {
+  console.log("[PatchWork] selection changed", {
     count: selection.length,
     nodes: selection.map((node) => ({
       id: node.id,
@@ -145,7 +145,7 @@ function sendMaskPreview(): void {
 
   if (!mask) {
     const count = figma.currentPage.selection.length;
-    console.log("[AutoCover] no valid mask", {
+    console.log("[PatchWork] no valid mask", {
       count,
       reason:
         count === 0
@@ -167,7 +167,7 @@ function sendMaskPreview(): void {
     return;
   }
 
-  console.log("[AutoCover] mask selected", {
+  console.log("[PatchWork] mask selected", {
     id: mask.id,
     name: mask.name,
     type: mask.type,
@@ -213,7 +213,7 @@ function createCoverStrips(
     if (!stripColor) continue;
 
     const rect = figma.createRectangle();
-    rect.name = `AutoCover Strip ${strip.index + 1}`;
+    rect.name = `PatchWork Strip ${strip.index + 1}`;
     rect.resize(strip.width, strip.height);
     rect.relativeTransform = stripRelativeTransform(mask, strip);
     rect.fills = fillsForStripColor(stripColor);
@@ -228,7 +228,7 @@ function createCoverStrips(
   }
 
   const group = figma.group(rects, parent);
-  group.name = "AutoCover";
+  group.name = "PatchWork";
   parent.insertChild(Math.max(maskIndex, sourceIndex) + 1, group);
 
   if (options.removeMask) {
@@ -243,7 +243,7 @@ function createCoverStrips(
 
 figma.on("selectionchange", sendMaskPreview);
 
-async function runAutoCover(options: PluginOptions): Promise<void> {
+async function runPatchWork(options: PluginOptions): Promise<void> {
   const resolved = resolveSelection();
   if (typeof resolved === "string") {
     figma.ui.postMessage({ type: "error", message: resolved });
@@ -303,7 +303,7 @@ figma.ui.onmessage = async (msg: UiToMainMessage) => {
       smoothing: msg.smoothing ?? false,
       removeMask: msg.removeMask ?? true,
     };
-    await runAutoCover(options);
+    await runPatchWork(options);
     return;
   }
 
@@ -318,7 +318,7 @@ figma.ui.onmessage = async (msg: UiToMainMessage) => {
       }
 
       if (!pendingApply) {
-        figma.notify("Session expired. Click AutoCover again.", { error: true });
+        figma.notify("Session expired. Click PatchWork again.", { error: true });
         return;
       }
 
@@ -329,7 +329,7 @@ figma.ui.onmessage = async (msg: UiToMainMessage) => {
 
       const maskNode = await figma.getNodeByIdAsync(pendingApply.maskId);
       if (!maskNode || !isMaskNode(maskNode)) {
-        figma.notify("Mask layer was deleted. Run AutoCover again.", { error: true });
+        figma.notify("Mask layer was deleted. Run PatchWork again.", { error: true });
         pendingApply = null;
         return;
       }
@@ -353,7 +353,7 @@ figma.ui.onmessage = async (msg: UiToMainMessage) => {
       sendMaskPreview();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create cover strips";
-      console.error("[AutoCover] sample-response failed", err);
+      console.error("[PatchWork] sample-response failed", err);
       figma.notify(message, { error: true });
       pendingApply = null;
     }

@@ -33,6 +33,10 @@
       {
         "command": "semanticWriting.openStoryBibleFile",
         "title": "Semantic Writing: Open Story Bible File"
+      },
+      {
+        "command": "semanticWriting.openNotesFile",
+        "title": "Semantic Writing: Open Notes File"
       }
     ],
     "configurationDefaults": {
@@ -94,6 +98,16 @@
           "type": "boolean",
           "default": true,
           "description": "When enabled, typed references like C:Clara or [[L:LOC]] are added to the Story Bible automatically."
+        },
+        "semanticWriting.notesIndexPath": {
+          "type": "string",
+          "default": ".semantic-writing/notes.json",
+          "description": "Path (relative to workspace) for the notes index (source file and line per note)."
+        },
+        "semanticWriting.notesFilePath": {
+          "type": "string",
+          "default": ".semantic-writing/notes.md",
+          "description": "Single markdown file containing all N:{...} notes with links back to each manuscript location."
         }
       }
     }

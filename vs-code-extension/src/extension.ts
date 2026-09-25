@@ -7,12 +7,15 @@ import { EntityDecorationManager } from "./decorations";
 import { EntityStore } from "./entityStorage";
 import { renameEntityAcrossWorkspace } from "./rename";
 import { referenceInsertText } from "./referenceSyntax";
+import { registerNoteBraceAutoinsert } from "./noteBraces";
+import { NotesStore, registerNotesSync } from "./notesStorage";
 import { registerReferenceNavigation } from "./referenceNavigation";
 import { StoryBiblePanelProvider } from "./storyBiblePanel";
 import { registerUsageTracking } from "./usageTracker";
 import { ENTITY_DEFS, ENTITY_TYPES } from "./types";
 
 let store: EntityStore;
+let notesStore: NotesStore;
 let decorations: EntityDecorationManager;
 let storyBible: StoryBiblePanelProvider;
 
@@ -28,6 +31,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     store = new EntityStore(context);
   }
 
+  notesStore = new NotesStore();
+  await notesStore.initialize();
+
   decorations = new EntityDecorationManager(store);
   storyBible = new StoryBiblePanelProvider(context.extensionUri, store);
 
@@ -37,15 +43,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   ];
 
   registerSuggestOnPrefix(context);
-  registerReferenceNavigation(context, store);
+  registerNoteBraceAutoinsert(context);
+  registerReferenceNavigation(context, store, notesStore);
   registerUsageTracking(context, store, () => {
     void storyBible.refresh();
     const ed = vscode.window.activeTextEditor;
     if (ed) void decorations.refresh(ed);
   });
+  registerNotesSync(context, notesStore);
 
   context.subscriptions.push(
     store,
+    notesStore,
     decorations,
     vscode.languages.registerCompletionItemProvider(
       completionSelector,
@@ -57,6 +66,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand("semanticWriting.openStoryBible", async () => {
       await vscode.commands.executeCommand("workbench.view.explorer");
       await vscode.commands.executeCommand(`${StoryBiblePanelProvider.viewType}.focus`);
+    }),
+    vscode.commands.registerCommand("semanticWriting.openNotesFile", async () => {
+      await notesStore.openNotesFile();
     }),
     vscode.commands.registerCommand("semanticWriting.openStoryBibleFile", async () => {
       const uri = store.getStoryBibleUri();

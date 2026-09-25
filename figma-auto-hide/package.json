@@ -1,7 +1,7 @@
 {
-  "name": "figma-autocover",
+  "name": "figma-patchwork",
   "version": "1.0.0",
-  "description": "Figma plugin that covers content with color-sampled strips",
+  "description": "Figma plugin that patches areas with color-sampled strips",
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc -b",

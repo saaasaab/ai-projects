@@ -10,6 +10,7 @@ const CHIP_COLORS: Record<EntityType, { bg: string; border: string }> = {
   idea: { bg: "#e9c46a55", border: "#e9c46acc" },
   event: { bg: "#e76f5166", border: "#e76f51cc" },
   organization: { bg: "#457b9d66", border: "#457b9dcc" },
+  notes: { bg: "#8b8b8b44", border: "#a0a0a0aa" },
 };
 
 const CHIP_COLORS_VIVID: Record<EntityType, { bg: string; border: string }> = {
@@ -19,6 +20,7 @@ const CHIP_COLORS_VIVID: Record<EntityType, { bg: string; border: string }> = {
   idea: { bg: "#e9c46a99", border: "#e9c46a" },
   event: { bg: "#e76f5199", border: "#e76f51" },
   organization: { bg: "#457b9d99", border: "#457b9d" },
+  notes: { bg: "#9e9e9e88", border: "#bdbdbd" },
 };
 
 function entityLookupKey(type: EntityType, displayName: string): string {
@@ -110,11 +112,14 @@ export class EntityDecorationManager implements vscode.Disposable {
         const label = span.displayName;
         const entity = entityByKey.get(entityLookupKey(span.type, span.displayName));
 
-        const hover = new vscode.MarkdownString(
-          `**${ENTITY_DEFS[span.type].label}** · ${label}` +
-            (entity ? "" : " _(not in Story Bible)_") +
-            `\n\nClick to open readme.`
-        );
+      const isNote = span.type === "notes";
+      const hover = new vscode.MarkdownString(
+        isNote
+          ? `**${ENTITY_DEFS.notes.label}** · ${label || "(empty)"}\n\nClick to open note file.`
+          : `**${ENTITY_DEFS[span.type].label}** · ${label}` +
+              (entity ? "" : " _(not in Story Bible)_") +
+              `\n\nClick to open readme.`
+      );
         hover.isTrusted = true;
 
         byType.get(span.type)?.push({ range, hoverMessage: hover });

@@ -41,7 +41,7 @@ const MAIN_HELP_HTML = `
   </div>
   <div class="help-step">
     <div class="help-step-title">3. Apply</div>
-    <p class="help-step-text">Click AutoCover.</p>
+    <p class="help-step-text">Click PatchWork.</p>
   </div>
 `;
 
@@ -292,7 +292,7 @@ async function handleSampleRequest(payload: SampleRequestPayload): Promise<void>
         });
       }
 
-      console.log(`[AutoCover] Strip ${strip.index + 1}`, {
+      console.log(`[PatchWork] Strip ${strip.index + 1}`, {
         start: formatRgb(start),
         end: formatRgb(end),
         fill: payload.options.useGradient ? "gradient" : formatRgb(averageRgb(start, end)),

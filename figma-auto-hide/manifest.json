@@ -1,6 +1,6 @@
 {
-  "name": "AutoCover",
-  "id": "autocover-pixel-sampler",
+  "name": "PatchWork",
+  "id": "1639161289574682713",
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/ui.html",

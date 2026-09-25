@@ -3,7 +3,9 @@ import {
   entityPrefix,
   entityPrefixPattern,
   entityTypeFromPrefix,
+  isBraceSyntaxType,
   PLAIN_ENTITY_NAME,
+  standardEntityPrefixPattern,
   type Entity,
   type EntityType,
 } from "./types";
@@ -16,13 +18,21 @@ export function getReferenceSyntax(): ReferenceSyntax {
   return v === "plain" ? "plain" : "bracket";
 }
 
-/** Bracket form stored in the manuscript: `[[C:Claire]]`. */
+/** Bracket form stored in the manuscript: `[[C:Claire]]` or `[[N:{text}]]`. */
 export function bracketReference(type: EntityType, displayName: string): string {
+  if (isBraceSyntaxType(type)) {
+    const body = displayName.startsWith("{") ? displayName : `{${displayName}}`;
+    return `[[${entityPrefix(type)}:${body}]]`;
+  }
   return `[[${entityPrefix(type)}:${displayName}]]`;
 }
 
-/** Plain form: `C:Claire`. */
+/** Plain form: `C:Claire` or `N:{note text}`. */
 export function plainToken(type: EntityType, displayName: string): string {
+  if (isBraceSyntaxType(type)) {
+    const body = displayName.startsWith("{") ? displayName : `{${displayName}}`;
+    return `${entityPrefix(type)}:${body}`;
+  }
   return `${entityPrefix(type)}:${displayName}`;
 }
 
@@ -32,17 +42,31 @@ export function referenceInsertText(entity: Entity): string {
     : bracketReference(entity.type, entity.displayName);
 }
 
+/** Inline note token: `N:{content}`. Content may not contain `}`. */
+export function noteToken(content: string): string {
+  return `N:{${content}}`;
+}
+
 const BRACKET_RE = new RegExp(
   `\\[\\[(${entityPrefixPattern()}):([^\\]]+)\\]\\]`,
   "gi"
 );
-const PLAIN_RE = new RegExp(`\\b(${entityPrefixPattern()}):(${PLAIN_ENTITY_NAME})`, "g");
+const PLAIN_RE = new RegExp(
+  `\\b(${standardEntityPrefixPattern()}):(${PLAIN_ENTITY_NAME})`,
+  "g"
+);
+const NOTE_PLAIN_RE = /\bN:\{([^}]*)\}/g;
+const NOTE_BRACKET_RE = /\[\[N:\{([^}]*)\}\]\]/gi;
 
 export interface ReferenceSpan {
   start: number;
   end: number;
   type: EntityType;
   displayName: string;
+}
+
+function overlapsSpan(spans: ReferenceSpan[], index: number, end: number): boolean {
+  return spans.some((s) => index >= s.start && index < s.end);
 }
 
 export function findReferenceSpans(text: string): ReferenceSpan[] {
@@ -53,6 +77,7 @@ export function findReferenceSpans(text: string): ReferenceSpan[] {
   while ((m = BRACKET_RE.exec(text)) !== null) {
     const type = entityTypeFromPrefix(m[1]);
     if (!type) continue;
+    if (isBraceSyntaxType(type)) continue;
     spans.push({
       start: m.index,
       end: m.index + m[0].length,
@@ -61,18 +86,40 @@ export function findReferenceSpans(text: string): ReferenceSpan[] {
     });
   }
 
+  NOTE_BRACKET_RE.lastIndex = 0;
+  while ((m = NOTE_BRACKET_RE.exec(text)) !== null) {
+    const overlaps = overlapsSpan(spans, m.index, m.index + m[0].length);
+    if (overlaps) continue;
+    spans.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      type: "notes",
+      displayName: m[1],
+    });
+  }
+
   PLAIN_RE.lastIndex = 0;
   while ((m = PLAIN_RE.exec(text)) !== null) {
     const type = entityTypeFromPrefix(m[1]);
     if (!type) continue;
     const name = m[2];
-    const overlaps = spans.some((s) => m!.index >= s.start && m!.index < s.end);
-    if (overlaps) continue;
+    if (overlapsSpan(spans, m.index, m.index + m[1].length + 1 + name.length)) continue;
     spans.push({
       start: m.index,
       end: m.index + m[1].length + 1 + name.length,
       type,
       displayName: name,
+    });
+  }
+
+  NOTE_PLAIN_RE.lastIndex = 0;
+  while ((m = NOTE_PLAIN_RE.exec(text)) !== null) {
+    if (overlapsSpan(spans, m.index, m.index + m[0].length)) continue;
+    spans.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      type: "notes",
+      displayName: m[1],
     });
   }
 
@@ -98,6 +145,7 @@ export function renameReferenceText(
   oldName: string,
   newName: string
 ): string {
+  if (isBraceSyntaxType(type)) return text;
   const bracketRe = bracketPatternForRename(type, oldName);
   const plainRe = plainPatternForRename(type, oldName);
   const syntax = getReferenceSyntax();

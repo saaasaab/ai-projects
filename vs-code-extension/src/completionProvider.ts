@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { EntityStore } from "./entityStorage";
 import { getPrefixMatch } from "./prefix";
 import { referenceInsertText } from "./referenceSyntax";
-import { ENTITY_DEFS, entityPrefix } from "./types";
+import { ENTITY_DEFS, entityPrefix, isBraceSyntaxType } from "./types";
 
 function completionFilterToken(type: Parameters<EntityStore["searchEntitiesByPrefix"]>[0], displayName: string): string {
   return `${entityPrefix(type)}:${displayName}`;
@@ -22,7 +22,7 @@ export class EntityCompletionProvider implements vscode.CompletionItemProvider {
   ): Promise<vscode.CompletionItem[] | undefined> {
     const line = document.lineAt(position.line);
     const match = getPrefixMatch(line.text, position.character);
-    if (!match) return undefined;
+    if (!match || isBraceSyntaxType(match.type)) return undefined;
 
     const entities = await this.store.searchEntitiesByPrefix(match.type, match.query);
     if (entities.length === 0) {

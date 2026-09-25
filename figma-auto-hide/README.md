@@ -1,4 +1,4 @@
-# AutoCover (Figma Plugin)
+# PatchWork (Figma Plugin)
 
 Automatically hide text or numbers on an image by splitting a mask rectangle into color-matched strips. Each strip’s fill is sampled from pixels just outside the mask edge on the underlying image—similar to the before/after examples in `autohide.md`.
 
@@ -21,8 +21,8 @@ yarn build
 1. Place an image (or exportable frame/group) on the canvas.
 2. Draw a **rectangle** over the area to hide (e.g. over “8920”).
 3. Select **only the mask rectangle** (it must overlap an image or exportable layer beneath it).
-4. Open **AutoCover**, set options, click **AutoCover**.
-5. The plugin creates a group named **AutoCover** with strips **AutoCover Strip 1…N**.
+4. Open **PatchWork**, set options, click **PatchWork**.
+5. The plugin creates a group named **PatchWork** with strips **PatchWork Strip 1…N**.
 
 ## Options
 

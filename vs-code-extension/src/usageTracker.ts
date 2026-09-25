@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { findReferenceSpans } from "./referenceSyntax";
 import type { EntityStore } from "./entityStorage";
+import { shouldAutoRegister } from "./types";
 
 const MANUSCRIPT_GLOB = "**/*.{md,markdown,txt,text}";
 const MANUSCRIPT_EXCLUDE = "{**/node_modules/**,**/.git/**,**/dist/**,**/.semantic-writing/**}";
@@ -32,6 +33,7 @@ export async function syncStoryBibleFromManuscripts(
       const doc = await vscode.workspace.openTextDocument(uri);
       const spans = findReferenceSpans(doc.getText());
       for (const span of spans) {
+        if (!shouldAutoRegister(span.type)) continue;
         const before = await store.findByReference(span.type, span.displayName);
         const entity = await store.ensureEntityFromReference(span.type, span.displayName);
         if (!before) result.createdEntities = true;

@@ -1,0 +1,1564 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="theme-color" content="#14191c">
+    <meta name="description"
+        content="A standalone overhead truck-and-trailer parking game. Six progressive yards, articulated reversing physics, keyboard and touch controls. Works offline.">
+    <title>Yard Shift — Trailer Parking</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #101518;
+            --panel: #1a2125;
+            --line: #344045;
+            --text: #f0f3ef;
+            --muted: #b0b9b8;
+            --amber: #f3b64b;
+            --teal: #76dbbe;
+            --red: #ff8271
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font: 16px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif
+        }
+
+        button,
+        input {
+            font: inherit
+        }
+
+        button {
+            cursor: pointer;
+            color: inherit;
+            background: #263136;
+            border: 1px solid #425056;
+            border-radius: 7px;
+            padding: 9px 13px;
+            font-size: 14px;
+            font-weight: 650;
+            transition: background .15s, border-color .15s
+        }
+
+        button:hover {
+            background: #334248;
+            border-color: #79878a
+        }
+
+        button:focus-visible,
+        input:focus-visible,
+        canvas:focus-visible {
+            outline: 3px solid var(--amber);
+            outline-offset: 3px
+        }
+
+        button.primary {
+            background: var(--amber);
+            border-color: var(--amber);
+            color: #1b201e
+        }
+
+        button.primary:hover {
+            background: #ffca6c
+        }
+
+        button:disabled {
+            opacity: .4;
+            cursor: default
+        }
+
+        button.active,
+        button[aria-pressed=true] {
+            color: var(--amber);
+            border-color: var(--amber);
+            background: #3c3322
+        }
+
+        kbd {
+            display: inline-block;
+            min-width: 25px;
+            padding: 2px 6px;
+            border: 1px solid #5c686d;
+            border-bottom-width: 3px;
+            border-radius: 4px;
+            font: 12px/1.35 ui-monospace, monospace;
+            text-align: center;
+            color: #f0f3ef;
+            background: #2a3439
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
+            margin: 0
+        }
+
+        button svg {
+            width: 18px;
+            height: 18px;
+            vertical-align: middle;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8
+        }
+
+        header {
+            height: 77px;
+            padding: 0 26px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 1px solid var(--line)
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-right: auto
+        }
+
+        .brand-mark {
+            width: 36px;
+            height: 36px;
+            display: grid;
+            place-items: center;
+            border: 2px solid var(--amber);
+            color: var(--amber);
+            font: 900 23px/1 ui-monospace, monospace;
+            transform: skew(-8deg)
+        }
+
+        h1 {
+            font-size: 23px;
+            letter-spacing: 3px;
+            font-weight: 850
+        }
+
+        .brand small {
+            font-size: 12px;
+            letter-spacing: 2px;
+            color: var(--muted)
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px
+        }
+
+        .offline {
+            color: var(--muted);
+            font: 12px ui-monospace, monospace;
+            letter-spacing: 1px;
+            margin-right: 12px
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 282px;
+            height: calc(100dvh - 77px);
+            min-height: 580px;
+            max-width: 1900px;
+            margin: auto
+        }
+
+        .play {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            position: relative
+        }
+
+        .mission {
+            padding: 16px 23px 14px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border-bottom: 1px solid var(--line);
+            min-height: 78px
+        }
+
+        .level-number {
+            background: var(--amber);
+            color: #1a2020;
+            font: 750 18px ui-monospace, monospace;
+            padding: 7px 9px;
+            border-radius: 4px
+        }
+
+        .mission h2 {
+            font-size: 19px;
+            letter-spacing: .3px
+        }
+
+        .mission p {
+            font-size: 14px;
+            color: var(--muted)
+        }
+
+        .mission .difficulty {
+            margin-left: auto;
+            font: 12px ui-monospace, monospace;
+            color: var(--teal);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            white-space: nowrap
+        }
+
+        .arena {
+            position: relative;
+            flex: 1;
+            min-height: 310px;
+            overflow: hidden;
+            background: #20282b
+        }
+
+        .arena canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            outline-offset: -5px
+        }
+
+        .map-tag {
+            position: absolute;
+            left: 20px;
+            top: 15px;
+            pointer-events: none;
+            font: 12px ui-monospace, monospace;
+            letter-spacing: 1.5px;
+            color: #c3cccc
+        }
+
+        .map-tag span {
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            background: var(--teal);
+            margin-right: 8px
+        }
+
+        .map-bottom {
+            position: absolute;
+            bottom: 12px;
+            left: 18px;
+            right: 18px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            color: #c1cac8;
+            font: 12px ui-monospace, monospace
+        }
+
+        .map-bottom span {
+            background: #172023df;
+            padding: 5px 8px;
+            border-radius: 3px
+        }
+
+        .toast {
+            position: absolute;
+            left: 50%;
+            top: 49px;
+            transform: translateX(-50%);
+            background: #171e22f2;
+            border: 1px solid var(--amber);
+            border-radius: 8px;
+            padding: 10px 15px;
+            width: max-content;
+            max-width: 90%;
+            font-size: 14px;
+            text-align: center;
+            opacity: 0;
+            transition: opacity .15s;
+            pointer-events: none;
+            z-index: 2
+        }
+
+        .toast.show {
+            opacity: 1
+        }
+
+        .parking-progress {
+            position: absolute;
+            left: 50%;
+            bottom: 45px;
+            transform: translateX(-50%);
+            background: #172724eb;
+            border: 1px solid var(--teal);
+            padding: 10px 18px;
+            border-radius: 7px;
+            min-width: 240px;
+            text-align: center;
+            display: none
+        }
+
+        .parking-progress.visible {
+            display: block
+        }
+
+        .parking-progress strong {
+            color: var(--teal);
+            font-size: 14px
+        }
+
+        .progress-track {
+            height: 4px;
+            background: #34514a;
+            margin-top: 7px;
+            border-radius: 3px;
+            overflow: hidden
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--teal);
+            width: 0
+        }
+
+        .key-strip {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            border-top: 1px solid var(--line);
+            background: #172024;
+            font-size: 13px;
+            color: var(--muted)
+        }
+
+        .key-strip>span {
+            white-space: nowrap
+        }
+
+        .sidebar {
+            background: var(--panel);
+            border-left: 1px solid var(--line);
+            padding: 22px 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px
+        }
+
+        .eyebrow {
+            font: 12px/1.4 ui-monospace, monospace;
+            letter-spacing: 1.6px;
+            color: var(--muted);
+            text-transform: uppercase
+        }
+
+        .drive-readout {
+            display: flex;
+            gap: 17px;
+            align-items: center;
+            margin-top: 10px
+        }
+
+        .gear {
+            font: 750 39px/1 ui-monospace, monospace;
+            border: 1px solid var(--line);
+            width: 66px;
+            height: 66px;
+            border-radius: 7px;
+            display: grid;
+            place-items: center;
+            color: var(--amber);
+            background: #131c20
+        }
+
+        .speed {
+            font: 600 46px/1 ui-monospace, monospace;
+            letter-spacing: -2px
+        }
+
+        .speed small {
+            font: 12px ui-monospace, monospace;
+            color: var(--muted);
+            letter-spacing: 0
+        }
+
+        .status-line {
+            font-size: 13px;
+            color: var(--muted);
+            margin-top: 8px;
+            min-height: 19px
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--line);
+            flex-shrink: 0
+        }
+
+        .steer-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 9px
+        }
+
+        .steer-label output {
+            font: 14px ui-monospace, monospace
+        }
+
+        .steering-track {
+            position: relative;
+            height: 9px;
+            background: #11191d;
+            border-radius: 10px;
+            border: 1px solid #344147
+        }
+
+        .steering-track:after {
+            content: "";
+            position: absolute;
+            top: -3px;
+            bottom: -3px;
+            width: 1px;
+            background: #7d8a8c;
+            left: 50%
+        }
+
+        .steering-dot {
+            position: absolute;
+            height: 15px;
+            width: 7px;
+            border-radius: 3px;
+            top: -4px;
+            left: 50%;
+            margin-left: -3px;
+            background: var(--amber);
+            z-index: 1
+        }
+
+        .steering-ends {
+            display: flex;
+            justify-content: space-between;
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 7px
+        }
+
+        .angle-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline
+        }
+
+        .angle-number {
+            font: 650 26px ui-monospace, monospace;
+            color: var(--teal)
+        }
+
+        .angle-bar {
+            height: 8px;
+            position: relative;
+            background: linear-gradient(90deg, #60b99e 0 40%, #e9b04c 40% 74%, #e67966 74%);
+            border-radius: 4px;
+            margin: 10px 0 7px
+        }
+
+        .angle-marker {
+            position: absolute;
+            left: 0;
+            top: -3px;
+            height: 14px;
+            width: 4px;
+            background: white;
+            border: 1px solid #1a2327;
+            box-shadow: 0 0 0 1px #fff7
+        }
+
+        .angle-scale {
+            display: flex;
+            justify-content: space-between;
+            color: var(--muted);
+            font: 12px ui-monospace, monospace
+        }
+
+        .angle-advice {
+            font-size: 14px;
+            margin-top: 9px;
+            min-height: 21px
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px
+        }
+
+        .stats strong {
+            display: block;
+            font: 550 24px ui-monospace, monospace;
+            margin-top: 6px
+        }
+
+        .coach {
+            border: 1px solid #475347;
+            border-left: 3px solid var(--amber);
+            border-radius: 0 6px 6px 0;
+            padding: 14px;
+            background: #252a24
+        }
+
+        .coach .eyebrow {
+            color: var(--amber);
+            margin-bottom: 7px
+        }
+
+        .coach p {
+            font-size: 14px;
+            line-height: 1.6
+        }
+
+        .objective {
+            font-size: 14px;
+            color: var(--muted)
+        }
+
+        .objective b {
+            color: var(--teal);
+            font-weight: 600
+        }
+
+        .tutorial-list {
+            list-style: none;
+            padding: 0;
+            margin: 12px 0 0;
+            display: grid;
+            gap: 6px;
+            font-size: 13px
+        }
+
+        .tutorial-list li:before {
+            content: "○";
+            margin-right: 8px;
+            color: var(--muted)
+        }
+
+        .tutorial-list li.done {
+            color: var(--teal)
+        }
+
+        .tutorial-list li.done:before {
+            content: "✓";
+            color: var(--teal)
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            display: flex;
+            gap: 8px
+        }
+
+        .sidebar-footer button {
+            flex: 1
+        }
+
+        .touch-controls {
+            display: none;
+            gap: 15px;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #141d21;
+            border-top: 1px solid var(--line);
+            user-select: none;
+            -webkit-user-select: none
+        }
+
+        .touch-group {
+            display: flex;
+            gap: 8px
+        }
+
+        .touch-controls button {
+            min-width: 59px;
+            min-height: 52px;
+            touch-action: none;
+            font-size: 20px
+        }
+
+        .touch-controls .pedal {
+            font: 700 13px system-ui;
+            min-width: 67px
+        }
+
+        .touch-controls .pressed {
+            background: var(--amber);
+            color: #151c20;
+            border-color: var(--amber)
+        }
+
+        .touch-controls .brake {
+            color: var(--red)
+        }
+
+        dialog {
+            color: var(--text);
+            background: #1c262b;
+            border: 1px solid #536268;
+            border-radius: 14px;
+            padding: 0;
+            max-width: 640px;
+            width: calc(100% - 30px);
+            max-height: calc(100dvh - 40px);
+            box-shadow: 0 24px 100px #0008
+        }
+
+        dialog::backdrop {
+            background: #070e12c9;
+            backdrop-filter: blur(5px)
+        }
+
+        .dialog-body {
+            padding: 28px
+        }
+
+        .dialog-head {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            margin-bottom: 23px
+        }
+
+        .dialog-head h2 {
+            font-size: 26px;
+            line-height: 1.2;
+            letter-spacing: -.5px
+        }
+
+        .dialog-head .eyebrow {
+            color: var(--amber);
+            margin-bottom: 8px
+        }
+
+        .close {
+            margin-left: auto;
+            padding: 5px 11px;
+            font-size: 23px;
+            background: transparent;
+            border-color: #4d5c62
+        }
+
+        .help-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px
+        }
+
+        .help-grid p {
+            font-size: 14px;
+            color: var(--muted);
+            margin-top: 5px
+        }
+
+        .help-grid strong {
+            font-size: 15px
+        }
+
+        .help-notes {
+            border-top: 1px solid var(--line);
+            padding-top: 20px;
+            display: grid;
+            gap: 12px;
+            font-size: 15px;
+            color: #d2dad8
+        }
+
+        .help-notes b {
+            color: var(--amber)
+        }
+
+        .settings {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 22px;
+            padding-top: 18px;
+            border-top: 1px solid var(--line);
+            font-size: 14px
+        }
+
+        .settings label {
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .settings input {
+            accent-color: var(--amber);
+            width: 17px;
+            height: 17px
+        }
+
+        .physics-note {
+            margin-top: 22px;
+            font-size: 12px;
+            line-height: 1.7;
+            color: var(--muted)
+        }
+
+        a {
+            color: var(--teal)
+        }
+
+        .level-grid {
+            display: grid;
+            gap: 9px
+        }
+
+        .level-card {
+            display: grid;
+            grid-template-columns: 38px 1fr auto;
+            align-items: center;
+            gap: 10px;
+            text-align: left;
+            padding: 14px
+        }
+
+        .level-card .num {
+            font: 600 20px ui-monospace, monospace;
+            color: var(--amber)
+        }
+
+        .level-card strong {
+            display: block;
+            font-size: 16px
+        }
+
+        .level-card small {
+            font-size: 12px;
+            color: var(--muted);
+            font-weight: 400
+        }
+
+        .level-card .medal {
+            color: var(--teal);
+            font: 13px ui-monospace, monospace
+        }
+
+        .success {
+            text-align: center
+        }
+
+        .success h2 {
+            font-size: 35px;
+            letter-spacing: -1px;
+            margin: 10px 0
+        }
+
+        .success p {
+            color: var(--muted);
+            font-size: 15px
+        }
+
+        .success .stamp {
+            display: inline-grid;
+            place-items: center;
+            width: 67px;
+            height: 67px;
+            border: 2px solid var(--teal);
+            border-radius: 50%;
+            font-size: 34px;
+            color: var(--teal);
+            margin: 4px 0 12px
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            padding: 20px 0;
+            margin: 22px 0;
+            border-top: 1px solid var(--line);
+            border-bottom: 1px solid var(--line)
+        }
+
+        .result-grid strong {
+            display: block;
+            font: 650 28px ui-monospace, monospace;
+            color: var(--text)
+        }
+
+        .result-grid span {
+            font-size: 12px;
+            color: var(--muted)
+        }
+
+        .dialog-actions {
+            display: flex;
+            gap: 9px;
+            justify-content: center;
+            margin-top: 24px
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0
+        }
+
+        @media(pointer:coarse) {
+            .touch-controls {
+                display: flex
+            }
+
+            .key-strip {
+                display: none
+            }
+        }
+
+        @media(max-width:1050px) {
+            .app {
+                grid-template-columns: minmax(0, 1fr) 245px
+            }
+
+            .sidebar {
+                padding: 18px 15px;
+                gap: 16px
+            }
+
+            .key-strip {
+                font-size: 12px;
+                gap: 6px;
+                padding: 12px
+            }
+
+            .key-strip .extra {
+                display: none
+            }
+
+            .offline {
+                display: none
+            }
+        }
+
+        @media(max-width:780px) {
+            header {
+                height: 65px;
+                padding: 0 14px;
+                gap: 8px
+            }
+
+            h1 {
+                font-size: 18px;
+                letter-spacing: 2px
+            }
+
+            .brand small {
+                font-size: 10px
+            }
+
+            .brand-mark {
+                width: 29px;
+                height: 29px;
+                font-size: 20px
+            }
+
+            .header-actions button {
+                padding: 8px 10px
+            }
+
+            .app {
+                height: auto;
+                min-height: calc(100dvh - 65px);
+                display: flex;
+                flex-direction: column
+            }
+
+            .mission {
+                padding: 12px 14px;
+                min-height: 71px
+            }
+
+            .mission h2 {
+                font-size: 16px
+            }
+
+            .mission p {
+                font-size: 12px
+            }
+
+            .difficulty {
+                display: none
+            }
+
+            .arena {
+                height: 58dvh;
+                min-height: 310px;
+                flex: auto
+            }
+
+            .sidebar {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 16px;
+                border-left: none;
+                border-top: 1px solid var(--line);
+                padding: 18px
+            }
+
+            .sidebar .divider,
+            .sidebar .steer-section,
+            .sidebar-footer {
+                display: none
+            }
+
+            .drive-readout {
+                margin-top: 5px
+            }
+
+            .speed {
+                font-size: 36px
+            }
+
+            .gear {
+                font-size: 30px;
+                width: 50px;
+                height: 50px
+            }
+
+            .coach {
+                grid-column: 1/-1
+            }
+
+            .objective {
+                grid-column: 1/-1
+            }
+
+            .stats {
+                grid-column: 1/-1;
+                display: flex;
+                gap: 30px
+            }
+
+            .stats>div {
+                display: flex;
+                gap: 12px;
+                align-items: center
+            }
+
+            .stats strong {
+                margin: 0;
+                font-size: 20px
+            }
+
+            .key-strip {
+                flex-wrap: wrap;
+                justify-content: center
+            }
+
+            .touch-controls {
+                display: flex
+            }
+
+            .map-tag,
+            .map-bottom {
+                font-size: 10px
+            }
+
+            .map-tag {
+                left: 12px;
+                top: 10px
+            }
+
+            .map-bottom {
+                left: 10px;
+                right: 10px
+            }
+
+            .tutorial-list {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px
+            }
+
+            .brand {
+                gap: 8px
+            }
+
+            .header-actions {
+                gap: 5px
+            }
+        }
+
+        @media(max-height:610px) and (min-width:781px) {
+            .app {
+                min-height: 510px
+            }
+
+            .sidebar {
+                gap: 12px
+            }
+
+            .sidebar .divider {
+                display: none
+            }
+
+            .coach {
+                padding: 10px
+            }
+
+            .mission {
+                min-height: 62px;
+                padding: 10px 18px
+            }
+        }
+
+        @media(max-width:420px) {
+            .brand small {
+                display: none
+            }
+
+            h1 {
+                font-size: 16px
+            }
+
+            .help-grid {
+                grid-template-columns: 1fr
+            }
+
+            .touch-controls {
+                gap: 6px;
+                padding: 10px 8px
+            }
+
+            .touch-controls button {
+                min-width: 48px;
+                padding: 8px
+            }
+
+            .touch-controls .pedal {
+                min-width: 59px
+            }
+
+            .touch-group {
+                gap: 5px
+            }
+
+            .dialog-body {
+                padding: 22px
+            }
+
+            .header-actions button {
+                font-size: 12px
+            }
+        }
+
+        @media(prefers-reduced-motion:reduce) {
+            * {
+                transition: none !important
+            }
+
+            dialog::backdrop {
+                backdrop-filter: none
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="brand">
+            <div class="brand-mark" aria-hidden="true">Y</div>
+            <div>
+                <h1>YARD SHIFT</h1><small>TRAILER PARKING</small>
+            </div>
+        </div>
+        <span class="offline">SINGLE FILE / OFFLINE</span>
+        <div class="header-actions"><button id="levelsBtn">Levels <span id="completedCount">0/6</span></button><button
+                id="helpBtn">Controls <span aria-hidden="true">?</span></button></div>
+    </header>
+    <main class="app">
+        <section class="play" aria-label="Parking game">
+            <div class="mission"><span class="level-number" id="levelNumber">01</span>
+                <div>
+                    <h2 id="levelTitle">First reverse</h2>
+                    <p id="levelSubtitle">An open yard. One straight bay. Get a feel for the rig.</p>
+                </div><span class="difficulty" id="difficulty">Training</span>
+            </div>
+            <div class="arena" id="arena">
+                <canvas id="game" tabindex="0"
+                    aria-label="Overhead truck parking yard. Arrow keys or W A S D to drive, Space to brake. Park the trailer in the green bay."
+                    aria-describedby="objective">Your browser needs HTML canvas to run this game.</canvas>
+                <div class="map-tag"><span></span><span id="yardName"
+                        style="background:none;width:auto;height:auto;margin:0">TRAINING YARD</span> / OVERHEAD</div>
+                <div class="toast" id="toast" role="status" aria-live="polite"></div>
+                <div class="parking-progress" id="parkProgress"><strong id="parkLabel">Hold still to finish</strong>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="parkFill"></div>
+                    </div>
+                </div>
+                <div class="map-bottom"><span>GREEN = TRAILER BAY</span><span id="guideStatus">G · PATH GUIDE ON</span>
+                </div>
+            </div>
+            <div class="key-strip"><span><kbd>W</kbd> / <kbd>↑</kbd> forward</span><span><kbd>S</kbd> / <kbd>↓</kbd>
+                    reverse</span><span><kbd>A</kbd> <kbd>D</kbd> steer</span><span><kbd>Space</kbd> brake</span><span
+                    class="extra"><kbd>Shift</kbd> crawl</span><span><kbd>R</kbd> retry</span></div>
+            <div class="touch-controls" aria-label="Touch driving controls">
+                <div class="touch-group"><button data-input="left" aria-label="Steer left">◀</button><button
+                        data-input="right" aria-label="Steer right">▶</button></div>
+                <div class="touch-group"><button data-input="brake" class="pedal brake">BRAKE</button><button
+                        data-input="reverse" class="pedal">REVERSE</button><button data-input="forward"
+                        class="pedal">DRIVE</button></div>
+            </div>
+        </section>
+        <aside class="sidebar" aria-label="Truck instruments and coaching">
+            <div>
+                <div class="eyebrow">Truck telemetry</div>
+                <div class="drive-readout">
+                    <div class="gear" id="gear">N</div>
+                    <div class="speed"><span id="speed">0.0</span> <small>MPH</small></div>
+                </div>
+                <div class="status-line" id="driveStatus">Ready when you are</div>
+            </div>
+            <div class="divider"></div>
+            <div class="steer-section">
+                <div class="steer-label"><span class="eyebrow">Front wheels</span><output id="steerValue">0°</output>
+                </div>
+                <div class="steering-track">
+                    <div class="steering-dot" id="steerDot"></div>
+                </div>
+                <div class="steering-ends"><span>LEFT</span><span>RIGHT</span></div>
+            </div>
+            <div>
+                <div class="angle-header"><span class="eyebrow">Hitch angle</span><output class="angle-number"
+                        id="angle">0°</output></div>
+                <div class="angle-bar">
+                    <div class="angle-marker" id="angleMarker"></div>
+                </div>
+                <div class="angle-scale"><span>0° STRAIGHT</span><span>75° LIMIT</span></div>
+                <div class="angle-advice" id="angleAdvice">Rig is straight</div>
+            </div>
+            <div class="divider"></div>
+            <div class="stats">
+                <div>
+                    <div class="eyebrow">Time</div><strong id="time">0:00</strong>
+                </div>
+                <div>
+                    <div class="eyebrow">Contacts</div><strong id="hits">0</strong>
+                </div>
+            </div>
+            <div class="coach">
+                <div class="eyebrow">Your spotter</div>
+                <p id="coach">Hold S or ↓ to reverse toward the green bay. Keep the front wheels straight.</p>
+                <ul class="tutorial-list" id="tutorial">
+                    <li id="tMove">Move the truck</li>
+                    <li id="tReverse">Back up 3 m</li>
+                    <li id="tPark">Stop in the bay</li>
+                </ul>
+            </div>
+            <p class="objective" id="objective">Park the <b>whole trailer</b> inside the green lines, with the cab
+                facing the arrow. Finish in reverse, then hold still.</p>
+            <div class="sidebar-footer"><button id="restartBtn">Retry · R</button><button id="pauseBtn"
+                    aria-pressed="false">Pause · P</button></div>
+        </aside>
+    </main>
+    <dialog id="helpDialog" aria-labelledby="helpTitle">
+        <div class="dialog-body">
+            <div class="dialog-head">
+                <div>
+                    <div class="eyebrow">A little less steering. A little more patience.</div>
+                    <h2 id="helpTitle">Learn the rig</h2>
+                </div><button class="close" data-close aria-label="Close controls">×</button>
+            </div>
+            <div class="help-grid">
+                <div><strong><kbd>W</kbd> <kbd>↑</kbd> Drive forward</strong>
+                    <p>Accelerate ahead. If reversing, brake first, then move forward.</p>
+                </div>
+                <div><strong><kbd>S</kbd> <kbd>↓</kbd> Reverse</strong>
+                    <p>Back up slowly. If moving forward, brake first, then reverse.</p>
+                </div>
+                <div><strong><kbd>A</kbd> <kbd>D</kbd> / <kbd>←</kbd> <kbd>→</kbd> Steer</strong>
+                    <p>Turn the truck’s front wheels. Steering is relative to the cab.</p>
+                </div>
+                <div><strong><kbd>Space</kbd> Brake</strong>
+                    <p>Stop the whole rig. Hold still in the bay for 1.3 seconds to finish.</p>
+                </div>
+                <div><strong><kbd>Shift</kbd> Crawl</strong>
+                    <p>Hold with drive or reverse for precise movement at about 2 mph.</p>
+                </div>
+                <div><strong><kbd>C</kbd> Center wheels</strong>
+                    <p>Useful with steering auto-center turned off.</p>
+                </div>
+                <div><strong><kbd>R</kbd> Retry · <kbd>P</kbd> Pause</strong>
+                    <p>Retry the current level or take a break. Esc also pauses.</p>
+                </div>
+                <div><strong><kbd>G</kbd> Path guide</strong>
+                    <p>Toggle a short prediction of the trailer rear’s path at the current steering angle.</p>
+                </div>
+            </div>
+            <div class="help-notes">
+                <p><b>Start the turn:</b> while reversing, steer the front wheels opposite the direction you want the
+                    trailer’s rear to move, relative to the cab.</p>
+                <p><b>Catch it early:</b> once the trailer is turning, steer back to follow it. Straight front wheels do
+                    not straighten a bent trailer in reverse.</p>
+                <p><b>Reset your angle:</b> if the bend gets too big, stop and pull forward with straight wheels. There
+                    is no penalty for taking a pull-up.</p>
+                <p><b>Finish the job:</b> back the whole trailer into the green bay, match the arrow’s orientation, and
+                    stop. The truck stays outside the bay.</p>
+            </div>
+            <div class="settings"><label><input type="checkbox" id="guideCheck" checked>Show path
+                    guide</label><label><input type="checkbox" id="centerCheck" checked>Center steering on
+                    release</label><label><input type="checkbox" id="soundCheck">Engine sound</label></div>
+            <p class="physics-note">Low-speed articulated vehicle model: a 4.0 m tractor wheelbase, 8.2 m
+                kingpin-to-trailer-axle distance, and a rigid 12 m trailer. Fixed 120 Hz integration, finite steering
+                speed, acceleration, braking, and oriented-body collision checks. Reverse instability comes from the
+                wheel constraints. This models yard maneuvering; it does not simulate tire slip, suspension, or
+                high-speed highway sway. Model background: <a
+                    href="https://www.mathworks.com/help/nav/ug/reverse-capable-motion-planning-for-tractor-trailer-model-using-plannercontrolrrt.html"
+                    target="_blank" rel="noopener noreferrer">MathWorks tractor–trailer kinematics</a>.</p>
+            <div class="dialog-actions"><button class="primary" data-close>Back to the yard</button></div>
+        </div>
+    </dialog>
+    <dialog id="levelsDialog" aria-labelledby="levelsTitle">
+        <div class="dialog-body">
+            <div class="dialog-head">
+                <div>
+                    <div class="eyebrow">Six jobs. Increasing precision.</div>
+                    <h2 id="levelsTitle">Choose your yard</h2>
+                </div><button class="close" data-close aria-label="Close levels">×</button>
+            </div>
+            <div class="level-grid" id="levelGrid"></div>
+            <p class="physics-note">Start at level 1, or practice any yard. Best results are saved in this browser when
+                local storage is available.</p>
+        </div>
+    </dialog>
+    <dialog id="pauseDialog" aria-labelledby="pauseTitle">
+        <div class="dialog-body success">
+            <div class="eyebrow">On a break</div>
+            <h2 id="pauseTitle">Truck secured.</h2>
+            <p>The clock and truck are paused.</p>
+            <div class="dialog-actions"><button class="primary" data-close>Resume driving</button><button
+                    id="pauseRetry">Retry level</button></div>
+        </div>
+    </dialog>
+    <dialog id="successDialog" aria-labelledby="successTitle">
+        <div class="dialog-body success">
+            <div class="stamp" aria-hidden="true">✓</div>
+            <div class="eyebrow" id="resultRank">Clean delivery</div>
+            <h2 id="successTitle">Right where it belongs.</h2>
+            <p id="resultDescription">Trailer parked. Nice work.</p>
+            <div class="result-grid">
+                <div><strong id="resultTime">0:00</strong><span>TIME</span></div>
+                <div><strong id="resultHits">0</strong><span>CONTACTS</span></div>
+                <div><strong id="resultAngle">0°</strong><span>ALIGNMENT</span></div>
+            </div>
+            <div class="dialog-actions"><button id="replayBtn">Try again</button><button id="nextBtn"
+                    class="primary">Next yard →</button></div>
+        </div>
+    </dialog>
+    <div class="sr-only" id="announcer" aria-live="polite"></div>
+    <script>
+        'use strict';
+        /* YARD SHIFT — no packages, network requests, or external assets required.
+           World units: meters. Canvas Y points down, so positive steering is right.
+           State x,y is the tractor's rear axle; theta is tractor yaw; phi is trailer yaw.
+           The hitch sits H meters ahead of the tractor rear axle. A no-slip constraint
+           at the trailer axle gives phiDot=(v sin(theta-phi)+H*thetaDot*cos(theta-phi))/L.
+           No artificial noise or yaw assistance is applied to the trailer. */
+        const PI = Math.PI, RAD = PI / 180, TAU = 2 * PI;
+        const VEH = { wheelbase: 4, hitchOffset: .25, trailerAxle: 8.2, trailerFront: .8, trailerRear: -11.2, trailerWidth: 2.55, truckRear: -1.1, truckFront: 5.4, truckWidth: 2.55, maxSteer: 32 * RAD, maxBend: 75 * RAD };
+        const WORLD = { w: 110, h: 72 };
+        const DT = 1 / 120;
+        const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+        const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+        const approach = (a, b, step) => a < b ? Math.min(a + step, b) : Math.max(a - step, b);
+        const $ = id => document.getElementById(id);
+        const canvas = $('game'), ctx = canvas.getContext('2d');
+        const input = { forward: false, reverse: false, left: false, right: false, brake: false, crawl: false, center: false };
+        const keyboard = new Set(), touch = new Map();
+        let autoCenter = true, guide = true, soundOn = false, levelIndex = 0, state, elapsed = 0, hits = 0, reverseDistance = 0, movedDistance = 0, lastDirection = 0, holdTime = 0, started = false, won = false, paused = false, contactCooldown = 0, toastUntil = 0, clock = 0, accumulator = 0, lastFrame = 0, hudTick = 0, lastGuide = 0, path = [], trail = [], trailDistance = 0, storageOK = true;
+        let screen = { w: 800, h: 600, scale: 7, ox: 0, oy: 0, dpr: 1 };
+        let records = {};
+        try { const saved = JSON.parse(localStorage.getItem('yard-shift-v1') || '{}'); if (saved && typeof saved === 'object' && !Array.isArray(saved)) records = saved; } catch (e) { storageOK = false; }
+        const box = (x, y, l, w, a = 0, kind = 'container', color = '#496774') => ({ x, y, l, w, a, kind, color });
+        const cone = (x, y) => ({ x, y, r: .42, kind: 'cone' });
+        function relative(g, along, across, l, w, kind = 'parked', color = '#72828a') {
+            return box(g.x + Math.cos(g.a) * along - Math.sin(g.a) * across, g.y + Math.sin(g.a) * along + Math.cos(g.a) * across, l, w, g.a, kind, color);
+        }
+        const LEVELS = [
+            { name: 'First reverse', subtitle: 'An open yard. One straight bay. Get a feel for the rig.', yard: 'Training yard', difficulty: 'Training', start: { x: 72, y: 37, theta: 0, phi: 0 }, goal: { x: 43, y: 37, a: 0, l: 14, w: 5.6, tolerance: 9 }, tip: 'Hold S or ↓ to reverse toward the green bay. Keep the front wheels straight.', obstacles: [box(14, 11, 14, 4, 0, 'container', '#4e666d'), box(32, 11, 14, 4, 0, 'container', '#8d6544'), cone(33, 31.8), cone(43, 31.8), cone(33, 42.2), cone(43, 42.2)] },
+            { name: 'The offset', subtitle: 'Move the trailer sideways, then catch it before it swings too far.', yard: 'Practice apron', difficulty: 'Novice', start: { x: 79, y: 47, theta: 0, phi: 0 }, goal: { x: 38, y: 27, a: 0, l: 14, w: 4.8, tolerance: 8 }, tip: 'The bay is offset. While reversing, try RIGHT steering to send the trailer rear toward the top of the yard. Counter-steer early.', obstacles: [box(14, 11, 17, 4, 0, 'container', '#426977'), cone(30, 22.8), cone(38, 22.8), cone(46, 22.8), cone(30, 31.2), cone(38, 31.2)] },
+            { name: 'Forty-five degrees', subtitle: 'Set up wide. Follow the trailer into an angled loading bay.', yard: 'East freight depot', difficulty: 'Intermediate', start: { x: 80, y: 48, theta: 0, phi: 0 }, goal: { x: 37, y: 25, a: PI / 4, l: 14, w: 4.3, tolerance: 7 }, tip: 'Aim the trailer down the bay’s centerline before backing between the parked trailers. Pull forward whenever you need a better angle.', obstacles: [] },
+            { name: 'The ninety', subtitle: 'A right-angle dock. Your setup makes the difference.', yard: 'North loading dock', difficulty: 'Advanced', start: { x: 80, y: 46, theta: 0, phi: 0 }, goal: { x: 39, y: 22, a: PI / 2, l: 14, w: 4, tolerance: 6 }, tip: 'Make room for the cab to swing. Turn the trailer toward the dock, then steer the truck back in line as the trailer enters.', obstacles: [] },
+            { name: 'Thread the needle', subtitle: 'A narrow corridor leaves little room for late corrections.', yard: 'Container alley', difficulty: 'Expert', start: { x: 81, y: 49, theta: 0, phi: 0 }, goal: { x: 36, y: 27, a: 0, l: 13.4, w: 3.6, tolerance: 5 }, tip: 'Get the whole rig straight in front of the alley before entering. Hold Shift to crawl. Small, early corrections beat big, late ones.', obstacles: [box(34, 22.5, 30, 3, 0, 'container', '#426773'), box(34, 31.5, 30, 3, 0, 'container', '#8c5d43'), box(21, 27, 2, 6, 0, 'barrier', '#b8a975'), box(17, 54, 14, 4, 0, 'container', '#54686f'), cone(51, 22.5), cone(51, 31.5)] },
+            { name: 'Blind-side finish', subtitle: 'A mirrored dock, parked trailers, and an island to work around.', yard: 'South distribution hub', difficulty: 'Final shift', start: { x: 40, y: 24, theta: PI, phi: PI }, goal: { x: 75, y: 51, a: -PI / 2, l: 13.4, w: 3.8, tolerance: 5 }, tip: 'You are facing the opposite way now. Steering is still relative to the cab. Plan your approach around the island and straighten before the dock.', obstacles: [box(46, 44, 13, 5, 0, 'island', '#7a897a'), cone(55, 42), cone(55, 46)] }
+        ];
+        for (const i of [2, 3, 5]) {
+            const g = LEVELS[i].goal;
+            LEVELS[i].obstacles.push(relative(g, -12, 0, 6, i === 2 ? 27 : 30, 'warehouse', '#66747b'), relative(g, 0, -7.6, 12, 2.7), relative(g, 0, 7.6, 12, 2.7, 'parked', '#8a999e'));
+        }
+        function hitch(s) { return { x: s.x + VEH.hitchOffset * Math.cos(s.theta), y: s.y + VEH.hitchOffset * Math.sin(s.theta) }; }
+        function trailerCenter(s) { const h = hitch(s); return { x: h.x - 5.2 * Math.cos(s.phi), y: h.y - 5.2 * Math.sin(s.phi) }; }
+        function trailerRear(s) { const h = hitch(s); return { x: h.x + VEH.trailerRear * Math.cos(s.phi), y: h.y + VEH.trailerRear * Math.sin(s.phi) }; }
+        function rectangle(x, y, l, w, a) { const c = Math.cos(a), s = Math.sin(a); return [[-l / 2, -w / 2], [l / 2, -w / 2], [l / 2, w / 2], [-l / 2, w / 2]].map(([u, v]) => ({ x: x + u * c - v * s, y: y + u * s + v * c })); }
+        function bodies(s) { const t = trailerCenter(s), u = (VEH.truckRear + VEH.truckFront) / 2; return [rectangle(s.x + u * Math.cos(s.theta), s.y + u * Math.sin(s.theta), VEH.truckFront - VEH.truckRear, VEH.truckWidth, s.theta), rectangle(t.x, t.y, 12, VEH.trailerWidth, s.phi)]; }
+        function polygonsOverlap(a, b) {
+            for (const p of [a, b]) for (let i = 0; i < 2; i++) {
+                const j = (i + 1) % 4, nx = -(p[j].y - p[i].y), ny = p[j].x - p[i].x;
+                let amin = Infinity, amax = -Infinity, bmin = Infinity, bmax = -Infinity;
+                for (const v of a) { const d = v.x * nx + v.y * ny; amin = Math.min(amin, d); amax = Math.max(amax, d); }
+                for (const v of b) { const d = v.x * nx + v.y * ny; bmin = Math.min(bmin, d); bmax = Math.max(bmax, d); }
+                if (amax <= bmin || bmax <= amin) return false;
+            } return true;
+        }
+        function pointCircleBody(o, s, body) {
+            let x, y, l, w, a;
+            if (body === 0) { const mid = (VEH.truckRear + VEH.truckFront) / 2; x = s.x + mid * Math.cos(s.theta); y = s.y + mid * Math.sin(s.theta); l = VEH.truckFront - VEH.truckRear; w = VEH.truckWidth; a = s.theta; }
+            else { const t = trailerCenter(s); x = t.x; y = t.y; l = 12; w = VEH.trailerWidth; a = s.phi; }
+            const dx = o.x - x, dy = o.y - y, u = dx * Math.cos(a) + dy * Math.sin(a), v = -dx * Math.sin(a) + dy * Math.cos(a);
+            return Math.hypot(u - clamp(u, -l / 2, l / 2), v - clamp(v, -w / 2, w / 2)) < o.r;
+        }
+        for (const l of LEVELS) for (const o of l.obstacles) if (o.kind !== 'cone') o.poly = rectangle(o.x, o.y, o.l, o.w, o.a);
+        function collision(s, level = LEVELS[levelIndex]) {
+            const parts = bodies(s);
+            for (const poly of parts) for (const p of poly) if (p.x < 1.3 || p.x > WORLD.w - 1.3 || p.y < 1.3 || p.y > WORLD.h - 1.3) return 'Yard boundary';
+            for (const o of level.obstacles) for (let i = 0; i < parts.length; i++)if (o.kind === 'cone' ? pointCircleBody(o, s, i) : polygonsOverlap(parts[i], o.poly)) return o.kind === 'cone' ? 'Cone contact' : o.kind === 'parked' ? 'Parked trailer contact' : o.kind === 'warehouse' ? 'Dock wall contact' : 'Obstacle contact';
+            return null;
+        }
+        function derivative(s, v, steer) {
+            const yaw = v * Math.tan(steer) / VEH.wheelbase, b = s.theta - s.phi;
+            return { x: v * Math.cos(s.theta), y: v * Math.sin(s.theta), theta: yaw, phi: (v * Math.sin(b) + VEH.hitchOffset * yaw * Math.cos(b)) / VEH.trailerAxle };
+        }
+        function integrate(s, v, steer, dt) {
+            // Fourth-order Runge–Kutta integration; preserves a rigid hitch by construction.
+            const add = (k, h) => ({ x: s.x + k.x * h, y: s.y + k.y * h, theta: s.theta + k.theta * h, phi: s.phi + k.phi * h });
+            const k1 = derivative(s, v, steer), k2 = derivative(add(k1, dt / 2), v, steer), k3 = derivative(add(k2, dt / 2), v, steer), k4 = derivative(add(k3, dt), v, steer);
+            const out = { ...s }; for (const key of ['x', 'y', 'theta', 'phi']) out[key] = s[key] + dt * (k1[key] + 2 * k2[key] + 2 * k3[key] + k4[key]) / 6;
+            out.theta = wrap(out.theta); out.phi = wrap(out.phi); return out;
+        }
+        function goalMetrics(s, level = LEVELS[levelIndex]) {
+            const g = level.goal, t = trailerCenter(s), dx = t.x - g.x, dy = t.y - g.y, c = Math.cos(g.a), sn = Math.sin(g.a), angle = Math.abs(wrap(s.phi - g.a));
+            const local = { x: dx * c + dy * sn, y: -dx * sn + dy * c };
+            const inside = bodies(s)[1].every(p => { const x = p.x - g.x, y = p.y - g.y; return Math.abs(x * c + y * sn) <= g.l / 2 + .001 && Math.abs(-x * sn + y * c) <= g.w / 2 + .001; });
+            return { inside, angle, local, valid: inside && angle <= g.tolerance * RAD };
+        }
+        function clearInput() { keyboard.clear(); touch.clear(); for (const k in input) input[k] = false; document.querySelectorAll('[data-input]').forEach(b => b.classList.remove('pressed')); }
+        function syncInput() {
+            const pressed = (...ks) => ks.some(k => keyboard.has(k));
+            input.forward = pressed('KeyW', 'ArrowUp'); input.reverse = pressed('KeyS', 'ArrowDown'); input.left = pressed('KeyA', 'ArrowLeft'); input.right = pressed('KeyD', 'ArrowRight'); input.brake = pressed('Space'); input.crawl = pressed('ShiftLeft', 'ShiftRight'); input.center = pressed('KeyC');
+            for (const action of touch.values()) input[action] = true;
+        }
+        function formatTime(t) { const s = Math.floor(t); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+        function announce(t) { $('announcer').textContent = t; }
+        function toast(t, duration = 3) { $('toast').textContent = t; toastUntil = clock + duration; $('toast').classList.add('show'); }
+        function closeDialogs() { document.querySelectorAll('dialog').forEach(d => { if (d.open) d.close(); }); paused = false; $('pauseBtn').setAttribute('aria-pressed', 'false'); }
+        function loadLevel(i) {
+            if (!Number.isInteger(i) || i < 0 || i >= LEVELS.length) throw new RangeError('Unknown level');
+            closeDialogs(); clearInput(); levelIndex = i; state = { ...LEVELS[i].start, v: 0, steer: 0 }; elapsed = 0; hits = 0; reverseDistance = 0; movedDistance = 0; lastDirection = 0; holdTime = 0; started = false; won = false; contactCooldown = 0; trail = []; trailDistance = 0; path = []; lastGuide = -100; accumulator = 0;
+            const l = LEVELS[i]; $('levelNumber').textContent = String(i + 1).padStart(2, '0'); $('levelTitle').textContent = l.name; $('levelSubtitle').textContent = l.subtitle; $('yardName').textContent = l.yard.toUpperCase(); $('difficulty').textContent = l.difficulty; $('tutorial').hidden = i !== 0;
+            $('parkProgress').classList.remove('visible'); $('toast').classList.remove('show'); $('tPark').classList.remove('done'); toastUntil = 0; updateHUD(); updateLevelButtons(); announce('Level ' + (i + 1) + ': ' + l.name + '. ' + l.tip);
+        }
+        function openDialog(id) { if (won && id !== 'successDialog') return; clearInput(); paused = true; accumulator = 0; $(id).showModal(); $('pauseBtn').setAttribute('aria-pressed', 'true'); }
+        function togglePause() { if (won) return; if ($('pauseDialog').open) { $('pauseDialog').close(); } else if (!document.querySelector('dialog[open]')) openDialog('pauseDialog'); }
+        function completeLevel() {
+            if (won) return; won = true; state.v = 0; clearInput(); const angle = goalMetrics(state).angle / RAD;
+            const old = records[levelIndex]; if (!old || hits < old.hits || (hits === old.hits && elapsed < old.time)) records[levelIndex] = { time: Math.round(elapsed * 10) / 10, hits, angle: Math.round(angle * 10) / 10 };
+            try { localStorage.setItem('yard-shift-v1', JSON.stringify(records)); } catch (e) { storageOK = false; }
+            $('resultRank').textContent = hits === 0 ? 'Clean delivery' : hits <= 3 ? 'Job complete' : 'Persistence pays off'; $('successTitle').textContent = levelIndex === 5 ? 'Shift complete.' : 'Right where it belongs.';
+            $('resultDescription').textContent = levelIndex === 5 ? 'You parked the final yard. Revisit any level to improve your best result.' : LEVELS[levelIndex].name + ' complete. The next yard asks a little more of you.';
+            $('resultTime').textContent = formatTime(elapsed); $('resultHits').textContent = hits; $('resultAngle').textContent = angle.toFixed(1) + '°'; $('nextBtn').textContent = levelIndex === 5 ? 'Choose a yard' : 'Next yard →'; $('tPark').classList.add('done'); updateLevelButtons(); announce('Trailer parked. ' + hits + ' contacts. Time ' + formatTime(elapsed)); openDialog('successDialog');
+        }
+        function physicsStep(dt) {
+            if (paused || won) return;
+            if (input.forward || input.reverse || Math.abs(state.v) > .02) started = true;
+            if (started) elapsed += dt; contactCooldown = Math.max(0, contactCooldown - dt);
+            const steering = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+            let target = state.steer; if (input.center) target = 0; else if (steering) target = steering * VEH.maxSteer; else if (autoCenter) target = 0;
+            state.steer = approach(state.steer, target, (steering ? 48 : 65) * RAD * dt);
+            let v = state.v, command = (input.forward ? 1 : 0) - (input.reverse ? 1 : 0);
+            if (input.brake || (input.forward && input.reverse)) v = approach(v, 0, 5.5 * dt);
+            else if (command) {
+                const max = input.crawl ? 1.0 : command > 0 ? 6.0 : 2.5;
+                if (v * command < -.015) v = approach(v, 0, 4.0 * dt);
+                else v = approach(v, command * max, (Math.abs(v) > max ? 3.3 : command > 0 ? 1.45 : 1.05) * dt);
+            } else v = approach(v, 0, (.35 + .10 * Math.abs(v)) * dt);
+            if (Math.abs(v) < .006) v = 0;
+            let next = integrate(state, (state.v + v) / 2, state.steer, dt); next.v = v;
+            const bend = Math.abs(wrap(next.theta - next.phi)), previousBend = Math.abs(wrap(state.theta - state.phi));
+            const jackknife = bend > VEH.maxBend && bend > previousBend;
+            const hit = collision(next);
+            if (jackknife || hit) {
+                if (contactCooldown <= 0 && Math.abs(v) > .015) { hits++; contactCooldown = 1.2; toast(jackknife ? 'Jackknife limit. Pull forward with straight wheels to recover.' : hit + '. Stop, then move away slowly.', 3.2); }
+                state.v = 0;
+            } else {
+                state = next; const distance = Math.abs(v) * dt; movedDistance += distance; if (v < -.015) reverseDistance += distance; if (Math.abs(v) > .04) lastDirection = Math.sign(v); trailDistance += distance;
+                if (trailDistance > .32) { const p = trailerRear(state); trail.push(p); if (trail.length > 450) trail.shift(); trailDistance = 0; }
+            }
+            const g = goalMetrics(state), canPark = g.valid && reverseDistance >= 3 && lastDirection === -1 && Math.abs(state.v) < .08;
+            holdTime = canPark ? holdTime + dt : 0;
+            if (holdTime >= 1.3) completeLevel();
+        }
+        function coachText() {
+            const bend = Math.abs(wrap(state.theta - state.phi)) / RAD, g = goalMetrics(state);
+            if (bend > 58) return 'The trailer is folding toward the cab. Brake, then pull forward with straight wheels to open the angle.';
+            if (g.valid && lastDirection !== -1) return 'You are in the bay. Finish with a short reverse movement, then stop.';
+            if (g.valid && reverseDistance < 3) return 'Back up at least 3 m during this attempt, then return to the bay and stop.';
+            if (g.valid) return Math.abs(state.v) > .08 ? 'You are in position. Hold Space or BRAKE until the rig stops.' : 'Good position. Keep the rig still to finish.';
+            if (state.v < -1.9 && bend > 20) return 'Ease off the reverse pedal. A slower approach gives you more time to catch the trailer’s swing.';
+            if (levelIndex === 0) { if (movedDistance < 1) return LEVELS[0].tip; if (reverseDistance < 3) return 'Hold S or ↓ to back up. The green box is for the trailer only; the truck will remain outside.'; if (Math.hypot(g.local.x, g.local.y) < 10) return 'You are close. Ease off, then hold Space to brake when the whole trailer is inside the green lines.'; if (bend > 12) return 'The trailer is starting to swing. Pull forward with straight wheels to settle it, then try smaller steering taps.'; return 'Keep backing straight toward the bay. Release the pedal to coast, or hold Space for a quicker stop.'; }
+            return LEVELS[levelIndex].tip;
+        }
+        function updateHUD() {
+            const bend = Math.abs(wrap(state.theta - state.phi)) / RAD, steer = state.steer / RAD;
+            $('speed').textContent = (Math.abs(state.v) * 2.236936).toFixed(1); $('gear').textContent = state.v > .02 ? 'D' : state.v < -.02 ? 'R' : input.forward ? 'D' : input.reverse ? 'R' : 'N';
+            $('driveStatus').textContent = paused ? 'Paused' : input.brake ? 'Service brake applied' : input.crawl ? 'Crawl speed' : state.v < -.02 ? 'Reversing · watch the trailer' : state.v > .02 ? 'Driving forward' : 'Ready when you are';
+            $('steerValue').textContent = (Math.abs(steer) < .5 ? '0' : Math.abs(steer).toFixed(0) + (steer > 0 ? ' R' : ' L')) + '°'; $('steerDot').style.left = (50 + steer / 32 * 47) + '%';
+            $('angle').textContent = bend.toFixed(0) + '°'; const color = bend > 55 ? '#ff8271' : bend > 30 ? '#f3b64b' : '#76dbbe'; $('angle').style.color = color; $('angleAdvice').style.color = color; $('angleMarker').style.left = clamp(bend / 75 * 100, 0, 99) + '%';
+            $('angleAdvice').textContent = bend > 58 ? 'Pull forward to recover' : bend > 30 ? 'Counter-steer early' : bend > 6 ? 'Trailer is turning' : 'Rig is straight'; $('time').textContent = formatTime(elapsed); $('hits').textContent = hits; $('coach').textContent = coachText(); $('tMove').classList.toggle('done', movedDistance >= 1); $('tReverse').classList.toggle('done', reverseDistance >= 3);
+            const g = goalMetrics(state); $('parkProgress').classList.toggle('visible', g.valid && !won); $('parkLabel').textContent = reverseDistance < 3 ? 'Reverse at least 3 m first' : lastDirection !== -1 ? 'Finish with a reverse movement' : Math.abs(state.v) > .08 ? 'Brake to finish' : 'Hold still to finish'; $('parkFill').style.width = Math.min(100, holdTime / 1.3 * 100) + '%';
+            $('guideStatus').textContent = 'G · PATH GUIDE ' + (guide ? 'ON' : 'OFF');
+            if (clock > toastUntil) $('toast').classList.remove('show');
+        }
+        function updateLevelButtons() {
+            $('completedCount').textContent = LEVELS.filter((l, i) => records[i]).length + '/6'; $('levelGrid').replaceChildren();
+            LEVELS.forEach((l, i) => { const b = document.createElement('button'); b.className = 'level-card' + (i === levelIndex ? ' active' : ''); b.setAttribute('aria-label', 'Level ' + (i + 1) + ': ' + l.name); const n = document.createElement('span'); n.className = 'num'; n.textContent = String(i + 1).padStart(2, '0'); const d = document.createElement('span'), title = document.createElement('strong'), sub = document.createElement('small'); title.textContent = l.name; sub.textContent = l.difficulty; d.append(title, sub); const medal = document.createElement('span'); medal.className = 'medal'; const rec = records[i]; medal.textContent = rec ? '✓ ' + formatTime(Number(rec.time) || 0) + ' / ' + (Number(rec.hits) || 0) + ' hits' : '→'; b.append(n, d, medal); b.addEventListener('click', () => { loadLevel(i); canvas.focus({ preventScroll: true }); }); $('levelGrid').appendChild(b); });
+        }
+        function resize() {
+            const b = $('arena').getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2); screen.w = b.width; screen.h = b.height; screen.dpr = dpr; canvas.width = Math.round(b.width * dpr); canvas.height = Math.round(b.height * dpr); screen.scale = Math.min((b.width - 22) / WORLD.w, (b.height - 58) / WORLD.h); screen.ox = (b.width - WORLD.w * screen.scale) / 2; screen.oy = (b.height - WORLD.h * screen.scale) / 2 + 3;
+        }
+        function rounded(x, y, w, h, r, color, stroke) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); if (color) { ctx.fillStyle = color; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.stroke(); } }
+        function line(x1, y1, x2, y2, color, width = .1) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke(); }
+        function textAt(t, x, y, size, color, align = 'center') { ctx.font = '600 ' + size + 'px ui-monospace, monospace'; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y); }
+        function ground() {
+            ctx.fillStyle = '#252e31'; ctx.fillRect(0, 0, WORLD.w, WORLD.h);
+            ctx.strokeStyle = '#2b3538'; ctx.lineWidth = .035; ctx.beginPath(); for (let x = 5; x < 110; x += 5) { ctx.moveTo(x, 1.3); ctx.lineTo(x, 70.7); } for (let y = 5; y < 72; y += 5) { ctx.moveTo(1.3, y); ctx.lineTo(108.7, y); } ctx.stroke();
+            // Deterministic pavement flecks, lightweight and fully local.
+            ctx.fillStyle = '#354044'; for (let i = 0; i < 700; i++) { const x = ((i * 7919) % 10800) / 100 + 1, y = ((i * 3571) % 7000) / 100 + 1; ctx.fillRect(x, y, .075, .055); }
+            ctx.lineWidth = .22; ctx.strokeStyle = '#b3b49a'; ctx.strokeRect(1.3, 1.3, 107.4, 69.4); ctx.lineWidth = .18; ctx.strokeStyle = '#465155'; ctx.strokeRect(.25, .25, 109.5, 71.5);
+            ctx.setLineDash([2.4, 2.4]); line(6, 62, 104, 62, '#7a817565', .14); ctx.setLineDash([]);
+            for (const [x, y] of [[5, 5], [105, 5], [5, 67], [105, 67]]) { ctx.fillStyle = '#455154'; ctx.fillRect(x - .4, y - .4, .8, .8); for (let k = -2; k <= 2; k++)line(x - .3, y + k * .12, x + .3, y + k * .12, '#141e21', .06); }
+            textAt('YARD ' + String(levelIndex + 1).padStart(2, '0'), 11, 66.5, 1.3, '#7e8a86', 'left');
+        }
+        function drawObstacle(o) {
+            ctx.save(); ctx.translate(o.x, o.y); if (o.kind === 'cone') {
+                ctx.fillStyle = '#10181a80'; ctx.beginPath(); ctx.ellipse(.18, .18, .52, .47, 0, 0, TAU); ctx.fill(); rounded(-.4, -.4, .8, .8, .08, '#b76530'); ctx.beginPath(); ctx.arc(0, 0, .26, 0, TAU); ctx.fillStyle = '#ffc083'; ctx.fill(); ctx.beginPath(); ctx.arc(0, 0, .12, 0, TAU); ctx.fillStyle = '#f8ecce'; ctx.fill(); ctx.restore(); return;
+            }
+            ctx.rotate(o.a); rounded(-o.l / 2 + .4, -o.w / 2 + .45, o.l, o.w, .16, '#0c141775');
+            if (o.kind === 'parked') {
+                rounded(-o.l / 2, -o.w / 2, o.l, o.w, .15, o.color); ctx.lineWidth = .08; rounded(-o.l / 2 + .22, -o.w / 2 + .18, o.l - .44, o.w - .36, .08, '#a8b4b7', '#64757c'); for (let x = -o.l / 2 + .7; x < o.l / 2 - .5; x += .7)line(x, -o.w / 2 + .25, x, o.w / 2 - .25, '#74858b', .045); line(-o.l / 2 + .15, -o.w / 2, -o.l / 2 + .15, o.w / 2, '#3b494e', .2); for (const s of [-1, 1]) rounded(-o.l / 2 + 2, s * (o.w / 2 + .06) - .12, 1.1, .24, .06, '#0c1518');
+            } else if (o.kind === 'warehouse') {
+                rounded(-o.l / 2, -o.w / 2, o.l, o.w, .1, '#58666c'); rounded(-o.l / 2 + .4, -o.w / 2 + .35, o.l - .8, o.w - .7, .08, '#65767c'); for (let y = -o.w / 2 + 1; y < o.w / 2; y += 1.4)line(-o.l / 2 + .4, y, o.l / 2 - .4, y, '#4c6067', .09); ctx.fillStyle = '#192529'; ctx.fillRect(o.l / 2 - .22, -2, .25, 4); line(o.l / 2 + .3, -2, o.l / 2 + .3, 2, '#eac073', .26); ctx.save(); ctx.rotate(-PI / 2); textAt('LOADING', 0, 0, 1, '#d4dcd8'); ctx.restore();
+            } else if (o.kind === 'island') {
+                rounded(-o.l / 2, -o.w / 2, o.l, o.w, 1.1, '#8d9690'); rounded(-o.l / 2 + .35, -o.w / 2 + .35, o.l - .7, o.w - .7, .8, '#42564b'); for (let x = -o.l / 2 + 1; x < o.l / 2 - 1; x += 1.3)line(x, -1.1, x + .8, 1.1, '#556954', .15);
+            } else if (o.kind === 'barrier') {
+                rounded(-o.l / 2, -o.w / 2, o.l, o.w, .12, '#b6ad80'); ctx.save(); ctx.beginPath(); ctx.rect(-o.l / 2, -o.w / 2, o.l, o.w); ctx.clip(); for (let y = -o.w; y < o.w; y += 1.1)line(-o.l / 2, y, o.l / 2, y + 1.3, '#313c3b', .55); ctx.restore();
+            } else {
+                rounded(-o.l / 2, -o.w / 2, o.l, o.w, .15, o.color); for (let x = -o.l / 2 + .5; x < o.l / 2 - .2; x += .7)line(x, -o.w / 2 + .12, x, o.w / 2 - .12, '#17282e55', .13); ctx.lineWidth = .09; ctx.strokeStyle = '#d7ded34a'; ctx.strokeRect(-o.l / 2 + .2, -o.w / 2 + .2, o.l - .4, o.w - .4); ctx.save(); ctx.rotate(o.a > 1 ? -PI / 2 : 0); textAt('FREIGHT', 0, 0, .68, '#e1dfc99c'); ctx.restore();
+            } ctx.restore();
+        }
+        function drawGoal() {
+            const g = LEVELS[levelIndex].goal, m = goalMetrics(state), color = m.valid ? '#a5f7cc' : '#78daba'; ctx.save(); ctx.translate(g.x, g.y); ctx.rotate(g.a);
+            ctx.fillStyle = m.valid ? '#6ce6b726' : '#6ce6b70e'; ctx.fillRect(-g.l / 2, -g.w / 2, g.l, g.w); ctx.lineWidth = .16; ctx.strokeStyle = color; ctx.setLineDash([.6, .35]); ctx.strokeRect(-g.l / 2, -g.w / 2, g.l, g.w); ctx.setLineDash([]);
+            ctx.lineWidth = .26; ctx.beginPath(); ctx.moveTo(g.l / 2, -g.w / 2); ctx.lineTo(-g.l / 2, -g.w / 2); ctx.lineTo(-g.l / 2, g.w / 2); ctx.lineTo(g.l / 2, g.w / 2); ctx.stroke();
+            ctx.setLineDash([.8, .6]); line(-g.l / 2 + .4, 0, g.l / 2 + 9, 0, '#75d5b63b', .08); ctx.setLineDash([]);
+            line(g.l / 2 + 1, 0, g.l / 2 + 3.4, 0, color, .15); line(g.l / 2 + 3.4, 0, g.l / 2 + 2.6, -.6, color, .15); line(g.l / 2 + 3.4, 0, g.l / 2 + 2.6, .6, color, .15);
+            ctx.save(); if (Math.cos(g.a) < -.1) ctx.rotate(PI); textAt('PARK TRAILER', 0, 0, .82, color); ctx.restore();
+            ctx.save(); ctx.translate(g.l / 2 + 4.8, 0); ctx.rotate(-g.a); textAt('CAB', 0, 0, .8, '#a1c9bb'); ctx.restore(); ctx.restore();
+        }
+        function prediction() {
+            path = []; if (!guide || won) return;
+            let s = { ...state }, v = state.v > .12 ? 1.5 : -1.5; path.push({ ...trailerRear(s), danger: false });
+            for (let i = 0; i < 42; i++) { s = integrate(s, v, state.steer, .12); const bad = Math.abs(wrap(s.theta - s.phi)) > VEH.maxBend || collision(s); path.push({ ...trailerRear(s), danger: !!bad }); if (bad) break; }
+        }
+        function drawPath() {
+            if (trail.length > 1) { ctx.strokeStyle = '#080f1240'; ctx.lineWidth = .15; ctx.beginPath(); trail.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke(); }
+            if (!guide || path.length < 2 || won) return;
+            ctx.strokeStyle = path[path.length - 1].danger ? '#f3b64b9c' : '#d1dfd599'; ctx.lineWidth = .11; ctx.setLineDash([.45, .4]); ctx.beginPath(); path.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke(); ctx.setLineDash([]);
+            const p = path[path.length - 1]; ctx.beginPath(); ctx.arc(p.x, p.y, .22, 0, TAU); ctx.fillStyle = p.danger ? '#f3b64b' : '#d9e7df'; ctx.fill();
+        }
+        function wheel(x, y, a = 0, w = .43, l = .95) { ctx.save(); ctx.translate(x, y); ctx.rotate(a); rounded(-l / 2, -w / 2, l, w, .09, '#0c1215'); line(-l * .3, 0, l * .3, 0, '#3e4b50', .11); ctx.restore(); }
+        function drawRig() {
+            const h = hitch(state), bend = Math.abs(wrap(state.theta - state.phi));
+            // Tractor chassis lies below the trailer at the kingpin.
+            ctx.save(); ctx.translate(state.x, state.y); ctx.rotate(state.theta); rounded(-1.2, -1.05, 6.8, 2.1, .25, '#0b141780'); rounded(-1.05, -.8, 6.25, 1.6, .12, '#101a20'); line(-.8, -.62, 4.8, -.62, '#5c707a', .16); line(-.8, .62, 4.8, .62, '#5c707a', .16);
+            for (const y of [-1.15, 1.15]) { wheel(-.45, y, 0, .42); wheel(.8, y, 0, .42); wheel(4, y, state.steer, .42, 1.0); } rounded(1.6, -1, 1, .38, .1, '#859796'); rounded(1.6, .62, 1, .38, .1, '#859796');
+            ctx.beginPath(); ctx.arc(.25, 0, .55, 0, TAU); ctx.fillStyle = '#7b8b8e'; ctx.fill(); ctx.restore();
+            // Trailer roof, axle sets and rear lights.
+            ctx.save(); ctx.translate(h.x, h.y); ctx.rotate(state.phi); rounded(-11.2 + .35, -1.275 + .4, 12, 2.55, .15, '#070e1260');
+            for (const y of [-1.31, 1.31]) for (const x of [-8.75, -7.65]) wheel(x, y, 0, .33, .94);
+            rounded(-11.2, -1.275, 12, 2.55, .12, '#d6dfdc'); ctx.lineWidth = .07; rounded(-10.97, -1.08, 11.52, 2.16, .06, '#e5e9df', '#929f9d');
+            for (let x = -10.65; x < .3; x += .6)line(x, -1.03, x, 1.03, '#b6c1bd', .045);
+            line(-11.14, -1.2, -11.14, 1.2, '#74857e', .18); line(-11.25, 0, -10.96, 0, '#4a6358', .05);
+            ctx.save(); ctx.translate(-5.2, 0); ctx.rotate(Math.cos(state.phi) < 0 ? PI : 0); textAt('YARD / 01', 0, 0, .58, '#59706a'); ctx.restore();
+            for (const y of [-1.1, 1.1]) { ctx.fillStyle = input.brake ? '#ff544c' : '#aa524b'; ctx.fillRect(-11.27, y - .12, .12, .24); if (state.v < -.02 || input.reverse) { ctx.fillStyle = '#fff6d1'; ctx.fillRect(-11.29, y + (y > 0 ? -.38 : .2), .12, .18); } }
+            for (const x of [-10, -7, -4, -1]) for (const y of [-1.27, 1.22]) { ctx.fillStyle = '#dda649'; ctx.fillRect(x, y, .18, .06); } ctx.restore();
+            // Cab is above the frame; the front wheels visibly steer.
+            ctx.save(); ctx.translate(state.x, state.y); ctx.rotate(state.theta); rounded(2.25 + .2, -1.13 + .24, 3.2, 2.26, .24, '#0a121873'); rounded(2.25, -1.13, 3.15, 2.26, .24, '#eaa445');
+            rounded(2.48, -.94, 1.3, 1.88, .18, '#f6be63'); line(2.9, -.86, 2.9, .86, '#c18b43', .055); rounded(3.88, -.96, .64, 1.92, .1, '#213c46'); line(4.01, -.83, 4.01, .83, '#527888', .11); rounded(4.66, -.86, .5, 1.72, .13, '#f6c977'); line(5.31, -.92, 5.31, .92, '#dae3d3', .14);
+            for (const y of [-1.38, 1.38]) { line(4.22, y * .73, 4.2, y, '#7e989d', .08); rounded(3.98, y - .11, .36, .22, .04, '#bbcdcb'); }
+            for (const y of [-.9, .7]) { ctx.fillStyle = '#fff2c2'; ctx.fillRect(5.34, y, .1, .23); } textAt('01', 3.06, 0, .55, '#805520'); ctx.restore();
+            // A small, useful marker shows the actual pivot, colored by articulation.
+            ctx.beginPath(); ctx.arc(h.x, h.y, .23, 0, TAU); ctx.fillStyle = bend > 55 * RAD ? '#ff8271' : bend > 30 * RAD ? '#f3b64b' : '#76dbbe'; ctx.fill(); ctx.lineWidth = .08; ctx.strokeStyle = '#20372f'; ctx.stroke();
+        }
+        function render() {
+            ctx.setTransform(screen.dpr, 0, 0, screen.dpr, 0, 0); ctx.clearRect(0, 0, screen.w, screen.h); ctx.fillStyle = '#20282b'; ctx.fillRect(0, 0, screen.w, screen.h); ctx.save(); ctx.translate(screen.ox, screen.oy); ctx.scale(screen.scale, screen.scale); ground(); drawGoal(); drawPath(); LEVELS[levelIndex].obstacles.forEach(drawObstacle); drawRig(); ctx.restore();
+        }
+        let audioCtx = null, osc = null, audioGain = null;
+        function enableAudio() {
+            if (!soundOn) return; try { if (!audioCtx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) { soundOn = false; $('soundCheck').checked = false; return; } audioCtx = new C(); osc = audioCtx.createOscillator(); audioGain = audioCtx.createGain(); const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 210; osc.type = 'sawtooth'; osc.frequency.value = 35; audioGain.gain.value = 0; osc.connect(filter); filter.connect(audioGain); audioGain.connect(audioCtx.destination); osc.start(); } if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => { }); } catch (e) { soundOn = false; $('soundCheck').checked = false; }
+        }
+        function updateAudio() { if (!audioCtx || !audioGain) return; const audible = soundOn && !paused && !won && started; audioGain.gain.setTargetAtTime(audible ? .018 : 0, audioCtx.currentTime, .12); osc.frequency.setTargetAtTime(34 + Math.abs(state.v) * 9 + (input.forward || input.reverse ? 5 : 0), audioCtx.currentTime, .1); }
+        function frame(now) {
+            if (!lastFrame) lastFrame = now; const delta = Math.min(.1, (now - lastFrame) / 1000); lastFrame = now; clock += delta;
+            if (!paused && !won) { accumulator += delta; while (accumulator >= DT) { physicsStep(DT); accumulator -= DT; if (paused || won) { accumulator = 0; break; } } } else accumulator = 0;
+            if (clock - lastGuide > .09) { prediction(); lastGuide = clock; } hudTick += delta; if (hudTick > .08) { updateHUD(); updateAudio(); hudTick = 0; } render(); requestAnimationFrame(frame);
+        }
+        const drivingKeys = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight', 'KeyC']);
+        window.addEventListener('keydown', e => {
+            const tag = e.target.tagName; if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+            if (document.querySelector('dialog[open]')) { if (e.code === 'Escape' && $('pauseDialog').open) { e.preventDefault(); $('pauseDialog').close(); } return; }
+            if (drivingKeys.has(e.code)) { e.preventDefault(); if (won) return; keyboard.add(e.code); syncInput(); enableAudio(); return; }
+            if (e.repeat) return;
+            if (e.code === 'KeyR') { e.preventDefault(); loadLevel(levelIndex); } else if (e.code === 'KeyG') { e.preventDefault(); setGuide(!guide); } else if (e.code === 'KeyP' || e.code === 'Escape') { e.preventDefault(); togglePause(); }
+        });
+        window.addEventListener('keyup', e => { keyboard.delete(e.code); syncInput(); });
+        window.addEventListener('blur', () => { clearInput(); if (started && !paused && !won) openDialog('pauseDialog'); });
+        document.addEventListener('visibilitychange', () => { if (document.hidden) { clearInput(); if (started && !paused && !won) openDialog('pauseDialog'); } });
+        document.querySelectorAll('[data-input]').forEach(b => {
+            b.addEventListener('pointerdown', e => { e.preventDefault(); if (paused || won) return; b.setPointerCapture(e.pointerId); touch.set(e.pointerId, b.dataset.input); b.classList.add('pressed'); syncInput(); enableAudio(); });
+            const release = e => { touch.delete(e.pointerId); if (![...touch.values()].includes(b.dataset.input)) b.classList.remove('pressed'); syncInput(); }; b.addEventListener('pointerup', release); b.addEventListener('pointercancel', release); b.addEventListener('lostpointercapture', release); b.addEventListener('contextmenu', e => e.preventDefault());
+        });
+        document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
+        document.querySelectorAll('dialog').forEach(d => {
+            d.addEventListener('cancel', e => { if (d.id === 'successDialog') e.preventDefault(); });
+            d.addEventListener('close', () => { if (!document.querySelector('dialog[open]')) { paused = false; accumulator = 0; clearInput(); $('pauseBtn').setAttribute('aria-pressed', 'false'); canvas.focus({ preventScroll: true }); } });
+        });
+        $('levelsBtn').addEventListener('click', () => openDialog('levelsDialog')); $('helpBtn').addEventListener('click', () => openDialog('helpDialog'));
+        $('restartBtn').addEventListener('click', () => loadLevel(levelIndex)); $('pauseBtn').addEventListener('click', togglePause); $('pauseRetry').addEventListener('click', () => loadLevel(levelIndex)); $('replayBtn').addEventListener('click', () => loadLevel(levelIndex));
+        $('nextBtn').addEventListener('click', () => { if (levelIndex < 5) loadLevel(levelIndex + 1); else { loadLevel(0); openDialog('levelsDialog'); } });
+        function setGuide(value) { guide = !!value; $('guideCheck').checked = guide; lastGuide = -100; updateHUD(); }
+        $('guideCheck').addEventListener('change', e => setGuide(e.target.checked)); $('centerCheck').addEventListener('change', e => { autoCenter = e.target.checked; }); $('soundCheck').addEventListener('change', e => { soundOn = e.target.checked; enableAudio(); updateAudio(); });
+        window.addEventListener('resize', resize); if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe($('arena'));
+        loadLevel(0); resize(); requestAnimationFrame(frame);
+        // Optional native agent interface; ordinary offline browsers simply skip it.
+        if (document.modelContext?.registerTool) {
+            const lifecycle = new AbortController(); window.addEventListener('pagehide', () => lifecycle.abort(), { once: true });
+            const defs = [{ name: 'read_parking_game', description: 'Read the current truck parking level and vehicle telemetry.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true }, execute: () => ({ level: levelIndex + 1, name: LEVELS[levelIndex].name, paused, completed: won, speedMph: Math.abs(state.v) * 2.236936, hitchAngleDegrees: Math.abs(wrap(state.theta - state.phi)) / RAD, contacts: hits, seconds: elapsed }) }, { name: 'start_parking_level', description: 'Start or restart a parking level from 1 to 6. Resets the current attempt.', inputSchema: { type: 'object', properties: { level: { type: 'integer', minimum: 1, maximum: 6 } }, required: ['level'], additionalProperties: false }, annotations: { readOnlyHint: false }, execute: (v) => { if (!v || !Number.isInteger(v.level) || v.level < 1 || v.level > 6) throw new Error('Level must be an integer from 1 through 6.'); loadLevel(v.level - 1); return { level: levelIndex + 1, name: LEVELS[levelIndex].name, status: 'ready' }; } }];
+            for (const def of defs) try { Promise.resolve(document.modelContext.registerTool(def, { signal: lifecycle.signal })).catch(() => { }); } catch (e) { }
+        }
+    </script>
+</body>
+
+</html>
