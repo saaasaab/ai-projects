@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Coin flip bankroll</title>
+<style>
+  body {
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    background: #111;
+    color: #eee;
+    padding: 24px;
+  }
+  form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+  }
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 14px;
+  }
+  input {
+    background: #1c1c1c;
+    color: #eee;
+    border: 1px solid #444;
+    padding: 8px;
+    width: 140px;
+  }
+  button {
+    background: #eee;
+    color: #111;
+    border: 0;
+    padding: 9px 14px;
+    cursor: pointer;
+  }
+  #summary {
+    padding: 16px 0;
+    line-height: 1.5;
+  }
+  canvas {
+    width: 100%;
+    max-width: 880px;
+    height: 280px;
+    background: #1a1a1a;
+    display: block;
+  }
+  table {
+    border-collapse: collapse;
+    margin-top: 16px;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    text-align: right;
+    padding: 4px 12px;
+    border-bottom: 1px solid #333;
+  }
+  th:first-child, td:first-child,
+  th:nth-child(2), td:nth-child(2) {
+    text-align: left;
+  }
+</style>
+</head>
+<body>
+<form id="controls">
+  <label>Starting dollars
+    <input id="start" type="number" min="0" step="0.01" value="100" />
+  </label>
+  <label>Flips
+    <input id="flips" type="number" min="1" step="1" value="20" />
+  </label>
+  <button type="submit">Run</button>
+</form>
+<div id="summary"></div>
+<canvas id="chart" width="880" height="280"></canvas>
+<table>
+  <thead>
+    <tr><th>#</th><th>Flip</th><th>Balance</th></tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+<script>
+const HEADS_MULTIPLIER = 1.5;
+const TAILS_MULTIPLIER = 0.6;
+
+function money(value) {
+  return value.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+}
+
+function simulate(start, flips) {
+  const steps = [{ flip: 0, side: 'start', balance: start }];
+  let balance = start;
+  let heads = 0;
+  for (let i = 1; i <= flips; i += 1) {
+    const headsResult = Math.random() < 0.5;
+    if (headsResult) {
+      heads += 1;
+      balance *= HEADS_MULTIPLIER;
+    } else {
+      balance *= TAILS_MULTIPLIER;
+    }
+    steps.push({
+      flip: i,
+      side: headsResult ? 'heads' : 'tails',
+      balance,
+    });
+  }
+  return { steps, heads, tails: flips - heads };
+}
+
+function drawChart(steps) {
+  const canvas = document.getElementById('chart');
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  const balances = steps.map((step) => step.balance);
+  const min = Math.min(...balances);
+  const max = Math.max(...balances);
+  const span = max - min || 1;
+  const pad = 16;
+  ctx.strokeStyle = '#8fd18f';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  steps.forEach((step, index) => {
+    const x = pad + (index / Math.max(steps.length - 1, 1)) * (width - pad * 2);
+    const y = height - pad - ((step.balance - min) / span) * (height - pad * 2);
+    if (index === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  ctx.stroke();
+}
+
+function render(result, start) {
+  const last = result.steps[result.steps.length - 1].balance;
+  document.getElementById('summary').textContent =
+    `Started with ${money(start)}. ` +
+    `${result.heads} heads, ${result.tails} tails. ` +
+    `Ended with ${money(last)}.`;
+  const body = document.getElementById('rows');
+  body.replaceChildren();
+  result.steps.forEach((step) => {
+    const row = document.createElement('tr');
+    const flipCell = document.createElement('td');
+    const sideCell = document.createElement('td');
+    const balanceCell = document.createElement('td');
+    flipCell.textContent = String(step.flip);
+    sideCell.textContent = step.side;
+    balanceCell.textContent = money(step.balance);
+    row.append(flipCell, sideCell, balanceCell);
+    body.append(row);
+  });
+  drawChart(result.steps);
+}
+
+document.getElementById('controls').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const start = Number(document.getElementById('start').value);
+  const flips = Math.floor(Number(document.getElementById('flips').value));
+  if (!Number.isFinite(start) || start < 0 || !Number.isFinite(flips) || flips < 1) {
+    document.getElementById('summary').textContent = 'Enter a starting amount of 0 or more, and at least 1 flip.';
+    return;
+  }
+  render(simulate(start, flips), start);
+});
+</script>
+</body>
+</html>
